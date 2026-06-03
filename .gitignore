@@ -1,0 +1,11 @@
+.vscode
+
+__debug_bin*
+go-crap
+
+.claude
+*.md
+!README.md
+!CLAUDE.md
+!AGENTS.md
+!CHANGELOG.md

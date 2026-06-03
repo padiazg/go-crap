@@ -1,0 +1,90 @@
+site_name: go-crap
+site_description: CRAP score calculator for Go projects
+site_url: https://padiazg.github.io/go-crap
+repo_url: https://github.com/padiazg/go-crap
+repo_name: padiazg/go-crap
+edit_uri: edit/main/doc/docs/
+
+theme:
+  name: material
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: teal
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: teal
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - content.code.annotate
+    - toc.follow
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.arithmatex: # https://mrkeo.github.io/reference/mathjax/
+      generic: true 
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - getting-started/installation.md
+    - Quick Start: getting-started/quickstart.md
+  - Concepts:
+    - Overview: concepts/index.md
+    - CRAP Score: concepts/crap-score.md
+    - Missing Coverage Policy: concepts/missing-policy.md
+  - Commands:
+    - commands/scan.md
+  - Changelog: changelog.md
+  - Resources:
+    - resources/index.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/padiazg/go-crap
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js

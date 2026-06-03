@@ -1,0 +1,112 @@
+# GoReleaser configuration for go-crap
+# https://goreleaser.com
+
+version: 2
+
+before:
+  hooks:
+    # Ensure dependencies are up to date
+    - go mod tidy
+    - go mod download
+
+builds:
+  - main: ./main.go
+    binary: go-crap
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/padiazg/go-crap/pkg/version.version={{.Version}}
+      - -X github.com/padiazg/go-crap/pkg/version.commit={{.Commit}}
+      - -X github.com/padiazg/go-crap/pkg/version.buildDate={{.Date}}
+
+archives:
+  - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE*
+      - CHANGELOG.md
+
+checksum:
+  name_template: 'checksums.txt'
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - '^ci:'
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: 'Bug fixes'
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: 'Enhancements'
+      regexp: '^.*?enhance(\([[:word:]]+\))??!?:.+$'
+      order: 2
+    - title: Others
+      order: 999
+
+release:
+  github:
+    owner: padiazg
+    name: go-crap
+  draft: false
+  prerelease: auto
+  mode: replace
+  header: |
+    ## go-crap {{ .Tag }} Release
+
+    go-crap a CLI tool that calculates the CRAP score for Go projects.
+
+    ### Installation
+
+    Download the appropriate binary for your platform below, or:
+
+    use Go
+    ```shell
+    go install github.com/padiazg/go-crap@{{ .Tag }}
+    ```
+    
+    use Homebrew
+    ```shell
+    brew tap padiazg/go-crap 
+    brew install go-crap
+    ```
+
+  footer: |
+    **Full Changelog**: https://github.com/padiazg/go-crap/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+    ---
+
+# Homebrew configuration (GoReleaser v2 format)
+# To publish to Homebrew, create a tap repository at github.com/padiazg/homebrew-tap
+homebrew_casks:
+  - name: go-crap
+    binaries:
+      - go-crap
+
+    repository:
+      owner: padiazg
+      name: homebrew-go-crap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+      
+    homepage: https://github.com/padiazg/go-crap
+    description: go-crap a CLI tool that calculates the CRAP score for Go projects
+    license: MIT
+    skip_upload: auto
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    commit_msg_template: "Cask update for {{ .ProjectName }} version {{ .Tag }}"
