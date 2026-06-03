@@ -1,5 +1,9 @@
 # Resources
 
+## License
+
+See [License](../license.md) for full licensing terms and third-party attributions.
+
 ## The CRAP Score
 
 - [cargo-crap](https://github.com/Boehs/cargo-crap) - Rust implementation that inspired go-crap

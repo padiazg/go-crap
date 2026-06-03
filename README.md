@@ -118,6 +118,10 @@ go-crap scan
 - `--fail-above` exits with code 1 when any function exceeds the threshold
 - `--format github` emits `::warning` annotations that render as PR comments
 
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
 ## Full Documentation
 
 For a complete guide covering all flags, examples, and the CRAP formula in detail, see [the documentation site](https://padiazg.github.io/go-crap).
