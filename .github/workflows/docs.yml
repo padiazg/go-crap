@@ -37,7 +37,7 @@ jobs:
 
       - name: Build docs
         working-directory: 'doc'
-        run: pwd && ls -l && mkdocs build
+        run: pwd && ls -l && mkdocs build && ls -l
         env:
           ANALYTICS_ID:  ${{ secrets.ANALYTICS_ID }}
 
