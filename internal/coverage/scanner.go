@@ -122,10 +122,10 @@ func readModulePath(dir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	for _, line := range strings.Split(string(gomod), "\n") {
+	for line := range strings.SplitSeq(string(gomod), "\n") {
 		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "module ") {
-			return strings.TrimSpace(strings.TrimPrefix(line, "module ")), nil
+		if after, ok := strings.CutPrefix(line, "module "); ok {
+			return strings.TrimSpace(after), nil
 		}
 	}
 	return "", fmt.Errorf("no module declaration in go.mod")
@@ -175,5 +175,3 @@ func runCoverTool(ctx context.Context, profile string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "go", "tool", "cover", "-func="+profile)
 	return cmd.Output()
 }
-
-
