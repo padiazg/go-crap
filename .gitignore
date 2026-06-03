@@ -3,11 +3,11 @@
 __debug_bin*
 go-crap
 
-doc/site
-
 .claude
 *.md
 !README.md
 !CLAUDE.md
 !AGENTS.md
 !CHANGELOG.md
+!doc/**/*.md
+doc/site
