@@ -75,14 +75,17 @@ nav:
     - Missing Coverage Policy: concepts/missing-policy.md
   - Commands:
     - commands/scan.md
-  - Changelog: changelog.md
   - Resources:
     - resources/index.md
+  - Changelog: changelog.md
 
 extra:
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/padiazg/go-crap
+  analytics:
+    provider: google
+    property: !ENV ANALYTICS_ID
 
 extra_javascript:
   - javascripts/mathjax.js

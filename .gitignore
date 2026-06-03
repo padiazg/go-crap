@@ -3,6 +3,8 @@
 __debug_bin*
 go-crap
 
+doc/site
+
 .claude
 *.md
 !README.md
