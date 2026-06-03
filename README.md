@@ -20,7 +20,7 @@ cd go-crap
 go build -o go-crap .
 ```
 
-Or using Brew:
+Or use Brew:
 
 ```shell
 brew tap padiazg/go-crap 
