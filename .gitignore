@@ -1,13 +1,50 @@
-.vscode
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.obj
+*.so
+*.dylib
+*.test
+*.out
 
-__debug_bin*
+# Build target
 go-crap
 
+# Build info
+*.tar.gz
+
+# Test cache
+coverage.out
+coverage.html
+*.test
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# GoReleaser dist
+dist/
+
+# MkDocs site
+doc/site/
+!doc/**/*.md
+
+# Local GoReleaser cache
+.goreleaser/local/
+
+# Especific 
 .claude
 *.md
 !README.md
 !CLAUDE.md
 !AGENTS.md
 !CHANGELOG.md
-!doc/**/*.md
-doc/site
+!.github/**/*.md

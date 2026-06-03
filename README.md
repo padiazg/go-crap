@@ -75,7 +75,7 @@ go-crap scan --fail-above --threshold 30
 
 CRAP = **C**yclomatic **R**eadability **A**nd **P**redictability. It measures how expensive a function is to test.
 
-$CRAP(CC, coverage) = CC^2 × (1 - coverage/100)^3 + CC$
+$CRAP(CC, coverage) = CC^2 × \left(1 - \frac{coverage}{100}\right)^3 + CC$
 
 A function with high cyclomatic complexity and low coverage scores the worst. A simple, fully tested function scores the best.
 

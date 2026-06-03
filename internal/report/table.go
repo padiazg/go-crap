@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/padiazg/go-crap/internal/score"
@@ -75,12 +76,12 @@ func statusSymbol(crap, threshold, halfThreshold float64) string {
 func coverageBar(pct float64) string {
 	filled := int(pct / 10)
 	empty := 10 - filled
-	bar := ""
-	for i := 0; i < filled; i++ {
-		bar += "█"
+	var bar strings.Builder
+	for range filled {
+		bar.WriteString("█")
 	}
-	for i := 0; i < empty; i++ {
-		bar += "░"
+	for range empty {
+		bar.WriteString("░")
 	}
-	return bar
+	return bar.String()
 }

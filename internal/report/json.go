@@ -4,23 +4,24 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+
 	"github.com/padiazg/go-crap/internal/score"
 )
 
 type Report struct {
-	Schema  string       `json:"$schema"`
-	Version string       `json:"version"`
-	Entries []JSONEntry  `json:"entries"`
+	Schema  string      `json:"$schema"`
+	Version string      `json:"version"`
+	Entries []JSONEntry `json:"entries"`
 }
 
 type JSONEntry struct {
-	File       string   `json:"file"`
-	Package    string   `json:"package"`
-	Function   string   `json:"function"`
-	Line       int      `json:"line"`
-	Cyclomatic int      `json:"cyclomatic"`
 	Coverage   *float64 `json:"coverage"`
+	File       string   `json:"file"`
+	Function   string   `json:"function"`
+	Package    string   `json:"package"`
 	CRAP       float64  `json:"crap"`
+	Cyclomatic int      `json:"cyclomatic"`
+	Line       int      `json:"line"`
 }
 
 type JSONFormatter struct{}
