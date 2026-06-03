@@ -32,7 +32,7 @@ Example output:
 
 Columns:
 
-- **Status** - `checkmark` below 50% threshold, `A` between 50-100%, `x` above threshold
+- **Status** - `✗` below threshold, `▲` between half-threshold and threshold, `✓` above threshold
 - **CRAP** - the computed CRAP score
 - **CC** - cyclomatic complexity
 - **Coverage** - test coverage as a percentage with a visual bar

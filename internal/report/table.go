@@ -62,13 +62,14 @@ func (f *TableFormatter) Format(entries []score.CRAPEntry, opts FormatOptions) e
 }
 
 func statusSymbol(crap, threshold, halfThreshold float64) string {
-	if crap > threshold {
+	switch {
+	case crap > threshold:
 		return "✗"
-	}
-	if crap > halfThreshold {
+	case crap > halfThreshold:
 		return "▲"
+	default:
+		return "✓"
 	}
-	return "✓"
 }
 
 func coverageBar(pct float64) string {
