@@ -8,6 +8,9 @@
 *.test
 *.out
 
+# testdata sample files
+!internal/testdata/cover.out
+
 # Build target
 go-crap
 
