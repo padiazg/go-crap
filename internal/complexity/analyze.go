@@ -8,86 +8,172 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/padiazg/go-crap/pkg/dummylogger"
+	"github.com/padiazg/go-crap/pkg/logger"
 )
 
 type Stat struct {
 	Pos        token.Position
 	FuncName   string
+	Receiver   string
 	PkgName    string
 	Complexity int
 }
 
-type Stats []Stat
-
-func Analyze(paths []string, ignore *regexp.Regexp) []Stat {
-	var stats Stats
-	for _, path := range paths {
-		absPath, err := filepath.Abs(path)
-		if err != nil {
-			continue
-		}
-		stats = analyzeDir(absPath, stats, ignore)
-	}
-	return stats
+type analyzeData struct {
+	exclude *regexp.Regexp
+	logger  logger.Logger
+	paths   []string
+	stats   []Stat
 }
 
-func analyzeDir(dir string, stats Stats, ignore *regexp.Regexp) Stats {
+func newAnalyze(paths []string, exclude *regexp.Regexp, l logger.Logger) *analyzeData {
+	if l == nil {
+		l = dummylogger.New(nil)
+	}
+
+	return &analyzeData{
+		exclude: exclude,
+		paths:   paths,
+		stats:   make([]Stat, 0),
+		logger:  l,
+	}
+}
+
+func (a *analyzeData) Analyze() {
+	for _, path := range a.paths {
+		absPath, err := filepath.Abs(path)
+		if err != nil {
+			a.logger.Debug("complexity analyze: could not resolve absolute path", "path", path, "error", err.Error())
+			continue
+		}
+
+		a.analyzeDir(absPath)
+	}
+}
+
+func Analyze(paths []string, exclude *regexp.Regexp, l logger.Logger) []Stat {
+	a := newAnalyze(paths, exclude, l)
+	a.Analyze()
+	return a.stats
+}
+
+func (a *analyzeData) analyzeDir(dir string) {
 	entries, err := filepath.Glob(filepath.Join(dir, "*.go"))
 	if err != nil {
-		return stats
+		a.logger.Debug("complexity analyze: glob error", "dir", dir, "error", err.Error())
+		return
 	}
+
 	for _, entry := range entries {
-		stats = analyzeFile(entry, stats, ignore)
+		if a.exclude != nil && a.exclude.MatchString(entry) {
+			continue
+		}
+
+		a.analyzeFile(entry)
 	}
+
 	dirs, err := filepath.Glob(filepath.Join(dir, "*"))
 	if err != nil {
-		return stats
+		a.logger.Debug("complexity analyze: glob error for subdirs", "dir", dir, "error", err.Error())
+		return
 	}
+
 	for _, dirEntry := range dirs {
 		info, err := os.Stat(dirEntry)
 		if err != nil || !info.IsDir() {
+			if err != nil {
+				a.logger.Debug("complexity analyze: stat error", "dir", dirEntry, "error", err.Error())
+			}
 			continue
 		}
+
 		base := info.Name()
 		if strings.HasPrefix(base, ".") || strings.HasPrefix(base, "_") || base == "vendor" || base == "testdata" {
 			continue
 		}
-		stats = analyzeDir(dirEntry, stats, ignore)
+
+		a.analyzeDir(dirEntry)
 	}
-	return stats
 }
 
-func analyzeFile(file string, stats Stats, ignore *regexp.Regexp) Stats {
+func (a *analyzeData) analyzeFile(file string) {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, file, nil, parser.ParseComments|parser.AllErrors)
 	if err != nil {
-		return stats
+		a.logger.Debug("complexity analyze: parse error", "file", file, "error", err.Error())
+		return
 	}
-	stats = AnalyzeASTFile(f, fset, stats, ignore)
-	return stats
+
+	a.analyzeASTFile(f, fset)
 }
 
-func AnalyzeASTFile(f *ast.File, fset *token.FileSet, stats Stats, ignore *regexp.Regexp) Stats {
+func receiverName(recv *ast.FieldList) string {
+	if recv == nil || len(recv.List) == 0 {
+		return ""
+	}
+	field := recv.List[0]
+	if field == nil || field.Type == nil {
+		return ""
+	}
+
+	var recvType string
+	switch t := field.Type.(type) {
+	case *ast.StarExpr:
+		recvType = "*" + exprString(t.X)
+	case *ast.Ident:
+		recvType = t.Name
+	case *ast.SelectorExpr:
+		recvType = exprString(t.X) + "." + t.Sel.Name
+	default:
+		recvType = exprString(t)
+	}
+
+	return recvType
+}
+
+func exprString(e ast.Expr) string {
+	switch v := e.(type) {
+	case *ast.Ident:
+		return v.Name
+	case *ast.SelectorExpr:
+		return exprString(v.X) + "." + v.Sel.Name
+	case *ast.IndexExpr:
+		return exprString(v.X) + "[" + exprString(v.Index) + "]"
+	case *ast.SliceExpr:
+		return exprString(v.X) + "[:]"
+	case *ast.StarExpr:
+		return "*" + exprString(v.X)
+	default:
+		return "<unknown>"
+	}
+}
+
+func (a *analyzeData) analyzeASTFile(f *ast.File, fset *token.FileSet) {
 	for _, decl := range f.Decls {
 		fnDecl, ok := decl.(*ast.FuncDecl)
-		if !ok || fnDecl.Recv != nil {
+		if !ok {
 			continue
 		}
+
 		directives := parseDirectives(fnDecl.Doc)
-		if directives.ignore {
+		if directives.exclude {
 			continue
 		}
+
 		name := fnDecl.Name.Name
-		if ignore != nil && ignore.MatchString(name) {
+		if a.exclude != nil && a.exclude.MatchString(name) {
 			continue
 		}
+
 		complexity := Complexity(fnDecl)
-		stats = append(stats, Stat{
+		a.stats = append(a.stats, Stat{
 			PkgName:    f.Name.Name,
 			FuncName:   name,
+			Receiver:   receiverName(fnDecl.Recv),
 			Complexity: complexity,
 			Pos:        fset.Position(fnDecl.Pos()),
 		})
 	}
-	return stats
 }

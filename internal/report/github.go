@@ -9,8 +9,12 @@ import (
 
 type GithubFormatter struct{}
 
-func (f *GithubFormatter) Format(entries []score.CRAPEntry, opts FormatOptions) error {
-	for _, e := range entries {
+func (f *GithubFormatter) Format(entries *score.EntryList, opts FormatOptions) error {
+	if entries == nil {
+		return fmt.Errorf("Format: entries list shouldn't be nil")
+	}
+
+	for _, e := range entries.List {
 		file := e.File
 		if base := opts.BaseDir; base != "" {
 			if absBase, err := filepath.Abs(base); err == nil {
@@ -19,10 +23,11 @@ func (f *GithubFormatter) Format(entries []score.CRAPEntry, opts FormatOptions) 
 				}
 			}
 		}
+
 		if e.CRAP > opts.Threshold {
 			fmt.Fprintf(opts.Writer,
-				"::warning file=%s,line=%d::CRAP score %.1f (CC=%d, cov=%.1f%%) exceeds threshold %.0f\n",
-				file, e.Line, e.CRAP, e.Complexity, e.Coverage, opts.Threshold,
+				"::warning file=%s,line=%d::%s:%d %s CRAP score %.1f (CC=%d, cov=%.1f%%) exceeds threshold %.0f\n",
+				file, e.Line, file, e.Line, e.FuncName, e.CRAP, e.Complexity, e.Coverage, opts.Threshold,
 			)
 		}
 	}

@@ -18,22 +18,35 @@ type JSONEntry struct {
 	Coverage   *float64 `json:"coverage"`
 	File       string   `json:"file"`
 	Function   string   `json:"function"`
+	Receiver   string   `json:"receiver,omitempty"`
 	Package    string   `json:"package"`
 	CRAP       float64  `json:"crap"`
 	Cyclomatic int      `json:"cyclomatic"`
 	Line       int      `json:"line"`
 }
 
-type JSONFormatter struct{}
+type JSONFormatter struct {
+	jsonMarshalIndent func(v any, prefix, indent string) ([]byte, error)
+}
 
-func (f *JSONFormatter) Format(entries []score.CRAPEntry, opts FormatOptions) error {
+func NewJSONFormatter() *JSONFormatter {
+	return &JSONFormatter{
+		jsonMarshalIndent: json.MarshalIndent,
+	}
+}
+
+func (f *JSONFormatter) Format(entries *score.EntryList, opts FormatOptions) error {
+	if entries == nil {
+		return fmt.Errorf("Format: entries list shouldn't be nil")
+	}
+
 	report := Report{
 		Schema:  "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
 		Version: "1.0.0",
-		Entries: make([]JSONEntry, 0, len(entries)),
+		Entries: make([]JSONEntry, 0, len(entries.List)),
 	}
 
-	for _, e := range entries {
+	for _, e := range entries.List {
 		file := e.File
 		if base := opts.BaseDir; base != "" {
 			if absBase, err := filepath.Abs(base); err == nil {
@@ -46,6 +59,7 @@ func (f *JSONFormatter) Format(entries []score.CRAPEntry, opts FormatOptions) er
 			File:       file,
 			Package:    e.Package,
 			Function:   e.FuncName,
+			Receiver:   e.Receiver,
 			Line:       e.Line,
 			Cyclomatic: e.Complexity,
 			CRAP:       e.CRAP,
@@ -56,7 +70,7 @@ func (f *JSONFormatter) Format(entries []score.CRAPEntry, opts FormatOptions) er
 		report.Entries = append(report.Entries, entry)
 	}
 
-	data, err := json.MarshalIndent(report, "", "  ")
+	data, err := f.jsonMarshalIndent(report, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal JSON: %w", err)
 	}

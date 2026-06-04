@@ -12,9 +12,13 @@ import (
 
 type TableFormatter struct{}
 
-func (f *TableFormatter) Format(entries []score.CRAPEntry, opts FormatOptions) error {
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].CRAP > entries[j].CRAP
+func (f *TableFormatter) Format(entries *score.EntryList, opts FormatOptions) error {
+	if entries == nil {
+		return fmt.Errorf("Format: entries list shouldn't be nil")
+	}
+
+	sort.Slice(entries.List, func(i, j int) bool {
+		return entries.List[i].CRAP > entries.List[j].CRAP
 	})
 
 	t := table.NewWriter()
@@ -24,7 +28,7 @@ func (f *TableFormatter) Format(entries []score.CRAPEntry, opts FormatOptions) e
 	failed := 0
 	halfThreshold := opts.Threshold / 2.0
 
-	for _, e := range entries {
+	for _, e := range entries.List {
 		status := statusSymbol(e.CRAP, opts.Threshold, halfThreshold)
 		covBar := coverageBar(e.Coverage)
 
@@ -55,7 +59,7 @@ func (f *TableFormatter) Format(entries []score.CRAPEntry, opts FormatOptions) e
 	fmt.Fprint(opts.Writer, t.Render())
 	fmt.Fprintf(opts.Writer, "\n")
 
-	total := len(entries)
+	total := len(entries.List)
 	if total > 0 {
 		fmt.Fprintf(opts.Writer, "%d/%d function(s) exceed threshold CRAP %.0f.\n", failed, total, opts.Threshold)
 	}

@@ -6,7 +6,7 @@ import (
 )
 
 type directives struct {
-	ignore bool
+	exclude bool
 }
 
 func parseDirectives(doc *ast.CommentGroup) directives {
@@ -16,7 +16,7 @@ func parseDirectives(doc *ast.CommentGroup) directives {
 	for _, c := range doc.List {
 		text := strings.TrimSpace(c.Text)
 		if text == "//go-crap:ignore" || text == "//gocyclo:ignore" {
-			return directives{ignore: true}
+			return directives{exclude: true}
 		}
 	}
 	return directives{}

@@ -42,4 +42,8 @@ Each module is independently testable:
 
 ## Important: Path Matching
 
-Coverage and complexity produce paths in different formats. The merge layer uses a double index to match them - **never canonicalize relative paths against CWD**. See `internal/merge/index.go` and the test `TestMerge_RelativePathsNotResolvedAgainstCWD`.
+Coverage and complexity produce paths in different formats. The merge layer uses a double index to match them — **never canonicalize relative paths against CWD**. See `internal/merge/index.go` and the test `TestMerge_RelativePathsNotResolvedAgainstCWD`.
+
+## Function Name Matching
+
+Coverage and complexity also produce function names in different formats. Coverage includes the receiver in the name (e.g. `Level.String`, `(*JSONFormatter).Format`), while complexity stores the receiver separately. The merge layer normalizes both sides to bare method names before matching, supporting pointer receivers (`*Type`), value receivers (`Type`), and plain functions.

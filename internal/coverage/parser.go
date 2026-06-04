@@ -1,8 +1,14 @@
 package coverage
 
 import (
-	"bytes"
+	"bufio"
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -58,6 +64,343 @@ func parseCoverOutput(r io.Reader) ([]FunctionCoverage, error) {
 	return results, nil
 }
 
-func ParseCoverBytes(data []byte) ([]FunctionCoverage, error) {
-	return parseCoverOutput(bytes.NewReader(data))
+// func ParseCoverBytes(data []byte) ([]FunctionCoverage, error) {
+// 	return parseCoverOutput(bytes.NewReader(data))
+// }
+
+type profileEntry struct {
+	path    string
+	start   int
+	covered bool
+}
+
+func parseCoverProfile(profilePath, modDir, modPath string) ([]FunctionCoverage, error) {
+	file, err := os.Open(profilePath)
+	if err != nil {
+		return nil, fmt.Errorf("open profile: %w", err)
+	}
+	defer file.Close()
+
+	entries, err := readProfileEntries(file)
+	if err != nil {
+		return nil, fmt.Errorf("read profile: %w", err)
+	}
+
+	// Group entries by file
+	byFile := make(map[string][]profileEntry)
+	for _, e := range entries {
+		byFile[e.path] = append(byFile[e.path], e)
+	}
+
+	var results []FunctionCoverage
+	for path, fileEntries := range byFile {
+		resolved := resolvePath(modDir, modPath, path)
+		funcResults := parseFileProfile(modDir, resolved, fileEntries, modPath)
+		results = append(results, funcResults...)
+	}
+	return results, nil
+}
+
+func resolvePath(modDir, modPath, profilePath string) string {
+	// Strip module path prefix to get relative file path
+	rel := strings.TrimPrefix(profilePath, modPath)
+	rel = strings.TrimPrefix(rel, "/")
+	if rel == "" {
+		return modDir
+	}
+	return filepath.Join(modDir, rel)
+}
+
+type fileFunc struct {
+	name      string
+	startLine int
+	endLine   int
+	declLine  int
+}
+
+func parseFileProfile(modDir, filePath string, entries []profileEntry, modPath string) []FunctionCoverage {
+	src, err := os.Open(filePath)
+	if err != nil {
+		return nil
+	}
+	defer src.Close()
+
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, filePath, src, 0)
+	if err != nil {
+		return nil
+	}
+
+	// Extract all function declarations with their AST ranges
+	var funcs []fileFunc
+	ast.Inspect(node, func(n ast.Node) bool {
+		fd, ok := n.(*ast.FuncDecl)
+		if !ok {
+			return true
+		}
+		name := fd.Name.Name
+		if fd.Recv != nil {
+			recv := extractRecvName(fd.Recv)
+			if recv != "" {
+				name = recv + "." + name
+			}
+		}
+		startLine := fset.Position(fd.Pos()).Line
+		endLine := fset.Position(fd.End()).Line
+		// Use body start for attribution (skip declarations without bodies)
+		declLine := startLine
+		if fd.Body != nil {
+			declLine = fset.Position(fd.Body.Lbrace).Line
+		}
+		funcs = append(funcs, fileFunc{
+			name:      name,
+			startLine: startLine,
+			endLine:   endLine,
+			declLine:  declLine,
+		})
+		return true
+	})
+
+	// Build coverage per function
+	type funcCoverage struct {
+		name     string
+		declLine int
+		total    int
+		covered  int
+	}
+
+	funcMap := make(map[string]*funcCoverage)
+	var orderedFuncs []string
+
+	for _, ff := range funcs {
+		key := ff.name
+		if _, exists := funcMap[key]; !exists {
+			funcMap[key] = &funcCoverage{name: key, declLine: ff.declLine}
+			orderedFuncs = append(orderedFuncs, key)
+		}
+	}
+
+	// Attribute each block to a function using AST-level attribution
+	for _, e := range entries {
+		fn := findFunctionForBlock(fset, node, e.start)
+		if fn != nil {
+			key := fn.name
+			if fc, ok := funcMap[key]; ok {
+				fc.total++
+				if e.covered {
+					fc.covered++
+				}
+			}
+		}
+	}
+
+	pkgPath := modPath
+
+	var results []FunctionCoverage
+	for _, key := range orderedFuncs {
+		fc := funcMap[key]
+		var coverage float64
+		if fc.total > 0 {
+			coverage = float64(fc.covered) / float64(fc.total) * 100
+		}
+		results = append(results, FunctionCoverage{
+			File:     filePath,
+			Package:  pkgPath,
+			Name:     fc.name,
+			Line:     fc.declLine,
+			Coverage: coverage,
+		})
+	}
+	return results
+}
+
+type funcDeclInfo struct {
+	name      string
+	bodyStart int
+	bodyEnd   int
+}
+
+func findFunctionForBlock(fset *token.FileSet, node *ast.File, blockLine int) *funcDeclInfo {
+	// Walk AST and find function whose body contains this block line
+	var best *funcDeclInfo
+	ast.Inspect(node, func(n ast.Node) bool {
+		fd, ok := n.(*ast.FuncDecl)
+		if !ok || fd.Body == nil {
+			return true
+		}
+		bodyStart := fset.Position(fd.Body.Lbrace).Line
+		bodyEnd := fset.Position(fd.Body.Rbrace).Line
+		if blockLine >= bodyStart && blockLine <= bodyEnd {
+			// Prefer innermost function
+			if best == nil || bodyStart > best.bodyStart {
+				best = &funcDeclInfo{
+					name:      fd.Name.Name,
+					bodyStart: bodyStart,
+					bodyEnd:   bodyEnd,
+				}
+			}
+		}
+		return true // continue inspecting for nested functions
+	})
+
+	if best == nil {
+		return nil
+	}
+
+	// Handle receiver
+	name := best.name
+	for _, fd := range node.Decls {
+		funcDecl, ok := fd.(*ast.FuncDecl)
+		if !ok || funcDecl.Name.Name != name {
+			continue
+		}
+		if funcDecl.Recv != nil {
+			recv := extractRecvName(funcDecl.Recv)
+			if recv != "" {
+				name = recv + "." + name
+				break
+			}
+		}
+	}
+
+	return &funcDeclInfo{name: name, bodyStart: best.bodyStart, bodyEnd: best.bodyEnd}
+}
+
+func readProfileEntries(r io.Reader) ([]profileEntry, error) {
+	var entries []profileEntry
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "mode:") {
+			continue
+		}
+		e, err := parseProfileLine(line)
+		if err != nil {
+			continue
+		}
+		entries = append(entries, e)
+	}
+	return entries, scanner.Err()
+}
+
+func parseProfileLine(line string) (profileEntry, error) {
+	var entry profileEntry
+
+	colonIdx := strings.Index(line, ":")
+	if colonIdx <= 0 {
+		return entry, fmt.Errorf("invalid line: %s", line)
+	}
+
+	entry.path = line[:colonIdx]
+	rest := line[colonIdx+1:]
+
+	spaceIdx := strings.Index(rest, " ")
+	if spaceIdx <= 0 {
+		return entry, fmt.Errorf("invalid line: %s", line)
+	}
+
+	posStr := rest[:spaceIdx]
+	parts := strings.Split(posStr, ",")
+	if len(parts) != 2 {
+		return entry, fmt.Errorf("invalid position: %s", posStr)
+	}
+
+	startLine, _ := parseCoord(parts[0])
+	entry.start = startLine
+
+	coveredStr := strings.Fields(rest[spaceIdx+1:])
+	if len(coveredStr) < 2 {
+		return entry, fmt.Errorf("invalid fields: %s", rest)
+	}
+
+	covered, err := strconv.Atoi(coveredStr[1])
+	if err != nil || covered == 0 {
+		entry.covered = false
+	} else {
+		entry.covered = true
+	}
+
+	return entry, nil
+}
+
+func parseCoord(s string) (line, col int) {
+	sep := strings.Index(s, ".")
+	if sep <= 0 {
+		return 0, 0
+	}
+	line, err := strconv.Atoi(s[:sep])
+	if err != nil {
+		return 0, 0
+	}
+	col, err = strconv.Atoi(s[sep+1:])
+	if err != nil {
+		return line, 0
+	}
+	return line, col
+}
+
+func lookupFuncName(modDir, profilePath string) string {
+	candidatePath := profilePath
+	if !filepath.IsAbs(candidatePath) {
+		candidatePath = filepath.Join(modDir, candidatePath)
+	}
+
+	src, err := os.Open(candidatePath)
+	if err != nil {
+		return ""
+	}
+	defer src.Close()
+
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, profilePath, src, 0)
+	if err != nil {
+		return ""
+	}
+
+	var funcs []*ast.FuncDecl
+	ast.Inspect(node, func(n ast.Node) bool {
+		if fd, ok := n.(*ast.FuncDecl); ok {
+			funcs = append(funcs, fd)
+		}
+		return true
+	})
+
+	if len(funcs) == 0 {
+		return ""
+	}
+
+	name := funcs[0].Name.Name
+	if funcs[0].Recv != nil {
+		recv := extractRecvName(funcs[0].Recv)
+		if recv != "" {
+			name = recv + "." + name
+		}
+	}
+
+	return name
+}
+
+func extractRecvName(recv *ast.FieldList) string {
+	if recv == nil || len(recv.List) == 0 {
+		return ""
+	}
+	field := recv.List[0]
+	switch t := field.Type.(type) {
+	case *ast.StarExpr:
+		if sel, ok := t.X.(*ast.Ident); ok {
+			return "*" + sel.Name
+		}
+		if sel, ok := t.X.(*ast.SelectorExpr); ok {
+			if x, ok := sel.X.(*ast.Ident); ok {
+				return "*" + x.Name
+			}
+		}
+	case *ast.Ident:
+		return t.Name
+	case *ast.SelectorExpr:
+		if x, ok := t.X.(*ast.Ident); ok {
+			return x.Name
+		}
+	}
+	return ""
 }

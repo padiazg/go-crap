@@ -112,7 +112,7 @@ func TestAnalyze(t *testing.T) {
 	}
 	projectRoot := filepath.Join(workDir, "..", "..")
 	cleanPath := filepath.Clean(projectRoot)
-	stats := Analyze([]string{cleanPath}, nil)
+	stats := Analyze([]string{cleanPath}, nil, nil)
 	if len(stats) == 0 {
 		t.Error("expected some stats, got none")
 	}

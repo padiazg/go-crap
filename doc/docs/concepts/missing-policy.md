@@ -1,6 +1,8 @@
 # Missing Coverage Policy
 
-When go-crap finds a function that has no coverage data (because it has no tests, or the test run didn't cover it), it needs a strategy. The `--missing` flag controls this behavior.
+When go-crap finds a function that has no coverage data at all, it needs a strategy. The `--missing` flag controls this behavior.
+
+> **Note:** "no coverage data" means the function does not appear in any coverage profile — typically because the package has no test file, or the function is in a file excluded from the test build. This is different from a function that appears in a coverage profile with 0% coverage (all statements present but none executed). Functions with known 0% coverage are always reported with their actual score, regardless of the `--missing` policy.
 
 ## Options
 

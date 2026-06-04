@@ -53,10 +53,16 @@ go-crap scan --top 10
 go-crap scan --min 10
 ```
 
-### Exclude files matching a glob
+### Exclude test files and testdata
 
 ```bash
-go-crap scan --exclude '*/testdata/*' --exclude '*_test.go'
+go-crap scan --exclude '.*_test\.go' --exclude 'testdata/.*\.go'
+```
+
+### Exclude generated files at any depth
+
+```bash
+go-crap scan --exclude '\.pb\.go$' --exclude 'mock_'
 ```
 
 ## 4. Fail CI on High Scores

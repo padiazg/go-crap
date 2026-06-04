@@ -8,6 +8,9 @@
 *.test
 *.out
 
+# testdata sample files
+!internal/testdata/cover.out
+
 # Build target
 go-crap
 
@@ -42,6 +45,7 @@ doc/site/
 
 # Especific 
 .claude
+.opencode
 *.md
 !README.md
 !CLAUDE.md

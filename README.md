@@ -49,6 +49,9 @@ go-crap scan --top 10
 
 # Fail CI if any function exceeds threshold
 go-crap scan --fail-above --threshold 30
+
+# Exclude test files and protobuf
+go-crap scan --exclude '.*_test\.go' --exclude 'pb/.*\.go'
 ```
 
 ### Flags
@@ -61,7 +64,7 @@ go-crap scan --fail-above --threshold 30
 | `--top` | | Show only the N worst offenders (0 = all) | `0` |
 | `--min` | | Hide entries below this score | `0` |
 | `--missing` | | Policy for functions without coverage: `pessimistic`, `optimistic`, or `skip` | `pessimistic` |
-| `--exclude` | | Exclude files matching this glob (repeatable) | none |
+| `--exclude` | | Exclude files matching this regex (repeatable). Use `.*` for any path depth. e.g. `.*_test\.go` to exclude all test files, `pb/.*\.go` to exclude protobuf files | none |
 
 ### Output Formats
 
@@ -91,22 +94,23 @@ A function with high cyclomatic complexity and low coverage scores the worst. A 
 ```
 go-crap scan
   │
-  ├── coverage.Scan()     — discover Go modules, run go test -cover
+  ├── scan.Scan()           — unified pipeline, discovers modules, filters, and ranks
+  │   ├── coverage.Scan()   — discover Go modules, run go test -cover
+  │   ├── complexity.Analyze() — walk AST, compute cyclomatic complexity
+  │   ├── merge.Merge()     — join by (filepath, funcname) with receiver support
+  │   ├── score.Score()     — apply CRAP formula + missing policy
+  │   └── report.Format()   — table / json / github
   │
-  ├── complexity.Analyze() — walk AST, compute cyclomatic complexity
-  │
-  ├── merge.Merge()       — join by (filepath, funcname)
-  │
-  ├── score.Score()       — apply CRAP formula + missing policy
-  │
-  └── report.Format()     — table / json / github
+  └── pkg/utils/            — regex helpers for --exclude patterns
 ```
 
+- **`internal/scan`** — unified pipeline orchestrating the full scan flow (coverage → complexity → merge → score → filter → output)
 - **`internal/complexity`** — AST walking to compute cyclomatic complexity (adapted from [gocyclo](https://github.com/fzipp/gocyclo), BSD-3-Clause)
 - **`internal/coverage`** — module discovery + `go test -cover` profiling (adapted from [test-finder](https://github.com/padiazg/test-finder), MIT)
-- **`internal/merge`** — double-index join of coverage and complexity data
-- **`internal/score`** — CRAP formula + missing coverage policy
+- **`internal/merge`** — double-index join of coverage and complexity data, with method receiver support
+- **`internal/score`** — CRAP formula + missing coverage policy + `EntryList` wrapper
 - **`internal/report`** — output formatters (table, JSON, GitHub annotations)
+- **`pkg/utils`** — regex helper functions for exclude patterns
 
 ## CI Integration
 
