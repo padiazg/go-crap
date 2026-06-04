@@ -1,16 +1,8 @@
----
-name: Pull Request
-about: Create a pull request
-title: ''
-labels: ''
-assignees: ''
----
-
-## Description
+# Description
 
 [Describe the changes in this PR]
 
-### Type of change
+## Type of change
 
 - [ ] Bug fix (non-breaking change which fixes an issue)
 - [ ] New feature (non-breaking change which adds functionality)
@@ -18,7 +10,7 @@ assignees: ''
 - [ ] Documentation update
 - [ ] Chore
 
-### Checklist
+## Checklist
 
 - [ ] My code follows the project's style guidelines
 - [ ] I have performed a self-review of my code
@@ -29,10 +21,10 @@ assignees: ''
 - [ ] New and existing unit tests pass locally with my changes
 - [ ] Any dependent changes have been merged and published
 
-### Related Issues
+## Related Issues
 
 Closes #\<issue-number\>
 
-### Test instructions
+## Test instructions
 
 [How to test this PR]
