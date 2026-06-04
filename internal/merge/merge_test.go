@@ -256,6 +256,86 @@ func TestMerge(t *testing.T) {
 			stats:     []complexity.Stat{},
 			checks:    checkMerge(checkLen(0)),
 		},
+		{
+			name: "module path vs filesystem path match",
+			coverages: []coverage.ModuleCoverage{
+				{
+					Dir:        "/home/runner/work/go-crap/go-crap",
+					ModulePath: "github.com/padiazg/go-crap",
+					Functions: []coverage.FunctionCoverage{
+						{
+							File:     "github.com/padiazg/go-crap/internal/merge/merge.go",
+							Package:  "merge",
+							Name:     "Merge",
+							Line:     74,
+							Coverage: 94.1,
+						},
+					},
+				},
+			},
+			stats: []complexity.Stat{
+				{
+					PkgName:    "merge",
+					FuncName:   "Merge",
+					Complexity: 7,
+					Pos: struct {
+						Filename string
+						Offset   int
+						Line     int
+						Column   int
+					}{
+						Filename: "/home/runner/work/go-crap/go-crap/internal/merge/merge.go",
+						Line:     74,
+					},
+				},
+			},
+			checks: checkMerge(
+				checkLen(1),
+				checkFuncName(0, "Merge"),
+				checkCoverage(0, false),
+				checkCoverageValue(0, 94.1),
+			),
+		},
+		{
+			name: "relative filesystem path with module suffix",
+			coverages: []coverage.ModuleCoverage{
+				{
+					Dir:        "/test",
+					ModulePath: "test/pkg",
+					Functions: []coverage.FunctionCoverage{
+						{
+							File:     "test/pkg/foo.go",
+							Package:  "pkg",
+							Name:     "Foo",
+							Line:     1,
+							Coverage: 75.0,
+						},
+					},
+				},
+			},
+			stats: []complexity.Stat{
+				{
+					PkgName:    "pkg",
+					FuncName:   "Foo",
+					Complexity: 5,
+					Pos: struct {
+						Filename string
+						Offset   int
+						Line     int
+						Column   int
+					}{
+						Filename: "test/pkg/foo.go",
+						Line:     1,
+					},
+				},
+			},
+			checks: checkMerge(
+				checkLen(1),
+				checkFuncName(0, "Foo"),
+				checkCoverage(0, false),
+				checkCoverageValue(0, 75.0),
+			),
+		},
 	}
 	for _, tt := range tests {
 		tt := tt

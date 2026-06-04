@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Properly match function names with method receivers (e.g. `(*MyType).Method`)
 - Handle zero-coverage entries correctly in merge step
 - `runCoverTool` now runs in correct module directory (`modDir` set as `cmd.Dir`)
+- Correct coverage path matching in CI environments — `buildSuffix` now uses 3 path components instead of 2, bridging Go module paths (`github.com/.../file.go`) and absolute filesystem paths (`/home/runner/.../go-crap/file.go`)
 
 ## v0.1.0 - 2026-06-02
 

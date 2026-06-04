@@ -1,7 +1,6 @@
 package merge
 
 import (
-	"path/filepath"
 	"strings"
 
 	"github.com/padiazg/go-crap/internal/complexity"
@@ -40,11 +39,25 @@ func buildIndex(coverages []coverage.ModuleCoverage) *pathIndex {
 }
 
 func buildSuffix(path string) string {
-	parts := strings.Split(path, string(filepath.Separator))
-	if len(parts) >= 2 {
-		return strings.Join(parts[len(parts)-2:], string(filepath.Separator))
+	var parts []string
+	if strings.ContainsRune(path, '\\') {
+		parts = strings.Split(path, "\\")
+	} else {
+		parts = strings.Split(path, "/")
 	}
-	return filepath.Base(path)
+	filtered := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p != "" {
+			filtered = append(filtered, p)
+		}
+	}
+	if len(filtered) >= 3 {
+		return strings.Join(filtered[len(filtered)-3:], "/")
+	}
+	if len(filtered) == 1 {
+		return filtered[0]
+	}
+	return strings.Join(filtered, "/")
 }
 
 func (idx *pathIndex) lookup(absPath string) ([]coverage.FunctionCoverage, bool) {
