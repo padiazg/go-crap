@@ -54,7 +54,7 @@ func TestMerge(t *testing.T) {
 		checks    []MergeFn
 	}{
 		{
-			name: "function with zero coverage returns nil",
+			name: "function with zero coverage returns pointer to 0",
 			coverages: []coverage.ModuleCoverage{
 				{
 					Dir:        "/test",
@@ -89,7 +89,8 @@ func TestMerge(t *testing.T) {
 			checks: checkMerge(
 				checkLen(1),
 				checkFuncName(0, "Foo"),
-				checkCoverage(0, true),
+				checkCoverage(0, false),
+				checkCoverageValue(0, 0.0),
 			),
 		},
 		{
@@ -244,7 +245,8 @@ func TestMerge(t *testing.T) {
 			checks: checkMerge(
 				checkLen(2),
 				checkFuncName(0, "A"),
-				checkCoverage(0, true),
+				checkCoverage(0, false),
+				checkCoverageValue(0, 0.0),
 				checkFuncName(1, "B"),
 				checkCoverage(1, false),
 				checkCoverageValue(1, 25.5),
@@ -348,6 +350,50 @@ func TestMerge(t *testing.T) {
 	}
 }
 
+func TestMerge_ValueReceiverMatch(t *testing.T) {
+	coverages := []coverage.ModuleCoverage{
+		{
+			Dir:        "/test",
+			ModulePath: "test/pkg",
+			Functions: []coverage.FunctionCoverage{
+				{
+					File:     "/test/pkg/logger.go",
+					Package:  "logger",
+					Name:     "Level.String",
+					Line:     21,
+					Coverage: 100.0,
+				},
+			},
+		},
+	}
+	stats := []complexity.Stat{
+		{
+			PkgName:  "logger",
+			FuncName: "String",
+			Receiver: "Level",
+			Pos: struct {
+				Filename string
+				Offset   int
+				Line     int
+				Column   int
+			}{
+				Filename: "/test/pkg/logger.go",
+				Line:     21,
+			},
+			Complexity: 6,
+		},
+	}
+	r := Merge(coverages, stats)
+	for _, c := range checkMerge(
+		checkLen(1),
+		checkFuncName(0, "Level.String"),
+		checkCoverage(0, false),
+		checkCoverageValue(0, 100.0),
+	) {
+		c(t, r)
+	}
+}
+
 func TestMerge_MethodMatch(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -359,6 +405,12 @@ func TestMerge_MethodMatch(t *testing.T) {
 			name:           "pointer receiver method (*Type).Method",
 			complexityName: "(*JSONFormatter).Format",
 			coverageName:   "Format",
+			wantMatch:      true,
+		},
+		{
+			name:           "value receiver method Type.Method",
+			complexityName: "Level.String",
+			coverageName:   "String",
 			wantMatch:      true,
 		},
 		{

@@ -164,8 +164,10 @@ func TestScan(t *testing.T) {
 			checks: checkScan(
 				checkScanError(""),
 				checkLen(5),
-				checkSkipped(0, true),
-				checkSkipped(3, true),
+				// All functions have coverage data (even if 0%),
+				// so none are "missing" and none should be skipped.
+				checkSkipped(0, false),
+				checkSkipped(3, false),
 				checkSkipped(4, false),
 			),
 		},

@@ -36,6 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Properly match function names with method receivers (e.g. `(*MyType).Method`)
 - Handle zero-coverage entries correctly in merge step
 - `runCoverTool` now runs in correct module directory (`modDir` set as `cmd.Dir`)
+- Fix `normalizeFuncName` failing to strip value-receiver prefixes — methods like `Level.String` or `Logger.Debug` were not matched against coverage data, causing false 0% coverage reports for all value-receiver methods
+- Fix merge discarding 0% coverage as "missing" — functions with known 0% coverage (coverage data present but no statements executed) are now correctly distinguished from functions with no coverage data at all
 
 ## v0.1.0 - unreleased
 

@@ -72,14 +72,13 @@ func (idx *pathIndex) lookup(absPath string) ([]coverage.FunctionCoverage, bool)
 }
 
 func normalizeFuncName(name string) string {
+	// (*Type).Method → Method
 	if idx := strings.Index(name, ")."); idx != -1 {
 		return name[idx+2:]
 	}
+	// Type.Method or *Type.Method → Method
 	if idx := strings.Index(name, "."); idx != -1 {
-		recv := name[:idx]
-		if strings.HasPrefix(recv, "*") || strings.Contains(recv, ".") {
-			return name[idx+1:]
-		}
+		return name[idx+1:]
 	}
 	return name
 }
@@ -93,10 +92,8 @@ func Merge(coverages []coverage.ModuleCoverage, stats []complexity.Stat) []Merge
 		if fns, ok := idx.lookup(stat.Pos.Filename); ok {
 			for _, fn := range fns {
 				if normalizeFuncName(fn.Name) == fnName {
-					if fn.Coverage > 0 {
-						cov := fn.Coverage
-						coverage = &cov
-					}
+					cov := fn.Coverage
+					coverage = &cov
 					break
 				}
 			}
