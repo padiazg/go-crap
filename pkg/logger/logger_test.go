@@ -1,7 +1,6 @@
 package logger
 
 import (
-	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -46,28 +45,7 @@ func Test_parseLevel(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, parseLevel(tt.level))
-		})
-	}
-}
-
-func Test_slogLevel(t *testing.T) {
-	tests := []struct {
-		name string
-		l    Level
-		want slog.Level
-	}{
-		{name: "debug", l: DebugLevel, want: slog.LevelDebug},
-		{name: "info", l: InfoLevel, want: slog.LevelInfo},
-		{name: "warn", l: WarnLevel, want: slog.LevelWarn},
-		{name: "error", l: ErrorLevel, want: slog.LevelError},
-		{name: "fatal_falls_back_to_info", l: FatalLevel, want: slog.LevelInfo},
-		{name: "negative_falls_back_to_info", l: Level(-1), want: slog.LevelInfo},
-	}
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, slogLevel(tt.l))
+			assert.Equal(t, tt.want, ParseLevel(tt.level))
 		})
 	}
 }

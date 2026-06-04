@@ -16,7 +16,7 @@ import (
 )
 
 type Options struct {
-	Logger  *logger.Logger
+	Logger  logger.Logger
 	Timeout time.Duration
 	Missing string
 	Path    string

@@ -16,7 +16,7 @@ import (
 
 type ScanOptions struct {
 	Exclude *regexp.Regexp
-	Logger  *logger.Logger
+	Logger  logger.Logger
 	Timeout time.Duration
 	Path    string
 }
@@ -61,7 +61,7 @@ func Scan(ctx context.Context, opts ScanOptions) ([]ModuleCoverage, error) {
 	return results, nil
 }
 
-func discoverModules(ctx context.Context, root string, l *logger.Logger) ([]string, error) {
+func discoverModules(ctx context.Context, root string, l logger.Logger) ([]string, error) {
 	var modules []string
 	err := walkForModules(root, func(dir string) bool {
 		select {
@@ -105,7 +105,7 @@ func walkForModules(root string, visit func(dir string) bool) error {
 	})
 }
 
-func scanModule(ctx context.Context, modDir string, exclude *regexp.Regexp, timeout time.Duration, l *logger.Logger) (ModuleCoverage, error) {
+func scanModule(ctx context.Context, modDir string, exclude *regexp.Regexp, timeout time.Duration, l logger.Logger) (ModuleCoverage, error) {
 	mc := ModuleCoverage{Dir: modDir}
 	modulePath, err := readModulePath(modDir)
 	if err != nil {
@@ -146,7 +146,7 @@ func readModulePath(dir string) (string, error) {
 	return "", fmt.Errorf("no module declaration in go.mod")
 }
 
-func runTests(ctx context.Context, modDir string, _ *regexp.Regexp, timeout time.Duration, l *logger.Logger) (string, error) {
+func runTests(ctx context.Context, modDir string, _ *regexp.Regexp, timeout time.Duration, l logger.Logger) (string, error) {
 	tmpfile, err := os.CreateTemp("", "coverage-*.out")
 	if err != nil {
 		return "", err

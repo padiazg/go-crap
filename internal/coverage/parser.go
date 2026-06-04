@@ -339,17 +339,6 @@ func parseCoord(s string) (line, col int) {
 	return line, col
 }
 
-func findFunctionInfo(modPath, profilePath, modDir string) (pkgPath, fnName string) {
-	pkgPath = modPath
-
-	fnName = lookupFuncName(modDir, profilePath)
-	if fnName == "" {
-		fnName = "?"
-	}
-
-	return pkgPath, fnName
-}
-
 func lookupFuncName(modDir, profilePath string) string {
 	candidatePath := profilePath
 	if !filepath.IsAbs(candidatePath) {
@@ -376,20 +365,19 @@ func lookupFuncName(modDir, profilePath string) string {
 		return true
 	})
 
-	for _, fd := range funcs {
-		name := fd.Name.Name
-		if fd.Recv != nil {
-			recv := extractRecvName(fd.Recv)
-			if recv != "" {
-				name = recv + "." + name
-			}
-		}
-
-		// TODO: fix bellow
-		return name
+	if len(funcs) == 0 {
+		return ""
 	}
 
-	return ""
+	name := funcs[0].Name.Name
+	if funcs[0].Recv != nil {
+		recv := extractRecvName(funcs[0].Recv)
+		if recv != "" {
+			name = recv + "." + name
+		}
+	}
+
+	return name
 }
 
 func extractRecvName(recv *ast.FieldList) string {

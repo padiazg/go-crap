@@ -3,10 +3,13 @@ package coverage
 import (
 	"fmt"
 	"go/ast"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseCoverOutput(t *testing.T) {
@@ -142,6 +145,90 @@ func Test_extractRecvName(t *testing.T) {
 			assert.Equal(t, tt.wantStr, fmt.Sprintf("%s", r))
 			hasField := tt.recv != nil && len(tt.recv.List) > 0
 			assert.Equal(t, tt.hasField, hasField)
+		})
+	}
+}
+
+func Test_lookupFuncName(t *testing.T) {
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+
+	absSimple := filepath.Join(wd, "..", "testdata", "simple.go")
+
+	tempDir, err := os.MkdirTemp("", "crap-lookup-")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	emptyFile := filepath.Join(tempDir, "empty.go")
+	require.NoError(t, os.WriteFile(emptyFile, nil, 0644))
+
+	methodSrc := `package testdata
+
+type MyType struct{}
+
+func (m MyType) DoStuff() {}
+
+func (m *MyType) DoPointerStuff() {}
+
+func standalone() {}
+`
+	methodFile := filepath.Join(tempDir, "method.go")
+	require.NoError(t, os.WriteFile(methodFile, []byte(methodSrc), 0644))
+
+	tests := []struct {
+		name        string
+		modDir      string
+		profilePath string
+		want        string
+	}{
+		{
+			name:        "relative_path_simple_function",
+			modDir:      filepath.Join(wd, "..", "testdata"),
+			profilePath: "simple.go",
+			want:        "simple",
+		},
+		{
+			name:        "relative_path_complex_file",
+			modDir:      filepath.Join(wd, "..", "testdata"),
+			profilePath: "complex.go",
+			want:        "veryComplex",
+		},
+		{
+			name:        "absolute_path",
+			modDir:      filepath.Join(wd, "..", "testdata"),
+			profilePath: absSimple,
+			want:        "simple",
+		},
+		{
+			name:        "file_not_found",
+			modDir:      filepath.Join(wd, "..", "testdata"),
+			profilePath: "does_not_exist.go",
+			want:        "",
+		},
+		{
+			name:        "no_functions",
+			modDir:      tempDir,
+			profilePath: "empty.go",
+			want:        "",
+		},
+		{
+			name:        "value_receiver",
+			modDir:      tempDir,
+			profilePath: "method.go",
+			want:        "MyType.DoStuff",
+		},
+		{
+			name:        "non_go_file",
+			modDir:      tempDir,
+			profilePath: "non_go.txt",
+			want:        "",
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			r := lookupFuncName(tt.modDir, tt.profilePath)
+			assert.Equal(t, tt.want, r)
 		})
 	}
 }

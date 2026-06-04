@@ -10,6 +10,7 @@ import (
 	"github.com/padiazg/go-crap/internal/scan"
 	"github.com/padiazg/go-crap/internal/score"
 	"github.com/padiazg/go-crap/pkg/logger"
+	"github.com/padiazg/go-crap/pkg/slogger"
 	"github.com/spf13/cobra"
 )
 
@@ -61,7 +62,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 	if flagVerbose {
 		logLevel = "debug"
 	}
-	l := logger.New(&logger.Config{
+	l := slogger.New(&logger.Config{
 		Level:  logLevel,
 		Format: "text",
 	})
