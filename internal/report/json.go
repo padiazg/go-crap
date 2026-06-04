@@ -37,7 +37,7 @@ func NewJSONFormatter() *JSONFormatter {
 
 func (f *JSONFormatter) Format(entries *score.EntryList, opts FormatOptions) error {
 	if entries == nil {
-		return fmt.Errorf("Format: entries list is nil")
+		return fmt.Errorf("Format: entries list shouldn't be nil")
 	}
 
 	report := Report{

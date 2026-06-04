@@ -42,6 +42,7 @@ doc/site/
 
 # Especific 
 .claude
+.opencode
 *.md
 !README.md
 !CLAUDE.md

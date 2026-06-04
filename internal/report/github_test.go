@@ -75,6 +75,7 @@ func TestGithubFormatter_Format(t *testing.T) {
 				checkGithubOutputContains("::warning"),
 				checkGithubOutputContains("file=/project/main.go"),
 				checkGithubOutputContains("line=10"),
+				checkGithubOutputContains("BadFunc"),
 				checkGithubOutputContains("CRAP score 100.0"),
 				checkGithubOutputContains("CC=10"),
 				checkGithubOutputContains("cov=0.0%"),
@@ -93,6 +94,18 @@ func TestGithubFormatter_Format(t *testing.T) {
 			),
 		},
 		{
+			name: "success_method_with_receiver",
+			entries: score.EntryList{List: []score.CRAPEntry{
+				{File: "/project/main.go", Package: "myapp", FuncName: "*MyType.Process", Line: 20, Complexity: 8, Coverage: 0, CRAP: 72},
+			}},
+			opts: FormatOptions{Threshold: 50},
+			checks: checkGithubFormatterOutput(
+				checkGithubOutputContains("::warning"),
+				checkGithubOutputContains("*MyType.Process"),
+				checkGithubOutputContains("line=20"),
+			),
+		},
+		{
 			name: "success_mixed_entries",
 			entries: score.EntryList{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "GoodFunc", Line: 1, Complexity: 1, Coverage: 100, CRAP: 1},
@@ -103,8 +116,10 @@ func TestGithubFormatter_Format(t *testing.T) {
 			checks: checkGithubFormatterOutput(
 				checkGithubOutputContains("file=/project/main.go"),
 				checkGithubOutputContains("line=10"),
+				checkGithubOutputContains("BadFunc"),
 				checkGithubOutputContains("file=/project/utils.go"),
 				checkGithubOutputContains("line=5"),
+				checkGithubOutputContains("UglyFunc"),
 				checkOutputLineCount(2),
 			),
 		},
@@ -118,6 +133,7 @@ func TestGithubFormatter_Format(t *testing.T) {
 				checkGithubOutputContains("file=main.go"),
 				checkGithubOutputNotContains("file=/tmp/project/main.go"),
 				checkGithubOutputContains("line=5"),
+				checkGithubOutputContains("Process"),
 			),
 		},
 		{
@@ -129,6 +145,7 @@ func TestGithubFormatter_Format(t *testing.T) {
 			checks: checkGithubFormatterOutput(
 				checkGithubOutputContains("file=../../other/project/main.go"),
 				checkGithubOutputContains("line=5"),
+				checkGithubOutputContains("Process"),
 			),
 		},
 		{
@@ -150,6 +167,7 @@ func TestGithubFormatter_Format(t *testing.T) {
 			opts: FormatOptions{Threshold: 10},
 			checks: checkGithubFormatterOutput(
 				checkGithubOutputContains("::warning"),
+				checkGithubOutputContains("Over"),
 				checkGithubOutputContains("CRAP score 11.0"),
 				checkGithubOutputContains("exceeds threshold 10"),
 			),
@@ -237,6 +255,7 @@ func TestGithubFormatter_Format_output_format_details(t *testing.T) {
 	assert.Contains(t, got, "::warning")
 	assert.Contains(t, got, "file=/project/main.go")
 	assert.Contains(t, got, "line=42")
+	assert.Contains(t, got, "Complex")
 	assert.Contains(t, got, "CRAP score 123.5")
 	assert.Contains(t, got, "CC=7")
 	assert.Contains(t, got, "cov=30.0%")
@@ -258,6 +277,7 @@ func TestGithubFormatter_Format_returns_nil_error(t *testing.T) {
 	}
 	err := f.Format(entries, opts)
 	assert.NoError(t, err)
+	assert.Contains(t, buf.String(), "Foo")
 
 	err = f.Format(nil, opts)
 	assert.Error(t, err)

@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Coverage and complexity packages now accept `*regexp.Regexp` instead of `[]string` for exclude patterns
 - Merge now constructs full function names from receiver + method name
 - Report formatters now accept `*score.EntryList` instead of `[]score.CRAPEntry`
+- GitHub formatter now includes function name (and receiver for methods) in warning messages
 
 ### Fixed
 
