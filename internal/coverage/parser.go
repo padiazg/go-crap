@@ -385,6 +385,7 @@ func lookupFuncName(modDir, profilePath string) string {
 			}
 		}
 
+		// TODO: fix bellow
 		return name
 	}
 

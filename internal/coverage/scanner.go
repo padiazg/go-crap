@@ -157,7 +157,8 @@ func runTests(ctx context.Context, modDir string, _ *regexp.Regexp, timeout time
 		}
 	}
 	profile := tmpfile.Name()
-	cmd := exec.CommandContext(ctx, "go", "test", "-coverpkg=./...", "-coverprofile="+profile, "./...")
+	// cmd := exec.CommandContext(ctx, "go", "test", "-coverpkg=./...", "-coverprofile="+profile, "./...")
+	cmd := exec.CommandContext(ctx, "go", "test", "-coverprofile="+profile, "./...")
 	cmd.Dir = modDir
 	cmd.Env = append(os.Environ(), "GO111MODULE=on")
 	var stderr bytes.Buffer
