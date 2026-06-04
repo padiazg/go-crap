@@ -4,7 +4,7 @@ This guide walks through your first CRAP score scan in under two minutes.
 
 ## 1. Install go-crap
 
-```bash
+```shell
 go install github.com/padiazg/go-crap@latest
 ```
 
@@ -12,13 +12,13 @@ go install github.com/padiazg/go-crap@latest
 
 Point `go-crap scan` at a directory or package pattern:
 
-```bash
+```shell
 go-crap scan
 ```
 
 Example output:
 
-```
+```shell
 ┌───┬────────┬────┬───────────────────┬──────────┬─────────────────────────────────────┐
 │   │ CRAP   │ CC │ COVERAGE          │ FUNCTION │ LOCATION                            |
 ├───┼────────┼────┼───────────────────┼──────────┼─────────────────────────────────────┤
@@ -43,31 +43,31 @@ Columns:
 
 ### Show only the worst offenders
 
-```bash
+```shell
 go-crap scan --top 10
 ```
 
 ### Hide entries below a minimum score
 
-```bash
+```shell
 go-crap scan --min 10
 ```
 
 ### Exclude test files and testdata
 
-```bash
+```shell
 go-crap scan --exclude '.*_test\.go' --exclude 'testdata/.*\.go'
 ```
 
 ### Exclude generated files at any depth
 
-```bash
+```shell
 go-crap scan --exclude '\.pb\.go$' --exclude 'mock_'
 ```
 
 ## 4. Fail CI on High Scores
 
-```bash
+```shell
 go-crap scan --fail-above --threshold 30
 ```
 
@@ -77,7 +77,7 @@ Exits with code 1 if any function's CRAP score exceeds 30.
 
 ### JSON
 
-```bash
+```shell
 go-crap scan --format json
 ```
 
@@ -103,8 +103,12 @@ Output:
 
 ### GitHub Actions annotations
 
-```bash
-go-crap scan --format github
+```shell
+go-crap scan --format github --threshold 15
+::warning file=internal/coverage/scanner.go,line=149::internal/coverage/scanner.go:149 runTests CRAP score 19.6 (CC=7, cov=36.4%) exceeds threshold 15
+::warning file=internal/complexity/analyze.go,line=136::internal/complexity/analyze.go:136 exprString CRAP score 19.1 (CC=6, cov=28.6%) exceeds threshold 15
+::warning file=internal/complexity/analyze.go,line=62::internal/complexity/analyze.go:62 *analyzeData.analyzeDir CRAP score 17.1 (CC=14, cov=75.0%) exceeds threshold 15
+::warning file=internal/coverage/parser.go,line=121::internal/coverage/parser.go:121 parseFileProfile CRAP score 15.8 (CC=15, cov=84.6%) exceeds threshold 15
 ```
 
 Emits `::warning` annotations that GitHub Actions renders as PR comments.
@@ -113,7 +117,7 @@ Emits `::warning` annotations that GitHub Actions renders as PR comments.
 
 When a function has no coverage data, decide how to handle it:
 
-```bash
+```shell
 # Assume 0% coverage (default) - worst case
 go-crap scan --missing pessimistic
 

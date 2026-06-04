@@ -4,14 +4,14 @@ The `scan` command is the main entry point. It analyzes Go modules, computes CRA
 
 ## Usage
 
-```
+```shell
 go-crap scan [path] [flags]
 ```
 
 **Arguments:**
 
 | Argument | Description | Default |
-|----------|-------------|---------|
+| - | - | - |
 | `path` | Directory or package pattern to scan | `.` (current directory) |
 
 ## Flags
@@ -30,48 +30,48 @@ go-crap scan [path] [flags]
 
 ### Scan all packages
 
-```bash
+```shell
 go-crap scan
 ```
 
 ### Scan a project somewhere else
 
-```bash
+```shell
 go-crap scan ~/go/src/github.com/padiazg/go-crap
 ```
 
 ### Show only the top 20 worst offenders
 
-```bash
+```shell
 go-crap scan --top 20
 ```
 
 ### CI integration - fail on high CRAP scores
 
-```bash
+```shell
 go-crap scan --fail-above --threshold 30 --format github
 ```
 
 ### Filter by minimum score
 
-```bash
+```shell
 go-crap scan --min 10
 ```
 
 ### Exclude generated or test files
 
-```bash
+```shell
 go-crap scan --exclude '.*_test\.go' --exclude 'testdata/.*\.go'
 ```
 
 ### Exclude protobuf and mock files at any depth
 
-```bash
+```shell
 go-crap scan --exclude '\.pb\.go$' --exclude 'mock_'
 ```
 
 ### Machine-readable JSON output
 
-```bash
+```shell
 go-crap scan --format json > report.json
 ```
