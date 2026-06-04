@@ -109,20 +109,23 @@ func scanModule(ctx context.Context, modDir string, exclude *regexp.Regexp, time
 	mc := ModuleCoverage{Dir: modDir}
 	modulePath, err := readModulePath(modDir)
 	if err != nil {
+		if l != nil {
+			l.Debug("coverage scan: read module path", "error", err.Error())
+		}
 		modulePath = filepath.Base(modDir)
 	}
 
 	mc.ModulePath = modulePath
 	profile, err := runTests(ctx, modDir, exclude, timeout, l)
 	if err != nil {
-		mc.Error = err
-		return mc, err
+		mc.Error = fmt.Errorf("runTests: %w", err)
+		return mc, mc.Error
 	}
 
 	functions, err := parseCoverProfile(profile, modDir, modulePath)
 	if err != nil {
-		mc.Error = err
-		return mc, err
+		mc.Error = fmt.Errorf("parseCoverProfile: %w", err)
+		return mc, mc.Error
 	}
 
 	mc.Functions = filterByExclude(functions, exclude)
