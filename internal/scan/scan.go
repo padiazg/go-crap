@@ -11,10 +11,12 @@ import (
 	"github.com/padiazg/go-crap/internal/coverage"
 	"github.com/padiazg/go-crap/internal/merge"
 	"github.com/padiazg/go-crap/internal/score"
+	"github.com/padiazg/go-crap/pkg/logger"
 	"github.com/padiazg/go-crap/pkg/utils"
 )
 
 type Options struct {
+	Logger  *logger.Logger
 	Timeout time.Duration
 	Missing string
 	Path    string
@@ -37,12 +39,21 @@ func Scan(options *Options) (*score.EntryList, error) {
 	coverages, err := coverage.Scan(ctx, coverage.ScanOptions{
 		Path:    options.Path,
 		Exclude: exclude,
+		Logger:  options.Logger,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("coverage scan: %w", err)
 	}
 
-	stats := complexity.Analyze([]string{options.Path}, exclude)
+	if options.Logger != nil {
+		for _, mc := range coverages {
+			if mc.Error != nil {
+				options.Logger.Debug("coverage scan error", "module", mc.Dir, "error", mc.Error.Error())
+			}
+		}
+	}
+
+	stats := complexity.Analyze([]string{options.Path}, exclude, options.Logger)
 
 	merged := merge.Merge(coverages, stats)
 

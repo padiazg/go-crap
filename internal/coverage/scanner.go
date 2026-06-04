@@ -10,10 +10,13 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/padiazg/go-crap/pkg/logger"
 )
 
 type ScanOptions struct {
 	Exclude *regexp.Regexp
+	Logger  *logger.Logger
 	Timeout time.Duration
 	Path    string
 }
@@ -27,7 +30,7 @@ func Scan(ctx context.Context, opts ScanOptions) ([]ModuleCoverage, error) {
 		opts.Path = "."
 	}
 
-	modules, err := discoverModules(ctx, opts.Path)
+	modules, err := discoverModules(ctx, opts.Path, opts.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("discover modules: %w", err)
 	}
@@ -40,8 +43,11 @@ func Scan(ctx context.Context, opts ScanOptions) ([]ModuleCoverage, error) {
 		default:
 		}
 
-		mc, err := scanModule(ctx, modDir, opts.Exclude, opts.Timeout)
+		mc, err := scanModule(ctx, modDir, opts.Exclude, opts.Timeout, opts.Logger)
 		if err != nil {
+			if opts.Logger != nil {
+				opts.Logger.Debug("coverage scan: module error", "module", modDir, "error", err.Error())
+			}
 			results = append(results, ModuleCoverage{
 				Dir:   modDir,
 				Error: fmt.Errorf("scan %s: %w", modDir, err),
@@ -55,7 +61,7 @@ func Scan(ctx context.Context, opts ScanOptions) ([]ModuleCoverage, error) {
 	return results, nil
 }
 
-func discoverModules(ctx context.Context, root string) ([]string, error) {
+func discoverModules(ctx context.Context, root string, l *logger.Logger) ([]string, error) {
 	var modules []string
 	err := walkForModules(root, func(dir string) bool {
 		select {
@@ -69,6 +75,9 @@ func discoverModules(ctx context.Context, root string) ([]string, error) {
 			if err == nil {
 				modules = append(modules, absPath)
 			} else {
+				if l != nil {
+					l.Debug("coverage scan: could not resolve absolute path", "dir", dir, "error", err.Error())
+				}
 				modules = append(modules, dir)
 			}
 			return false
@@ -96,7 +105,7 @@ func walkForModules(root string, visit func(dir string) bool) error {
 	})
 }
 
-func scanModule(ctx context.Context, modDir string, exclude *regexp.Regexp, timeout time.Duration) (ModuleCoverage, error) {
+func scanModule(ctx context.Context, modDir string, exclude *regexp.Regexp, timeout time.Duration, l *logger.Logger) (ModuleCoverage, error) {
 	mc := ModuleCoverage{Dir: modDir}
 	modulePath, err := readModulePath(modDir)
 	if err != nil {
@@ -104,7 +113,7 @@ func scanModule(ctx context.Context, modDir string, exclude *regexp.Regexp, time
 	}
 
 	mc.ModulePath = modulePath
-	profile, err := runTests(ctx, modDir, exclude, timeout)
+	profile, err := runTests(ctx, modDir, exclude, timeout, l)
 	if err != nil {
 		mc.Error = err
 		return mc, err
@@ -112,7 +121,7 @@ func scanModule(ctx context.Context, modDir string, exclude *regexp.Regexp, time
 
 	// defer os.Remove(profile) //nolint
 
-	data, err := runCoverTool(ctx, profile, modDir)
+	data, err := runCoverTool(ctx, profile, modDir, l)
 	if err != nil {
 		mc.Error = err
 		return mc, err
@@ -142,12 +151,16 @@ func readModulePath(dir string) (string, error) {
 	return "", fmt.Errorf("no module declaration in go.mod")
 }
 
-func runTests(ctx context.Context, modDir string, _ *regexp.Regexp, timeout time.Duration) (string, error) {
+func runTests(ctx context.Context, modDir string, _ *regexp.Regexp, timeout time.Duration, l *logger.Logger) (string, error) {
 	tmpfile, err := os.CreateTemp("", "coverage-*.out")
 	if err != nil {
 		return "", err
 	}
-	_ = tmpfile.Close()
+	if err := tmpfile.Close(); err != nil {
+		if l != nil {
+			l.Debug("coverage scan: tmpfile close error", "error", err.Error())
+		}
+	}
 	profile := tmpfile.Name()
 	cmd := exec.CommandContext(ctx, "go", "test", "-coverprofile="+profile, "./...")
 	cmd.Dir = modDir
@@ -157,7 +170,11 @@ func runTests(ctx context.Context, modDir string, _ *regexp.Regexp, timeout time
 
 	err = cmd.Run()
 	if err != nil {
-		_ = os.Remove(profile)
+		if removeErr := os.Remove(profile); removeErr != nil {
+			if l != nil {
+				l.Debug("coverage scan: remove temp file error", "profile", profile, "error", removeErr.Error())
+			}
+		}
 		return "", fmt.Errorf("go test: %w\n%s", err, stderr.String())
 	}
 
@@ -177,8 +194,15 @@ func filterByExclude(functions []FunctionCoverage, ignore *regexp.Regexp) []Func
 	return kept
 }
 
-func runCoverTool(ctx context.Context, profile, modDir string) ([]byte, error) {
+func runCoverTool(ctx context.Context, profile, modDir string, l *logger.Logger) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "go", "tool", "cover", "-func="+profile)
 	cmd.Dir = modDir
-	return cmd.Output()
+	data, err := cmd.Output()
+	if err != nil {
+		if l != nil {
+			l.Debug("coverage scan: cover tool error", "profile", profile, "error", err.Error())
+		}
+		return nil, err
+	}
+	return data, nil
 }

@@ -180,7 +180,7 @@ func Test_discoverModules(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			modules, err := discoverModules(context.Background(), tt.path)
+			modules, err := discoverModules(context.Background(), tt.path, nil)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {

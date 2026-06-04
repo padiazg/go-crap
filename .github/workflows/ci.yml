@@ -25,4 +25,4 @@ jobs:
           go-version: '1.22'
       - run: make build
       - run: ./go-crap version
-      - run: ./go-crap scan --format github --fail-above --threshold 30 --exclude ".*_test.go"
+      - run: ./go-crap scan --format github --fail-above --threshold 30 --exclude ".*_test.go" --verbose

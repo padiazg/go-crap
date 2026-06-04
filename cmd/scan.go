@@ -9,6 +9,7 @@ import (
 	"github.com/padiazg/go-crap/internal/report"
 	"github.com/padiazg/go-crap/internal/scan"
 	"github.com/padiazg/go-crap/internal/score"
+	"github.com/padiazg/go-crap/pkg/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -20,6 +21,7 @@ var (
 	flagMin       float64
 	flagMissing   string
 	flagExclude   []string
+	flagVerbose   bool
 
 	scanCmd = &cobra.Command{
 		Use:   "scan [path]",
@@ -44,6 +46,8 @@ func init() {
 		"Policy for functions without coverage: pessimistic|optimistic|skip")
 	scanCmd.Flags().StringArrayVar(&flagExclude, "exclude", nil,
 		"Exclude files matching this regex (repeatable). Use . for any character, .* for any path depth. e.g. '.*_test\\.go' to exclude all test files, 'pb/.*\\.go' to exclude protobuf files")
+	scanCmd.Flags().BoolVar(&flagVerbose, "verbose", false,
+		"Enable verbose (debug-level) logging")
 	rootCmd.AddCommand(scanCmd)
 }
 
@@ -53,12 +57,23 @@ func runScan(cmd *cobra.Command, args []string) error {
 		path = args[0]
 	}
 
+	logLevel := "error"
+	if flagVerbose {
+		logLevel = "debug"
+	}
+	l := logger.New(&logger.Config{
+		Level:  logLevel,
+		Format: "text",
+	})
+	lp := &l
+
 	entries, err := scan.Scan(&scan.Options{
 		Exclude: flagExclude,
 		Path:    path,
 		Missing: flagMissing,
 		Top:     flagTop,
 		Min:     flagMin,
+		Logger:  lp,
 	})
 	if err != nil {
 		return err

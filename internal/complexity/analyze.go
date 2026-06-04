@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/padiazg/go-crap/pkg/logger"
 )
 
 type Stat struct {
@@ -20,15 +22,17 @@ type Stat struct {
 
 type analyzeData struct {
 	exclude *regexp.Regexp
+	logger  *logger.Logger
 	paths   []string
-	Stats   []Stat
+	stats   []Stat
 }
 
-func newAnalyze(paths []string, exclude *regexp.Regexp) *analyzeData {
+func newAnalyze(paths []string, exclude *regexp.Regexp, l *logger.Logger) *analyzeData {
 	return &analyzeData{
 		exclude: exclude,
 		paths:   paths,
-		Stats:   make([]Stat, 0),
+		stats:   make([]Stat, 0),
+		logger:  l,
 	}
 }
 
@@ -36,6 +40,9 @@ func (a *analyzeData) Analyze() {
 	for _, path := range a.paths {
 		absPath, err := filepath.Abs(path)
 		if err != nil {
+			if a.logger != nil {
+				a.logger.Debug("complexity analyze: could not resolve absolute path", "path", path, "error", err.Error())
+			}
 			continue
 		}
 
@@ -43,15 +50,18 @@ func (a *analyzeData) Analyze() {
 	}
 }
 
-func Analyze(paths []string, exclude *regexp.Regexp) []Stat {
-	a := newAnalyze(paths, exclude)
+func Analyze(paths []string, exclude *regexp.Regexp, l *logger.Logger) []Stat {
+	a := newAnalyze(paths, exclude, l)
 	a.Analyze()
-	return a.Stats
+	return a.stats
 }
 
 func (a *analyzeData) analyzeDir(dir string) {
 	entries, err := filepath.Glob(filepath.Join(dir, "*.go"))
 	if err != nil {
+		if a.logger != nil {
+			a.logger.Debug("complexity analyze: glob error", "dir", dir, "error", err.Error())
+		}
 		return
 	}
 
@@ -65,12 +75,18 @@ func (a *analyzeData) analyzeDir(dir string) {
 
 	dirs, err := filepath.Glob(filepath.Join(dir, "*"))
 	if err != nil {
+		if a.logger != nil {
+			a.logger.Debug("complexity analyze: glob error for subdirs", "dir", dir, "error", err.Error())
+		}
 		return
 	}
 
 	for _, dirEntry := range dirs {
 		info, err := os.Stat(dirEntry)
 		if err != nil || !info.IsDir() {
+			if err != nil && a.logger != nil {
+				a.logger.Debug("complexity analyze: stat error", "dir", dirEntry, "error", err.Error())
+			}
 			continue
 		}
 
@@ -87,6 +103,9 @@ func (a *analyzeData) analyzeFile(file string) {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, file, nil, parser.ParseComments|parser.AllErrors)
 	if err != nil {
+		if a.logger != nil {
+			a.logger.Debug("complexity analyze: parse error", "file", file, "error", err.Error())
+		}
 		return
 	}
 
@@ -152,7 +171,7 @@ func (a *analyzeData) analyzeASTFile(f *ast.File, fset *token.FileSet) {
 		}
 
 		complexity := Complexity(fnDecl)
-		a.Stats = append(a.Stats, Stat{
+		a.stats = append(a.stats, Stat{
 			PkgName:    f.Name.Name,
 			FuncName:   name,
 			Receiver:   receiverName(fnDecl.Recv),
