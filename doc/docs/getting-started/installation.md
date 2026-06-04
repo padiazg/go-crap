@@ -20,6 +20,13 @@ cd go-crap
 go build -o go-crap .
 ```
 
+## Install via Homebrew
+
+```bash
+brew tap padiazg/go-crap
+brew install go-crap
+```
+
 ## Verify Installation
 
 ```bash
