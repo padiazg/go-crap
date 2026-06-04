@@ -75,6 +75,8 @@ nav:
     - Missing Coverage Policy: concepts/missing-policy.md
   - Commands:
     - commands/scan.md
+  - Integrations:
+    - CI Workflows: integrations/ci.md
   - Resources:
     - resources/index.md
   - License: license.md

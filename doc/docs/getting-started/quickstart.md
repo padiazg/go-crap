@@ -104,7 +104,11 @@ Output:
 ### GitHub Actions annotations
 
 ```shell
-go-crap scan --format github
+go-crap scan --format github --threshold 15
+::warning file=internal/coverage/scanner.go,line=149::internal/coverage/scanner.go:149 runTests CRAP score 19.6 (CC=7, cov=36.4%) exceeds threshold 15
+::warning file=internal/complexity/analyze.go,line=136::internal/complexity/analyze.go:136 exprString CRAP score 19.1 (CC=6, cov=28.6%) exceeds threshold 15
+::warning file=internal/complexity/analyze.go,line=62::internal/complexity/analyze.go:62 *analyzeData.analyzeDir CRAP score 17.1 (CC=14, cov=75.0%) exceeds threshold 15
+::warning file=internal/coverage/parser.go,line=121::internal/coverage/parser.go:121 parseFileProfile CRAP score 15.8 (CC=15, cov=84.6%) exceeds threshold 15
 ```
 
 Emits `::warning` annotations that GitHub Actions renders as PR comments.
