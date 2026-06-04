@@ -36,10 +36,6 @@ Thumbs.db
 # GoReleaser dist
 dist/
 
-# MkDocs site
-doc/site/
-!doc/**/*.md
-
 # Local GoReleaser cache
 .goreleaser/local/
 
@@ -52,3 +48,7 @@ doc/site/
 !AGENTS.md
 !CHANGELOG.md
 !.github/**/*.md
+
+# MkDocs site
+doc/site/
+!doc/**/*.md
