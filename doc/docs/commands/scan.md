@@ -24,7 +24,7 @@ go-crap scan [path] [flags]
 | `--top` | | Show only the N worst offenders (0 = all) | `0` |
 | `--min` | | Hide entries below this score | `0` |
 | `--missing` | | Policy for functions without coverage: `pessimistic`, `optimistic`, or `skip` | `pessimistic` |
-| `--exclude` | | Exclude files matching this glob (repeatable) | none |
+| `--exclude` | | Exclude files matching this regex pattern (repeatable). Use `.*` to match any path depth. e.g. `.*_test\.go` to exclude all test files, `pb/.*\.go` to exclude protobuf files | none |
 
 ## Examples
 
@@ -61,7 +61,13 @@ go-crap scan --min 10
 ### Exclude generated or test files
 
 ```bash
-go-crap scan --exclude '*_test.go' --exclude '*/testdata/*'
+go-crap scan --exclude '.*_test\.go' --exclude 'testdata/.*\.go'
+```
+
+### Exclude protobuf and mock files at any depth
+
+```bash
+go-crap scan --exclude '\.pb\.go$' --exclude 'mock_'
 ```
 
 ### Machine-readable JSON output

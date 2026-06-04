@@ -1,0 +1,283 @@
+package report
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"testing"
+
+	"github.com/padiazg/go-crap/internal/score"
+	"github.com/stretchr/testify/assert"
+)
+
+type checkJSONFormatterFormatFn func(*testing.T, error)
+
+var checkJSONFormatterFormat = func(fns ...checkJSONFormatterFormatFn) []checkJSONFormatterFormatFn { return fns }
+
+type checkJSONFormatterFormatReportFn func(*testing.T, Report)
+
+var checkJSONFormatterFormatReport = func(fns ...checkJSONFormatterFormatReportFn) []checkJSONFormatterFormatReportFn {
+	return fns
+}
+
+func checkReportSchema(want string) checkJSONFormatterFormatReportFn {
+	return func(t *testing.T, r Report) {
+		t.Helper()
+		assert.Equalf(t, want, r.Schema, "Report.Schema mismatch")
+	}
+}
+func checkReportVersion(want string) checkJSONFormatterFormatReportFn {
+	return func(t *testing.T, r Report) {
+		t.Helper()
+		assert.Equalf(t, want, r.Version, "Report.Version mismatch")
+	}
+}
+func checkReportEntriesLen(want int) checkJSONFormatterFormatReportFn {
+	return func(t *testing.T, r Report) {
+		t.Helper()
+		assert.Equalf(t, want, len(r.Entries), "len(Entries) mismatch")
+	}
+}
+func checkReportEntries(i int, fns ...func(*testing.T, JSONEntry)) checkJSONFormatterFormatReportFn {
+	return func(t *testing.T, r Report) {
+		t.Helper()
+		t.Helper()
+		assert.GreaterOrEqualf(t, len(r.Entries), i+1, "Entries has enough items at index %d", i)
+		entry := r.Entries[i]
+		for _, fn := range fns {
+			fn(t, entry)
+		}
+	}
+}
+
+func checkEntryFile(want string) func(*testing.T, JSONEntry) {
+	return func(t *testing.T, e JSONEntry) {
+		t.Helper()
+		assert.Equalf(t, want, e.File, "entry.File mismatch")
+	}
+}
+func checkEntryPackage(want string) func(*testing.T, JSONEntry) {
+	return func(t *testing.T, e JSONEntry) {
+		t.Helper()
+		assert.Equalf(t, want, e.Package, "entry.Package mismatch")
+	}
+}
+func checkEntryFunction(want string) func(*testing.T, JSONEntry) {
+	return func(t *testing.T, e JSONEntry) {
+		t.Helper()
+		assert.Equalf(t, want, e.Function, "entry.Function mismatch")
+	}
+}
+func checkEntryLine(want int) func(*testing.T, JSONEntry) {
+	return func(t *testing.T, e JSONEntry) {
+		t.Helper()
+		assert.Equalf(t, want, e.Line, "entry.Line mismatch")
+	}
+}
+func checkEntryCyclomatic(want int) func(*testing.T, JSONEntry) {
+	return func(t *testing.T, e JSONEntry) {
+		t.Helper()
+		assert.Equalf(t, want, e.Cyclomatic, "entry.Cyclomatic mismatch")
+	}
+}
+func checkEntryCRAP(want float64) func(*testing.T, JSONEntry) {
+	return func(t *testing.T, e JSONEntry) {
+		t.Helper()
+		assert.InDeltaf(t, want, e.CRAP, 0.01, "entry.CRAP mismatch")
+	}
+}
+func checkEntryCoverage(want float64) func(*testing.T, JSONEntry) {
+	return func(t *testing.T, e JSONEntry) {
+		t.Helper()
+		assert.NotNil(t, e.Coverage, "Coverage should not be nil")
+		assert.InDeltaf(t, want, *e.Coverage, 0.01, "entry.Coverage mismatch")
+	}
+}
+func checkEntryReceiverNilOrEmpty() func(*testing.T, JSONEntry) {
+	return func(t *testing.T, e JSONEntry) {
+		t.Helper()
+		// omitempty should have omitted it, but struct value will be ""
+		assert.Emptyf(t, e.Receiver, "entry.Receiver should be empty")
+	}
+}
+
+func checkFormatError(want string) checkJSONFormatterFormatFn {
+	return func(t *testing.T, err error) {
+		t.Helper()
+		if want == "" {
+			assert.NoErrorf(t, err, "checkFormatError: expected no error, got %v", err)
+			return
+		}
+		if assert.Errorf(t, err, "checkFormatError: expected error %q", want) {
+			assert.Containsf(t, err.Error(), want, "checkFormatError mismatch")
+		}
+	}
+}
+func TestJSONFormatter_Format(t *testing.T) {
+	tests := []struct {
+		name        string
+		entries     score.EntryList
+		opts        FormatOptions
+		checks      []checkJSONFormatterFormatFn
+		reportCheck []checkJSONFormatterFormatReportFn
+		before      func(*JSONFormatter)
+	}{
+		{
+			name: "success_empty_entries",
+			reportCheck: checkJSONFormatterFormatReport(
+				checkReportSchema("https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json"),
+				checkReportVersion("1.0.0"),
+				checkReportEntriesLen(0),
+			),
+		},
+		{
+			name: "success_single_entry",
+			entries: score.EntryList{List: []score.CRAPEntry{
+				{
+					File:       "/home/user/project/main.go",
+					Package:    "myapp",
+					FuncName:   "HelloWorld",
+					Receiver:   "",
+					Line:       42,
+					Complexity: 5,
+					Coverage:   80.0,
+					CRAP:       23.0,
+				},
+			}},
+			reportCheck: checkJSONFormatterFormatReport(
+				checkReportSchema("https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json"),
+				checkReportVersion("1.0.0"),
+				checkReportEntriesLen(1),
+				checkReportEntries(0,
+					checkEntryFile("/home/user/project/main.go"),
+					checkEntryPackage("myapp"),
+					checkEntryFunction("HelloWorld"),
+					checkEntryLine(42),
+					checkEntryCyclomatic(5),
+					checkEntryCRAP(23.0),
+					checkEntryCoverage(80.0),
+				),
+			),
+		},
+		{
+			name: "success_receiver_omitempty",
+			entries: score.EntryList{List: []score.CRAPEntry{
+				{
+					File:       "/home/user/project/main.go",
+					Package:    "myapp",
+					FuncName:   "HelloWorld",
+					Receiver:   "",
+					Line:       42,
+					Complexity: 5,
+					Coverage:   80.0,
+					CRAP:       23.0,
+				},
+			}},
+			reportCheck: checkJSONFormatterFormatReport(
+				checkReportEntriesLen(1),
+				checkReportEntries(0,
+					checkEntryReceiverNilOrEmpty(),
+				),
+			),
+		},
+		{
+			name: "success_coverage_zero_included",
+			entries: score.EntryList{List: []score.CRAPEntry{
+				{
+					File:       "/home/user/project/main.go",
+					Package:    "myapp",
+					FuncName:   "NewConnection",
+					Receiver:   "",
+					Line:       10,
+					Complexity: 3,
+					Coverage:   0.0,
+					CRAP:       12.0,
+				},
+			}},
+			reportCheck: checkJSONFormatterFormatReport(
+				checkReportEntriesLen(1),
+				checkReportEntries(0,
+					checkEntryFile("/home/user/project/main.go"),
+					checkEntryCoverage(0.0),
+				),
+			),
+		},
+		{
+			name: "success_base_dir_rewrites_path",
+			entries: score.EntryList{List: []score.CRAPEntry{
+				{
+					File:       "/tmp/project/main.go",
+					Package:    "myapp",
+					FuncName:   "Process",
+					Receiver:   "",
+					Line:       5,
+					Complexity: 2,
+					Coverage:   90.0,
+					CRAP:       7.2,
+				},
+			}},
+			opts: FormatOptions{BaseDir: "/tmp/project"},
+			reportCheck: checkJSONFormatterFormatReport(
+				checkReportEntriesLen(1),
+				checkReportEntries(0,
+					checkEntryFile("main.go"),
+					checkEntryPackage("myapp"),
+				),
+			),
+		},
+		{
+			name: "error_marshal",
+			before: func(j *JSONFormatter) {
+				j.jsonMarshalIndent = func(v any, prefix, indent string) ([]byte, error) { return nil, fmt.Errorf("json-marshalindent-error") }
+			},
+			checks: checkJSONFormatterFormat(
+				checkFormatError("json-marshalindent-error"),
+			),
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			s := &JSONFormatter{}
+			var gotReport Report
+			buf := &bytes.Buffer{}
+			opts := tt.opts
+			if opts.Writer == nil {
+				opts.Writer = buf
+			}
+			defaultMarshal := func(v any, prefix, indent string) ([]byte, error) {
+				return json.MarshalIndent(v, prefix, indent)
+			}
+			captured := func(v any, prefix, indent string) ([]byte, error) {
+				data, err := json.MarshalIndent(v, prefix, indent)
+				if err == nil && tt.reportCheck != nil {
+					_ = json.Unmarshal(data, &gotReport)
+				}
+				return data, err
+			}
+			if tt.before != nil {
+				tt.before(s)
+				orig := s.jsonMarshalIndent
+				if orig == nil {
+					orig = defaultMarshal
+				}
+				s.jsonMarshalIndent = func(v any, prefix, indent string) ([]byte, error) {
+					data, err := orig(v, prefix, indent)
+					if err == nil && tt.reportCheck != nil {
+						_ = json.Unmarshal(data, &gotReport)
+					}
+					return data, err
+				}
+			} else {
+				s.jsonMarshalIndent = captured
+			}
+			err := s.Format(&tt.entries, opts)
+			for _, c := range tt.checks {
+				c(t, err)
+			}
+			for _, c := range tt.reportCheck {
+				c(t, gotReport)
+			}
+		})
+	}
+}

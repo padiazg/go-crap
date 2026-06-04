@@ -7,7 +7,7 @@ import (
 )
 
 type Formatter interface {
-	Format(entries []score.CRAPEntry, opts FormatOptions) error
+	Format(entries *score.EntryList, opts FormatOptions) error
 }
 
 type FormatOptions struct {

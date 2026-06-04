@@ -12,6 +12,7 @@ type MergedEntry struct {
 	Coverage   *float64
 	File       string
 	FuncName   string
+	Receiver   string
 	Package    string
 	Complexity int
 	Line       int
@@ -58,8 +59,16 @@ func (idx *pathIndex) lookup(absPath string) ([]coverage.FunctionCoverage, bool)
 }
 
 func normalizeFuncName(name string) string {
-	replacer := strings.NewReplacer("(", "", ")", "")
-	return replacer.Replace(name)
+	if idx := strings.Index(name, ")."); idx != -1 {
+		return name[idx+2:]
+	}
+	if idx := strings.Index(name, "."); idx != -1 {
+		recv := name[:idx]
+		if strings.HasPrefix(recv, "*") || strings.Contains(recv, ".") {
+			return name[idx+1:]
+		}
+	}
+	return name
 }
 
 func Merge(coverages []coverage.ModuleCoverage, stats []complexity.Stat) []MergedEntry {
@@ -71,20 +80,28 @@ func Merge(coverages []coverage.ModuleCoverage, stats []complexity.Stat) []Merge
 		if fns, ok := idx.lookup(stat.Pos.Filename); ok {
 			for _, fn := range fns {
 				if normalizeFuncName(fn.Name) == fnName {
-					cov := fn.Coverage
-					coverage = &cov
+					if fn.Coverage > 0 {
+						cov := fn.Coverage
+						coverage = &cov
+					}
 					break
 				}
 			}
 		}
-		entries = append(entries, MergedEntry{
-			File:       stat.Pos.Filename,
-			Package:    stat.PkgName,
-			FuncName:   stat.FuncName,
-			Line:       stat.Pos.Line,
-			Complexity: stat.Complexity,
-			Coverage:   coverage,
-		})
+
+		name := stat.FuncName
+	if stat.Receiver != "" {
+		name = stat.Receiver + "." + name
+	}
+	entries = append(entries, MergedEntry{
+		File:       stat.Pos.Filename,
+		Package:    stat.PkgName,
+		FuncName:   name,
+		Receiver:   stat.Receiver,
+		Line:       stat.Pos.Line,
+		Complexity: stat.Complexity,
+		Coverage:   coverage,
+	})
 	}
 	return entries
 }

@@ -16,11 +16,26 @@ type CRAPEntry struct {
 	File       string
 	Package    string
 	FuncName   string
+	Receiver   string
 	Line       int
 	Complexity int
 	Coverage   float64
 	CRAP       float64
 	Skipped    bool
+}
+
+type EntryList struct {
+	List []CRAPEntry
+}
+
+func (el *EntryList) ThresholdExeeded(threshold float64) bool {
+	for _, e := range el.List {
+		if e.CRAP > threshold {
+			return true
+		}
+	}
+
+	return false
 }
 
 func CRAP(complexity int, coverage float64) float64 {
@@ -44,6 +59,7 @@ func Score(entries []merge.MergedEntry, policy MissingPolicy) []CRAPEntry {
 					File:       e.File,
 					Package:    e.Package,
 					FuncName:   e.FuncName,
+					Receiver:   e.Receiver,
 					Line:       e.Line,
 					Complexity: e.Complexity,
 					Coverage:   0,
@@ -59,6 +75,7 @@ func Score(entries []merge.MergedEntry, policy MissingPolicy) []CRAPEntry {
 			File:       e.File,
 			Package:    e.Package,
 			FuncName:   e.FuncName,
+			Receiver:   e.Receiver,
 			Line:       e.Line,
 			Complexity: e.Complexity,
 			Coverage:   cov,

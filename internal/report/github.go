@@ -9,8 +9,12 @@ import (
 
 type GithubFormatter struct{}
 
-func (f *GithubFormatter) Format(entries []score.CRAPEntry, opts FormatOptions) error {
-	for _, e := range entries {
+func (f *GithubFormatter) Format(entries *score.EntryList, opts FormatOptions) error {
+	if entries == nil {
+		return fmt.Errorf("Format: entries list is nil")
+	}
+
+	for _, e := range entries.List {
 		file := e.File
 		if base := opts.BaseDir; base != "" {
 			if absBase, err := filepath.Abs(base); err == nil {

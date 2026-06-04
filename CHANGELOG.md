@@ -5,7 +5,32 @@ All notable changes to go-crap will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## v0.1.0 - unreleased
+## v0.2.0 - 2026-06-04
+
+### Added
+
+- New `internal/scan` package — unified scan pipeline orchestrating coverage, complexity, merge, and score in a single call
+- New `pkg/utils` package with `BuildExcludeRegex` and `MatchExclude` helpers
+- Method receiver tracking — CRAP entries now include receiver info for struct methods
+- `EntryList` wrapper type with `ThresholdExceeded()` method for CI integration
+- `Skipped` field on `CRAPEntry` for functions excluded by `--missing skip` policy
+- JSON output now uses `EntryList` structure with optional receiver field
+
+### Changed
+
+- `--exclude` flag now uses regex matching instead of glob matching
+- Refactored `cmd/scan.go` to use new `internal/scan` package
+- Coverage and complexity packages now accept `*regexp.Regexp` instead of `[]string` for exclude patterns
+- Merge now constructs full function names from receiver + method name
+- Report formatters now accept `*score.EntryList` instead of `[]score.CRAPEntry`
+
+### Fixed
+
+- Properly match function names with method receivers (e.g. `(*MyType).Method`)
+- Handle zero-coverage entries correctly in merge step
+- `runCoverTool` now runs in correct module directory (`modDir` set as `cmd.Dir`)
+
+## v0.1.0 - 2026-06-02
 
 ### Added
 

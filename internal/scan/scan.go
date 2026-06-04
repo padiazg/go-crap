@@ -1,0 +1,93 @@
+package scan
+
+import (
+	"context"
+	"fmt"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/padiazg/go-crap/internal/complexity"
+	"github.com/padiazg/go-crap/internal/coverage"
+	"github.com/padiazg/go-crap/internal/merge"
+	"github.com/padiazg/go-crap/internal/score"
+	"github.com/padiazg/go-crap/pkg/utils"
+)
+
+type Options struct {
+	Timeout time.Duration
+	Missing string
+	Path    string
+	Exclude []string //*regexp.Regexp
+	Min     float64
+	Top     int
+}
+
+func Scan(options *Options) (*score.EntryList, error) {
+	// TODO: make timeout configurable
+	// TODO: use goroutine to catch timeout signal
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	exclude, err := utils.BuildExcludeRegex(options.Exclude)
+	if err != nil {
+		return nil, fmt.Errorf("coverage scan: %w", err)
+	}
+
+	coverages, err := coverage.Scan(ctx, coverage.ScanOptions{
+		Path:    options.Path,
+		Exclude: exclude,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("coverage scan: %w", err)
+	}
+
+	stats := complexity.Analyze([]string{options.Path}, exclude)
+
+	merged := merge.Merge(coverages, stats)
+
+	policy, err := parseMissingPolicy(options.Missing)
+	if err != nil {
+		return nil, err
+	}
+
+	entries := score.Score(merged, policy)
+	entries = applyFilters(entries, options.Top, options.Min)
+
+	return &score.EntryList{List: entries}, nil
+}
+
+func parseMissingPolicy(s string) (score.MissingPolicy, error) {
+	switch strings.ToLower(s) {
+	case "pessimistic", "":
+		return score.MissingPessimistic, nil
+	case "optimistic":
+		return score.MissingOptimistic, nil
+	case "skip":
+		return score.MissingSkip, nil
+	default:
+		return 0, fmt.Errorf("unknown missing policy: %s (use pessimistic, optimistic, or skip)", s)
+	}
+}
+
+func applyFilters(entries []score.CRAPEntry, top int, min float64) []score.CRAPEntry {
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].CRAP > entries[j].CRAP
+	})
+
+	if min > 0 {
+		var filtered []score.CRAPEntry
+		for _, e := range entries {
+			if e.CRAP >= min {
+				filtered = append(filtered, e)
+			}
+		}
+		entries = filtered
+	}
+
+	if top > 0 && top < len(entries) {
+		return entries[:top]
+	}
+
+	return entries
+}
