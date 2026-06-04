@@ -16,7 +16,7 @@ Where:
 ## Interpretation
 
 | CRAP Range | Meaning |
-|------------|---------|
+| - | - |
 | 0 - 10 | Well-tested, simple function |
 | 10 - 30 | Moderate complexity, should be tested |
 | 30 - 50 | High CRAP - refactoring or more tests needed |

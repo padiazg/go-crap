@@ -6,7 +6,7 @@
 
 ## Install via `go install`
 
-```bash
+```shell
 go install github.com/padiazg/go-crap@latest
 ```
 
@@ -14,22 +14,22 @@ The binary is placed in `$GOPATH/bin` (or `$GOBIN` if set). Make sure that direc
 
 ## Build from Source
 
-```bash
+```shell
 git clone https://github.com/padiazg/go-crap.git
 cd go-crap
-go build -o go-crap .
+make build
 ```
 
 ## Install via Homebrew
 
-```bash
+```shell
 brew tap padiazg/go-crap
 brew install go-crap
 ```
 
 ## Verify Installation
 
-```bash
+```shell
 go-crap scan --help
 ```
 

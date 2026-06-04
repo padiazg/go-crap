@@ -38,7 +38,7 @@ When a function has no coverage data, go-crap can handle it three ways:
 ### Output Formats
 
 | Format | Flag | Use case |
-|--------|------|----------|
+| - | - | - |
 | `table` | default | Human-readable terminal output with status symbols |
 | `json` | `--format json` | Machine-readable output for CI pipelines |
 | `github` | `--format github` | GitHub Actions workflow annotations |

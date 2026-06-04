@@ -7,7 +7,7 @@ When go-crap finds a function that has no coverage data at all, it needs a strat
 ## Options
 
 | Policy | Flag | Effect |
-|--------|------|--------|
+| - | - | - |
 | **pessimistic** | `--missing pessimistic` (default) | Assume 0% coverage x maximum CRAP score |
 | **optimistic** | `--missing optimistic` | Assume 100% coverage x minimum CRAP score |
 | **skip** | `--missing skip` | Exclude the function from results |
@@ -16,7 +16,7 @@ When go-crap finds a function that has no coverage data at all, it needs a strat
 
 Assumes functions without coverage have 0% test coverage. This gives the highest possible CRAP score and surfaces them as top issues.
 
-```bash
+```shell
 go-crap scan --missing pessimistic
 ```
 
@@ -30,7 +30,7 @@ $$
 
 Assumes functions without coverage have 100% coverage. This gives the minimum possible CRAP score - useful for surveys where you want to see the "best case" picture.
 
-```bash
+```shell
 go-crap scan --missing optimistic
 ```
 
@@ -44,7 +44,7 @@ $$
 
 Excludes functions without coverage from the output entirely. Useful for ignoring untested functions and focusing only on those that have coverage data.
 
-```bash
+```shell
 go-crap scan --missing skip
 ```
 

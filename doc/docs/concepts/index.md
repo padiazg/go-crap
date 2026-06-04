@@ -4,26 +4,30 @@ go-crap computes the CRAP score by combining two independent analyses and mergin
 
 ## Pipeline Overview
 
-```
+```shell
 go-crap scan
 │
-├── coverage.Scan()     - discover Go modules, run go test -cover
-│       |
-|       └── coverage data per (file, func)
-|
-├── complexity.Analyze() - walk AST, compute cyclomatic complexity
-|       |
-|       └── complexity data per (file, func)
-|
-├── merge.Merge()       - join by (filepath, funcname)
-|       |
-|       └── merged entries with CC + Coverage
-|
-├── score.Score()       - apply CRAP formula + missing policy
-|       |
-|       └── CRAP entries
-|
-└── report.Format()     - table / json / github
+├── scan.Scan()                  — orchestrator (internal/scan)
+│       ├── build exclude regex from --exclude flags
+│       ├── coverage.Scan()      — discover Go modules, run go test -cover
+│       │       │
+│       │       └── coverage data per (file, func)
+│       │
+│       ├── complexity.Analyze() — walk AST, compute cyclomatic complexity
+│       │       │
+│       │       └── complexity data per (file, func)
+│       │
+│       ├── merge.Merge()        — join by (filepath, funcname)
+│       │       │
+│       │       └── merged entries with CC + Coverage
+│       │
+│       ├── score.Score()        — apply CRAP formula + missing policy
+│       │       │
+│       │       └── CRAP entries
+│       │
+│       └── applyFilters()       — sort descending, apply --min and --top
+│
+└── report.Format()              — table / json / github
         |
         └── output
 ```
@@ -33,7 +37,8 @@ go-crap scan
 Each module is independently testable:
 
 | Module | Purpose |
-|--------|---------|
+| - | - |
+| `internal/scan` | Orchestrates the pipeline: coverage, complexity, merge, score, filters |
 | `internal/complexity` | AST walking to compute cyclomatic complexity (adapted from [gocyclo](https://github.com/fzipp/gocyclo), BSD-3-Clause) |
 | `internal/coverage` | Module discovery + `go test -cover` profiling (adapted from [test-finder](https://github.com/padiazg/test-finder), MIT) |
 | `internal/merge` | Join coverage and complexity by `(filepath, funcname)` using a double index |

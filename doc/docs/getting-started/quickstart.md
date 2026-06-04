@@ -4,7 +4,7 @@ This guide walks through your first CRAP score scan in under two minutes.
 
 ## 1. Install go-crap
 
-```bash
+```shell
 go install github.com/padiazg/go-crap@latest
 ```
 
@@ -12,7 +12,7 @@ go install github.com/padiazg/go-crap@latest
 
 Point `go-crap scan` at a directory or package pattern:
 
-```bash
+```shell
 go-crap scan
 ```
 
@@ -43,31 +43,31 @@ Columns:
 
 ### Show only the worst offenders
 
-```bash
+```shell
 go-crap scan --top 10
 ```
 
 ### Hide entries below a minimum score
 
-```bash
+```shell
 go-crap scan --min 10
 ```
 
 ### Exclude test files and testdata
 
-```bash
+```shell
 go-crap scan --exclude '.*_test\.go' --exclude 'testdata/.*\.go'
 ```
 
 ### Exclude generated files at any depth
 
-```bash
+```shell
 go-crap scan --exclude '\.pb\.go$' --exclude 'mock_'
 ```
 
 ## 4. Fail CI on High Scores
 
-```bash
+```shell
 go-crap scan --fail-above --threshold 30
 ```
 
@@ -77,7 +77,7 @@ Exits with code 1 if any function's CRAP score exceeds 30.
 
 ### JSON
 
-```bash
+```shell
 go-crap scan --format json
 ```
 
@@ -103,7 +103,7 @@ Output:
 
 ### GitHub Actions annotations
 
-```bash
+```shell
 go-crap scan --format github
 ```
 
@@ -113,7 +113,7 @@ Emits `::warning` annotations that GitHub Actions renders as PR comments.
 
 When a function has no coverage data, decide how to handle it:
 
-```bash
+```shell
 # Assume 0% coverage (default) - worst case
 go-crap scan --missing pessimistic
 
