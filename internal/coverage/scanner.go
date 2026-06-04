@@ -119,15 +119,7 @@ func scanModule(ctx context.Context, modDir string, exclude *regexp.Regexp, time
 		return mc, err
 	}
 
-	// defer os.Remove(profile) //nolint
-
-	data, err := runCoverTool(ctx, profile, modDir, l)
-	if err != nil {
-		mc.Error = err
-		return mc, err
-	}
-
-	functions, err := parseCoverOutput(bytes.NewReader(data))
+	functions, err := parseCoverProfile(profile, modDir, modulePath)
 	if err != nil {
 		mc.Error = err
 		return mc, err
@@ -192,17 +184,4 @@ func filterByExclude(functions []FunctionCoverage, ignore *regexp.Regexp) []Func
 		}
 	}
 	return kept
-}
-
-func runCoverTool(ctx context.Context, profile, modDir string, l *logger.Logger) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, "go", "tool", "cover", "-func="+profile)
-	cmd.Dir = modDir
-	data, err := cmd.Output()
-	if err != nil {
-		if l != nil {
-			l.Debug("coverage scan: cover tool error", "profile", profile, "error", err.Error())
-		}
-		return nil, err
-	}
-	return data, nil
 }
