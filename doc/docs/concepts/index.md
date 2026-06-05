@@ -27,7 +27,7 @@ go-crap scan
 │       │
 │       └── applyFilters()       — sort descending, apply --min and --top
 │
-└── report.Format()              — table / json / github
+└── report.Format()              — table / json / github / sarif / pr-comment
         |
         └── output
 ```
@@ -43,7 +43,9 @@ Each module is independently testable:
 | `internal/coverage` | Module discovery + `go test -cover` profiling (adapted from [test-finder](https://github.com/padiazg/test-finder), MIT) |
 | `internal/merge` | Join coverage and complexity by `(filepath, funcname)` using a double index |
 | `internal/score` | CRAP formula + missing coverage policy |
-| `internal/report` | Output formatters (table, JSON, GitHub annotations) |
+| `internal/report` | Output formatters (table, JSON, GitHub, SARIF, PR comment) |
+| `pkg/logger` | Logger interface and configuration types |
+| `pkg/slogger` | slog-backed Logger implementation |
 
 ## Important: Path Matching
 

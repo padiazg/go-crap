@@ -60,11 +60,14 @@ go-crap scan --exclude '.*_test\.go' --exclude 'pb/.*\.go'
 | - | - | - | - |
 | `--threshold` | `-t` | Score above which a function is marked as problematic | `30.0` |
 | `--fail-above` | | Exit with code 1 if any function exceeds the threshold | `false` |
-| `--format` | `-f` | Output format: `table`, `json`, or `github` | `table` |
+| `--format` | `-f` | Output format: `table`, `json`, `github`, `sarif`, or `pr-comment` | `table` |
 | `--top` | | Show only the N worst offenders (0 = all) | `0` |
 | `--min` | | Hide entries below this score | `0` |
 | `--missing` | | Policy for functions without coverage: `pessimistic`, `optimistic`, or `skip` | `pessimistic` |
 | `--exclude` | | Exclude files matching this regex (repeatable). Use `.*` for any path depth. e.g. `.*_test\.go` to exclude all test files, `pb/.*\.go` to exclude protobuf files | none |
+| `--verbose` | | Enable verbose (debug-level) logging | `false` |
+| `--output` | `-o` | Output file path (default: stdout) | stdout |
+| `--help` | `-h` | Help for scan | — |
 
 ### Output Formats
 
@@ -73,6 +76,20 @@ go-crap scan --exclude '.*_test\.go' --exclude 'pb/.*\.go'
 | `table` | Human-readable terminal output with status symbols and coverage bars |
 | `json` | Structured output with `$schema` URL, suitable for CI pipelines |
 | `github` | GitHub Actions workflow annotations (`::warning`) |
+| `sarif` | SARIF 2.1.0 compliant JSON for static analysis tools |
+| `pr-comment` | Markdown table formatted for pull request comments |
+
+### Example: SARIF output
+
+```shell
+go-crap scan --format sarif > crap.sarif
+```
+
+### Example: PR comment output
+
+```shell
+go-crap scan --format pr-comment > pr-comment.md
+```
 
 ## What is CRAP?
 
@@ -99,7 +116,7 @@ go-crap scan
   │   ├── complexity.Analyze() — walk AST, compute cyclomatic complexity
   │   ├── merge.Merge()     — join by (filepath, funcname) with receiver support
   │   ├── score.Score()     — apply CRAP formula + missing policy
-  │   └── report.Format()   — table / json / github
+  │   └── report.Format()   — table / json / github / sarif / pr-comment
   │
   └── pkg/utils/            — regex helpers for --exclude patterns
 ```
@@ -109,7 +126,9 @@ go-crap scan
 - **`internal/coverage`** — module discovery + `go test -cover` profiling (adapted from [test-finder](https://github.com/padiazg/test-finder), MIT)
 - **`internal/merge`** — double-index join of coverage and complexity data, with method receiver support
 - **`internal/score`** — CRAP formula + missing coverage policy + `EntryList` wrapper
-- **`internal/report`** — output formatters (table, JSON, GitHub annotations)
+- **`internal/report`** — output formatters (table, JSON, GitHub, SARIF, PR comment)
+- **`pkg/logger`** — Logger interface and configuration types
+- **`pkg/slogger`** — slog-backed Logger implementation
 - **`pkg/utils`** — regex helper functions for exclude patterns
 
 ## CI Integration
@@ -121,6 +140,9 @@ go-crap scan
 
 - `--fail-above` exits with code 1 when any function exceeds the threshold
 - `--format github` emits `::warning` annotations that render as PR comments
+- `--format sarif` outputs SARIF 2.1.0 for integration with code scanning tools
+- `--format pr-comment` generates a markdown table for pull request comments
+- `--output -o` writes results to a file instead of stdout
 
 ## Prior art and references
 
