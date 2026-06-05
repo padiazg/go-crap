@@ -122,6 +122,12 @@ go-crap scan
 - `--fail-above` exits with code 1 when any function exceeds the threshold
 - `--format github` emits `::warning` annotations that render as PR comments
 
+## Prior art and references
+
+- [Savoia, A. & Evans, B. (2007). *The CRAP Metric.*](https://www.artima.com/weblogs/viewpost.jsp?thread=210575)
+- [Crap4j](http://www.crap4j.org/) — the original Java implementation.
+- [cargo-crap](https://github.com/minikin/cargo-crap) — Inspiration for this project
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
