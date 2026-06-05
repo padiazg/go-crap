@@ -29,7 +29,7 @@ func (f *TableFormatter) Format(entries *score.EntryList, opts FormatOptions) er
 	halfThreshold := opts.Threshold / 2.0
 
 	for _, e := range entries.List {
-		status := statusSymbol(e.CRAP, opts.Threshold, halfThreshold)
+		status := StatusSymbol(e.CRAP, opts.Threshold, halfThreshold)
 		covBar := coverageBar(e.Coverage)
 
 		if e.CRAP > opts.Threshold {
@@ -66,7 +66,7 @@ func (f *TableFormatter) Format(entries *score.EntryList, opts FormatOptions) er
 	return nil
 }
 
-func statusSymbol(crap, threshold, halfThreshold float64) string {
+func StatusSymbol(crap, threshold, halfThreshold float64) string {
 	switch {
 	case crap > threshold:
 		return "✗"
