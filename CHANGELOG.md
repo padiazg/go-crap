@@ -5,6 +5,15 @@ All notable changes to go-crap will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.3.0 - 2026-06-05
+
+### Added
+
+- New `sarif` output format — SARIF 2.1.0 compliant JSON for static analysis tools
+- New `pr-comment` output format — markdown table formatted for pull request comments
+- New `--verbose` flag — enables debug-level logging via `pkg/logger` and `pkg/slogger`
+- New `--output` / `-o` flag — write output to a file instead of stdout
+
 ## v0.2.0 - 2026-06-04
 
 ### Added

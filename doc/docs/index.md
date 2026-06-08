@@ -42,6 +42,8 @@ When a function has no coverage data, go-crap can handle it three ways:
 | `table` | default | Human-readable terminal output with status symbols |
 | `json` | `--format json` | Machine-readable output for CI pipelines |
 | `github` | `--format github` | GitHub Actions workflow annotations |
+| `sarif` | `--format sarif` | SARIF 2.1.0 for static analysis tools |
+| `pr-comment` | `--format pr-comment` | Markdown table for pull request comments |
 
 ## Quick Start
 

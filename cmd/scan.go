@@ -23,6 +23,7 @@ var (
 	flagMissing   string
 	flagExclude   []string
 	flagVerbose   bool
+	flagOutput    string
 
 	scanCmd = &cobra.Command{
 		Use:   "scan [path]",
@@ -38,7 +39,7 @@ func init() {
 	scanCmd.Flags().BoolVar(&flagFailAbove, "fail-above", false,
 		"Exit with code 1 if any function exceeds the threshold")
 	scanCmd.Flags().StringVarP(&flagFormat, "format", "f", "table",
-		"Output format: table|json|github")
+		"Output format: table|json|github|sarif|pr-comment")
 	scanCmd.Flags().IntVar(&flagTop, "top", 0,
 		"Show only the N worst offenders (0 = all)")
 	scanCmd.Flags().Float64Var(&flagMin, "min", 0,
@@ -49,6 +50,8 @@ func init() {
 		"Exclude files matching this regex (repeatable). Use . for any character, .* for any path depth. e.g. '.*_test\\.go' to exclude all test files, 'pb/.*\\.go' to exclude protobuf files")
 	scanCmd.Flags().BoolVar(&flagVerbose, "verbose", false,
 		"Enable verbose (debug-level) logging")
+	scanCmd.Flags().StringVarP(&flagOutput, "output", "o", "",
+		"Output file path (default: stdout)")
 	rootCmd.AddCommand(scanCmd)
 }
 
@@ -100,12 +103,26 @@ func resolveFormatter(format string) (report.Formatter, error) {
 		return report.NewJSONFormatter(), nil
 	case "github":
 		return &report.GithubFormatter{}, nil
+	case "sarif":
+		return &report.SARIFFormatter{}, nil
+	case "pr-comment":
+		return &report.PRCommentFormatter{}, nil
 	default:
-		return nil, fmt.Errorf("unknown format: %s (use table, json, or github)", format)
+		return nil, fmt.Errorf("unknown format: %s (use table, json, github, sarif, or pr-comment)", format)
 	}
 }
 
 func output(path string, entries *score.EntryList, writter io.Writer) error {
+	var writer io.Writer = writter
+	if flagOutput != "" {
+		f, err := os.Create(flagOutput)
+		if err != nil {
+			return fmt.Errorf("output: %w", err)
+		}
+		defer f.Close()
+		writer = f
+	}
+
 	formatter, err := resolveFormatter(flagFormat)
 	if err != nil {
 		return err
@@ -113,7 +130,7 @@ func output(path string, entries *score.EntryList, writter io.Writer) error {
 
 	opts := report.FormatOptions{
 		Threshold: flagThreshold,
-		Writer:    writter,
+		Writer:    writer,
 		BaseDir:   path,
 	}
 

@@ -121,6 +121,40 @@ crap:
   allow_failure: false
 ```
 
+### SARIF report with code scanning
+
+```yaml
+      - name: Run go-crap with SARIF output
+        run: go-crap scan --format sarif --threshold 30 --exclude '.*_test\.go' > report.sarif
+      - name: Upload SARIF report
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: report.sarif
+```
+
+SARIF output is compatible with GitHub Advanced Security code scanning, Azure DevOps, and other tools that consume SARIF 2.1.0 reports.
+
+### PR comment with CRAP report
+
+```yaml
+      - name: Run go-crap for PR comment
+        run: go-crap scan --format pr-comment --threshold 30 --exclude '.*_test\.go' --output pr-comment.md
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const comment = fs.readFileSync('pr-comment.md', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+```
+
+The `pr-comment` format generates a markdown table suitable for pull request comments, showing status symbols, CRAP scores, complexity, coverage, function names, and file locations.
+
 ### JSON report as CI artifact
 
 ```yaml
@@ -271,6 +305,15 @@ go-crap scan --fail-above --threshold 30
 # Phase 4: strictest
 go-crap scan --fail-above --threshold 15
 ```
+
+### Debug logging in CI
+
+```yaml
+      - name: Debug scan
+        run: go-crap scan --verbose --format json --exclude '.*_test\.go'
+```
+
+Use `--verbose` when diagnosing issues with module discovery, coverage parsing, or path matching in CI environments.
 
 ### Report parsing
 

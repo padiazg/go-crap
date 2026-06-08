@@ -1,0 +1,63 @@
+name: crap
+on: 
+  push:
+    branches-ignore: [master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.2'
+          cache: false
+      - run: go test ./...
+      - run: go build -o go-crap .
+
+  crap:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.2'
+      - name: build
+        run: make build
+
+      - name: version
+        run: ./go-crap version
+
+      - name: score
+        run: ./go-crap scan --format github --fail-above --threshold 30 --exclude ".*_test.go" --verbose
+      
+      - name: generate pr comment
+        run: ./go-crap scan --format pr-comment --threshold 30 --exclude ".*_test.go" --output pr-comment.md
+
+      - name: save pr number
+        run: echo "${{ github.event.pull_request.number }}" > pr-number.txt
+
+      - name: upload pr comment artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: crap-comment
+          path: |
+            pr-comment.md
+            pr-number.txt
+          if-no-files-found: ignore
+
+  # upload-pr-comment-artifact:
+  #   runs-on: ubuntu-latest
+  #   needs: test
+  #   if: always() && github.event_name == 'pull_request' || github.event_name == 'push'
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-go@v5
+  #       with:
+  #         go-version: '1.26.2'
+  #     - run: make build
+  #     - run: ./go-crap scan --format pr-comment --threshold 15 --exclude ".*_test.go" --output pr-comment.md
+  #     - run: echo "${{ github.event.pull_request.number }}" > pr-number.txt
+  #     - 

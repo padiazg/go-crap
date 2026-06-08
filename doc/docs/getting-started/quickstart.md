@@ -113,6 +113,39 @@ go-crap scan --format github --threshold 15
 
 Emits `::warning` annotations that GitHub Actions renders as PR comments.
 
+### SARIF
+
+```shell
+go-crap scan --format sarif > report.sarif
+```
+
+Outputs [SARIF 2.1.0](https://docs.oasis-open.org/sarif/sarif/v2.1.0/) compliant JSON. Compatible with Azure DevOps, GitHub code scanning, VS Code, and other tools that support the SARIF standard.
+
+### Pull request comments
+
+```shell
+go-crap scan --format pr-comment
+```
+
+Generates a markdown table with status symbols, CRAP scores, complexity, coverage, function names, and file locations. Formatted for pasting directly into pull request comments.
+
+### Write to file
+
+```shell
+go-crap scan --output report.json
+go-crap scan -o report.json
+```
+
+The `--output` / `-o` flag writes results to a file instead of stdout. Works with any format.
+
+### Verbose logging
+
+```shell
+go-crap scan --verbose
+```
+
+Enables debug-level logging to help diagnose issues with module discovery, coverage parsing, or path matching.
+
 ## 6. Control Missing Coverage Policy
 
 When a function has no coverage data, decide how to handle it:
