@@ -31,14 +31,14 @@ jobs:
   crap-pr-comment:
     runs-on: ubuntu-latest
     needs: test
-    if: github.event_name == 'pull_request'
+    if: always() && github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: '1.26.2'
       - run: make build
-      - run: ./go-crap scan --format pr-comment --threshold 30 --exclude ".*_test.go" --output pr-comment.md
+      - run: ./go-crap scan --format pr-comment --threshold 15 --exclude ".*_test.go" --output pr-comment.md
       - run: echo "${{ github.event.pull_request.number }}" > pr-number.txt
       - uses: actions/upload-artifact@v4
         with:
