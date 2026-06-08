@@ -310,25 +310,35 @@ func TestRelativizePath(t *testing.T) {
 
 func TestFormatMessage(t *testing.T) {
 	tests := []struct {
-		name     string
-		entry    score.CRAPEntry
-		wantMsg  string
+		name           string
+		entry          score.CRAPEntry
+		effectiveCRAP  float64
+		wantMsg        string
 	}{
 		{
-			name:    "simple_function",
-			entry:   score.CRAPEntry{FuncName: "Process", Complexity: 10, Coverage: 50, CRAP: 60},
-			wantMsg: "Function Process has CRAP score 60.0 (cyclomatic complexity 10, coverage 50.0%)",
+			name:          "simple_function",
+			entry:         score.CRAPEntry{FuncName: "Process", Complexity: 10, Coverage: 50, CRAP: 60},
+			effectiveCRAP: 60,
+			wantMsg:       "Function Process has CRAP score 60.0 (cyclomatic complexity 10, coverage 50.0%)",
 		},
 		{
-			name:    "with_receiver",
-			entry:   score.CRAPEntry{Receiver: "User", FuncName: "Process", Complexity: 3, Coverage: 0, CRAP: 12},
-			wantMsg: "Function User.Process has CRAP score 12.0 (cyclomatic complexity 3, coverage 0.0%)",
+			name:          "with_receiver",
+			entry:         score.CRAPEntry{Receiver: "User", FuncName: "Process", Complexity: 3, Coverage: 0, CRAP: 12},
+			effectiveCRAP: 12,
+			wantMsg:       "Function User.Process has CRAP score 12.0 (cyclomatic complexity 3, coverage 0.0%)",
+		},
+		{
+			name:          "unreliable_coverage",
+			entry:         score.CRAPEntry{FuncName: "Bad", Complexity: 10, Coverage: 90, CRAP: 50, CoverageUntrusted: true, MutationScore: 0.3},
+			effectiveCRAP: 0,
+			wantMsg:       "Function Bad has CRAP score 0.0 (cyclomatic complexity 10, coverage 90.0%) [coverage not reliable (mutation score: 30.0%)]",
 		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got := formatMessage(tt.entry)
+			got := formatMessage(tt.entry, tt.effectiveCRAP, false)
 			assert.Equal(t, tt.wantMsg, got)
 		})
 	}
@@ -451,4 +461,133 @@ func TestSARIFFormatter_Format_rule_help_text(t *testing.T) {
 	got := buf.String()
 	assert.True(t, strings.Contains(got, `"CRAP score exceeds threshold"`) ||
 		strings.Contains(got, `"CRAP score exceeds threshold`))
+}
+
+func TestSARIFFormatter_Format_detailed_mutations(t *testing.T) {
+	f := &SARIFFormatter{}
+	buf := &bytes.Buffer{}
+
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{
+			File:              "/project/main.go",
+			Package:           "myapp",
+			FuncName:          "BadFunction",
+			Line:              10,
+			Complexity:        5,
+			Coverage:          90.0,
+			CRAP:              15.0,
+			CoverageUntrusted: true,
+			MutationScore:     0.5,
+			MutationDetails: []score.MutationDetail{
+				{MutantType: "CONDITIONALS_BOUNDARY", Line: 15, Status: "LIVED", OriginalText: "a < b", ReplacementText: "a >= b"},
+			},
+		},
+	}}
+
+	opts := FormatOptions{
+		Threshold: 10,
+		Writer:    buf,
+		Detailed:  true,
+	}
+
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+
+	got := buf.String()
+	assert.Contains(t, got, "CONDITIONALS_BOUNDARY@L15")
+	assert.Contains(t, got, "survived mutations:")
+	assert.Contains(t, got, "\\u003c")
+	assert.Contains(t, got, "\\u003e")
+}
+
+func TestFormatMutantDetails(t *testing.T) {
+	details := []score.MutationDetail{
+		{MutantType: "CONDITIONALS_BOUNDARY", Line: 15, Status: "LIVED", OriginalText: "a < b", ReplacementText: "a >= b"},
+	}
+	got := formatMutantDetails(true, details)
+	assert.Contains(t, got, "survived mutations:")
+	assert.Contains(t, got, "CONDITIONALS_BOUNDARY@L15")
+	assert.Contains(t, got, `"a < b" → "a >= b"`)
+}
+
+func TestFormatMutantDetails_no_details(t *testing.T) {
+	assert.Empty(t, formatMutantDetails(false, nil))
+	assert.Empty(t, formatMutantDetails(true, nil))
+}
+
+func TestFormatMutantDetails_no_code_strings(t *testing.T) {
+	details := []score.MutationDetail{
+		{MutantType: "CONDITIONALS_BOUNDARY", Line: 15, Status: "LIVED"},
+	}
+	got := formatMutantDetails(true, details)
+	assert.Contains(t, got, "CONDITIONALS_BOUNDARY@L15")
+}
+
+func TestSARIFFormatter_Format_detailed_mutations_no_details(t *testing.T) {
+	f := &SARIFFormatter{}
+	buf := &bytes.Buffer{}
+
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{
+			File:              "/project/main.go",
+			Package:           "myapp",
+			FuncName:          "BadFunction",
+			Line:              10,
+			Complexity:        5,
+			Coverage:          90.0,
+			CRAP:              15.0,
+			CoverageUntrusted: true,
+			MutationScore:     0.5,
+			MutationDetails:   nil,
+		},
+	}}
+
+	opts := FormatOptions{
+		Threshold: 10,
+		Writer:    buf,
+		Detailed:  true,
+	}
+
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+
+	got := buf.String()
+	assert.NotContains(t, got, "survived mutations:")
+	assert.NotContains(t, got, "CONDITIONALS_BOUNDARY")
+}
+
+func TestSARIFFormatter_Format_detailed_disabled(t *testing.T) {
+	f := &SARIFFormatter{}
+	buf := &bytes.Buffer{}
+
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{
+			File:              "/project/main.go",
+			Package:           "myapp",
+			FuncName:          "BadFunction",
+			Line:              10,
+			Complexity:        5,
+			Coverage:          90.0,
+			CRAP:              15.0,
+			CoverageUntrusted: true,
+			MutationScore:     0.5,
+			MutationDetails: []score.MutationDetail{
+				{MutantType: "CONDITIONALS_BOUNDARY", Line: 15, Status: "LIVED", OriginalText: "a < b", ReplacementText: "a >= b"},
+			},
+		},
+	}}
+
+	opts := FormatOptions{
+		Threshold: 10,
+		Writer:    buf,
+		Detailed:  false,
+	}
+
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+
+	got := buf.String()
+	assert.NotContains(t, got, "CONDITIONALS_BOUNDARY")
+	assert.NotContains(t, got, "survived mutations:")
+	assert.NotContains(t, got, "\u003c")
 }

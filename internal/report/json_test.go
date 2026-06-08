@@ -10,6 +10,81 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestJSONFormatter_DetailedMutationDetails(t *testing.T) {
+	entries := score.EntryList{List: []score.CRAPEntry{
+		{
+			File:              "/home/user/project/main.go",
+			Package:           "myapp",
+			FuncName:          "BadFunction",
+			Receiver:          "",
+			Line:              42,
+			Complexity:        10,
+			Coverage:          90.0,
+			CRAP:              12.0,
+			EffectiveCRAP:     120.0,
+			CoverageUntrusted: true,
+			MutationScore:     0.5,
+			MutationDetails: []score.MutationDetail{
+				{MutantType: "CONDITIONALS_BOUNDARY", MutatorName: "CB", File: "main.go", Line: 45, Status: "LIVED", OriginalText: "a < b", ReplacementText: "a >= b"},
+				{MutantType: "ARITHMETIC", MutatorName: "SUB", File: "main.go", Line: 48, Status: "LIVED", OriginalText: "a + b", ReplacementText: "a - b"},
+			},
+		},
+		{
+			File:              "/home/user/project/other.go",
+			Package:           "myapp",
+			FuncName:          "GoodFunction",
+			Receiver:          "",
+			Line:              10,
+			Complexity:        3,
+			Coverage:          100.0,
+			CRAP:              3.0,
+			EffectiveCRAP:     3.0,
+			CoverageUntrusted: false,
+			MutationScore:     1.0,
+			MutationDetails:   []score.MutationDetail{},
+		},
+	}}
+
+	var gotReport Report
+	buf := &bytes.Buffer{}
+	opts := FormatOptions{
+		Writer:   buf,
+		BaseDir:  "/home/user/project",
+		Detailed: true,
+	}
+
+	s := &JSONFormatter{jsonMarshalIndent: func(v any, prefix, indent string) ([]byte, error) {
+		data, err := json.MarshalIndent(v, prefix, indent)
+		if err == nil {
+			_ = json.Unmarshal(data, &gotReport)
+		}
+		return data, err
+	}}
+
+	err := s.Format(&entries, opts)
+	assert.NoError(t, err)
+
+	assert.Equal(t, "myapp", gotReport.Entries[0].Package)
+	assert.Equal(t, 2, len(gotReport.Entries))
+
+	badEntry := gotReport.Entries[0]
+	assert.Equal(t, "BadFunction", badEntry.Function)
+	assert.Equal(t, 2, len(badEntry.MutationDetails))
+	assert.Equal(t, "CONDITIONALS_BOUNDARY", badEntry.MutationDetails[0].Type)
+	assert.Equal(t, "CB", badEntry.MutationDetails[0].MutatorName)
+	assert.Equal(t, 45, badEntry.MutationDetails[0].Line)
+	assert.Equal(t, "LIVED", badEntry.MutationDetails[0].Status)
+	assert.Equal(t, "a < b", badEntry.MutationDetails[0].OriginalText)
+	assert.Equal(t, "a >= b", badEntry.MutationDetails[0].ReplacementText)
+
+	assert.Equal(t, "ARITHMETIC", badEntry.MutationDetails[1].Type)
+	assert.Equal(t, 48, badEntry.MutationDetails[1].Line)
+
+	goodEntry := gotReport.Entries[1]
+	assert.Equal(t, "GoodFunction", goodEntry.Function)
+	assert.Equal(t, 0, len(goodEntry.MutationDetails))
+}
+
 type checkJSONFormatterFormatFn func(*testing.T, error)
 
 var checkJSONFormatterFormat = func(fns ...checkJSONFormatterFormatFn) []checkJSONFormatterFormatFn { return fns }

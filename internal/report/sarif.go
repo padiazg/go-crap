@@ -18,12 +18,41 @@ func (f *SARIFFormatter) Format(entries *score.EntryList, opts FormatOptions) er
 
 	results := make([]sarifResult, 0)
 	for _, e := range entries.List {
-		if e.CRAP > opts.Threshold {
+		effectiveCRAP := e.EffectiveCRAP
+		if effectiveCRAP == 0 {
+			effectiveCRAP = e.CRAP
+		}
+
+		if effectiveCRAP > opts.Threshold {
 			results = append(results, sarifResult{
 				RuleID:  "crap/high-score",
 				Level:   "warning",
 				Message: sarifMessage{
-					Text: formatMessage(e),
+					Text: formatMessage(e, effectiveCRAP, opts.Detailed),
+				},
+				Locations: []sarifLocation{
+					{
+						PhysicalLocation: sarifPhysicalLocation{
+							ArtifactLocation: sarifArtifactLocation{
+								URI: relativizePath(e.File, opts.BaseDir),
+							},
+							Region: sarifRegion{
+								StartLine: e.Line,
+							},
+						},
+					},
+				},
+			})
+		}
+
+		if e.CoverageUntrusted {
+			msg := fmt.Sprintf("Coverage not reliable for %s (mutation score: %.1f%%)", e.FuncName, e.MutationScore*100)
+			msg += formatMutantDetails(opts.Detailed, e.MutationDetails)
+			results = append(results, sarifResult{
+				RuleID:  "go-crap/coverage-untrusted",
+				Level:   "warning",
+				Message: sarifMessage{
+					Text: msg,
 				},
 				Locations: []sarifLocation{
 					{
@@ -76,13 +105,33 @@ func (f *SARIFFormatter) Format(entries *score.EntryList, opts FormatOptions) er
 	return enc.Encode(log)
 }
 
-func formatMessage(e score.CRAPEntry) string {
+func formatMessage(e score.CRAPEntry, effectiveCRAP float64, detailed bool) string {
 	name := e.FuncName
 	if e.Receiver != "" {
 		name = fmt.Sprintf("%s.%s", e.Receiver, e.FuncName)
 	}
-	return fmt.Sprintf("Function %s has CRAP score %.1f (cyclomatic complexity %d, coverage %.1f%%)",
-		name, e.CRAP, e.Complexity, e.Coverage)
+	msg := fmt.Sprintf("Function %s has CRAP score %.1f (cyclomatic complexity %d, coverage %.1f%%)",
+		name, effectiveCRAP, e.Complexity, e.Coverage)
+	if e.CoverageUntrusted {
+		msg += fmt.Sprintf(" [coverage not reliable (mutation score: %.1f%%)]", e.MutationScore*100)
+		msg += formatMutantDetails(detailed, e.MutationDetails)
+	}
+	return msg
+}
+
+func formatMutantDetails(detailed bool, details []score.MutationDetail) string {
+	if !detailed || len(details) == 0 {
+		return ""
+	}
+	var msg strings.Builder
+	msg.WriteString(" survived mutations:")
+	for _, md := range details {
+		msg.WriteString(fmt.Sprintf(" %s@L%d", md.MutantType, md.Line))
+		if md.OriginalText != "" && md.ReplacementText != "" {
+			msg.WriteString(fmt.Sprintf(" (%q → %q)", md.OriginalText, md.ReplacementText))
+		}
+	}
+	return msg.String()
 }
 
 func relativizePath(path, baseDir string) string {
