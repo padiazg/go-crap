@@ -34,7 +34,7 @@ jobs:
         run: ./go-crap scan --format github --fail-above --threshold 30 --exclude ".*_test.go" --verbose
       
       - name: generate pr comment
-        run: ./go-crap scan --format pr-comment --threshold 15 --exclude ".*_test.go" --output pr-comment.md
+        run: ./go-crap scan --format pr-comment --threshold 30 --exclude ".*_test.go" --output pr-comment.md
 
       - name: save pr number
         run: echo "${{ github.event.pull_request.number }}" > pr-number.txt
