@@ -7,8 +7,8 @@ name: post PR comment
 
 on:
   workflow_run:
-    workflows: ["crap"]
-    types: ["completed"]
+    workflows: [crap]
+    types: [completed]
 
 permissions:
   pull-requests: write
