@@ -73,6 +73,7 @@ nav:
     - Overview: concepts/index.md
     - CRAP Score: concepts/crap-score.md
     - Missing Coverage Policy: concepts/missing-policy.md
+    - Mutation Testing: concepts/mutation-testing.md
   - Commands:
     - commands/scan.md
   - Integrations:

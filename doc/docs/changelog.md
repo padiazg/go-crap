@@ -5,6 +5,36 @@ All notable changes to go-crap will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.4.0 (unreleased)
+
+### Added
+
+- New `--mutation-report` flag — path to a gremlins JSON mutation report to validate coverage reliability
+- New `internal/mutation` package — parses gremlins mutation reports and annotates CRAP entries
+- New `CoverageUntrusted` field on `CRAPEntry` — set to `true` when lived mutants are found in a function
+- New `MutationScore` field on `CRAPEntry` — killed/(killed+lived) ratio for the function
+- New `EffectiveCRAP` field on `CRAPEntry` — CRAP score recalculated with 0% coverage when `CoverageUntrusted` is `true`
+- Mutation score included in JSON output (`mutation_score`, `coverage_untrusted`, `effective_crap` fields)
+- Coverage warning flag (⚠) in `table` and `pr-comment` formatters when coverage is unreliable
+- Coverage-untrusted warnings in `github` and `sarif` formatters (SARIF adds a second `coverage-untrusted` result)
+- New "Unreliable Coverage" section in `pr-comment` output listing affected functions with mutation scores
+- New `--detailed` flag — includes mutation failure details (original/replacement code, line, type) in report output
+- New `MutationDetail` struct on `CRAPEntry` — stores survived mutant details when mutation report is provided
+- JSON output includes `mutation_details` array per entry when `--detailed` is set, with `type`, `mutator_name`, `file`, `line`, `status`, `original_text`, and `replacement_text` fields
+- SARIF appends survived mutation details (type, line, code diff) to warning messages when `--detailed`
+- PR Comment adds `Survived Mutants` column with code snippets when `--detailed`
+- New `OriginalCode` and `ReplacementCode` fields on mutation `Mutant` struct, parsed from Gremlins JSON report
+
+### Changed
+
+- `ThresholdExceeded()` now uses `EffectiveCRAP` instead of `CRAP` for threshold comparison
+- Filtering (`--top`, `--min`) and sorting now use `EffectiveCRAP` when mutation report is provided
+- `--fail-above` now checks `EffectiveCRAP` against the threshold
+
+### Fixed
+
+- Functions with lived mutants now show their true risk level via `EffectiveCRAP` (CRAP at 0% coverage)
+
 ## v0.3.0 - 2026-06-05
 
 ### Added
