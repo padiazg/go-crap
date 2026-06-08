@@ -15,6 +15,11 @@ func (f *GithubFormatter) Format(entries *score.EntryList, opts FormatOptions) e
 	}
 
 	for _, e := range entries.List {
+		effectiveCRAP := e.EffectiveCRAP
+		if effectiveCRAP == 0 {
+			effectiveCRAP = e.CRAP
+		}
+
 		file := e.File
 		if base := opts.BaseDir; base != "" {
 			if absBase, err := filepath.Abs(base); err == nil {
@@ -24,11 +29,19 @@ func (f *GithubFormatter) Format(entries *score.EntryList, opts FormatOptions) e
 			}
 		}
 
-		if e.CRAP > opts.Threshold {
-			fmt.Fprintf(opts.Writer,
-				"::warning file=%s,line=%d::%s:%d %s CRAP score %.1f (CC=%d, cov=%.1f%%) exceeds threshold %.0f\n",
-				file, e.Line, file, e.Line, e.FuncName, e.CRAP, e.Complexity, e.Coverage, opts.Threshold,
-			)
+		if e.CoverageUntrusted {
+			msg := fmt.Sprintf("%s:%d %s [coverage not reliable (mutation score: %.1f%%)]",
+				file, e.Line, e.FuncName, e.MutationScore*100)
+			fmt.Fprintf(opts.Writer, "::warning file=%s,line=%d::%s\n", file, e.Line, msg)
+		}
+
+		if effectiveCRAP > opts.Threshold {
+			msg := fmt.Sprintf("%s:%d %s CRAP score %.1f (CC=%d, cov=%.1f%%) exceeds threshold %.0f",
+				file, e.Line, e.FuncName, effectiveCRAP, e.Complexity, e.Coverage, opts.Threshold)
+			if e.CoverageUntrusted {
+				msg += fmt.Sprintf(" [coverage not reliable (mutation score: %.1f%%)]", e.MutationScore*100)
+			}
+			fmt.Fprintf(opts.Writer, "::warning file=%s,line=%d::%s\n", file, e.Line, msg)
 		}
 	}
 	return nil

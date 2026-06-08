@@ -15,6 +15,7 @@ import (
 
 type Stat struct {
 	Pos        token.Position
+	EndLine    int
 	FuncName   string
 	Receiver   string
 	PkgName    string
@@ -174,6 +175,7 @@ func (a *analyzeData) analyzeASTFile(f *ast.File, fset *token.FileSet) {
 			Receiver:   receiverName(fnDecl.Recv),
 			Complexity: complexity,
 			Pos:        fset.Position(fnDecl.Pos()),
+			EndLine:    fset.Position(fnDecl.End()).Line,
 		})
 	}
 }

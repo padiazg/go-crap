@@ -161,6 +161,29 @@ func TestTableFormatter_Format(t *testing.T) {
 			),
 		},
 		{
+			name: "success_sort_by_effective_crap_with_mutation",
+			entries: score.EntryList{List: []score.CRAPEntry{
+				{File: "/project/a.go", Package: "myapp", FuncName: "Good", Line: 1, Complexity: 1, Coverage: 100, CRAP: 1, EffectiveCRAP: 1},
+				{File: "/project/b.go", Package: "myapp", FuncName: "BadWithMutation", Line: 1, Complexity: 4, Coverage: 100, CRAP: 4, EffectiveCRAP: 16},
+				{File: "/project/c.go", Package: "myapp", FuncName: "Mid", Line: 1, Complexity: 5, Coverage: 20, CRAP: 32, EffectiveCRAP: 32},
+			}},
+			opts: FormatOptions{Threshold: 200},
+			checks: checkTableFormatterOutput(
+				checkOutputOrder("Mid", "BadWithMutation", "Good"),
+			),
+		},
+		{
+			name: "success_sort_effective_crap_tie_break_by_mutation_score",
+			entries: score.EntryList{List: []score.CRAPEntry{
+				{File: "/project/a.go", Package: "myapp", FuncName: "SameCRAP_BetterMutation", Line: 1, Complexity: 5, Coverage: 20, CRAP: 32, EffectiveCRAP: 32, MutationScore: 0.8},
+				{File: "/project/b.go", Package: "myapp", FuncName: "SameCRAP_WorseMutation", Line: 1, Complexity: 5, Coverage: 20, CRAP: 32, EffectiveCRAP: 32, MutationScore: 0.3},
+			}},
+			opts: FormatOptions{Threshold: 200},
+			checks: checkTableFormatterOutput(
+				checkOutputOrder("SameCRAP_WorseMutation", "SameCRAP_BetterMutation"),
+			),
+		},
+		{
 			name: "success_output_format_structure",
 			entries: score.EntryList{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "FooBar", Line: 42, Complexity: 3, Coverage: 75, CRAP: 8.44},

@@ -9,6 +9,7 @@ import (
 
 type MergedEntry struct {
 	Coverage   *float64
+	EndLine    int
 	File       string
 	FuncName   string
 	Receiver   string
@@ -105,6 +106,7 @@ func Merge(coverages []coverage.ModuleCoverage, stats []complexity.Stat) []Merge
 	}
 	entries = append(entries, MergedEntry{
 		File:       stat.Pos.Filename,
+		EndLine:    stat.EndLine,
 		Package:    stat.PkgName,
 		FuncName:   name,
 		Receiver:   stat.Receiver,
