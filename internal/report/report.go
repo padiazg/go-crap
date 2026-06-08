@@ -14,4 +14,5 @@ type FormatOptions struct {
 	Writer    io.Writer
 	BaseDir   string
 	Threshold float64
+	Detailed  bool
 }

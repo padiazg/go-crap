@@ -15,15 +15,17 @@ import (
 )
 
 var (
-	flagThreshold float64
-	flagFailAbove bool
-	flagFormat    string
-	flagTop       int
-	flagMin       float64
-	flagMissing   string
-	flagExclude   []string
-	flagVerbose   bool
-	flagOutput    string
+	flagThreshold  float64
+	flagFailAbove  bool
+	flagFormat     string
+	flagTop        int
+	flagMin        float64
+	flagMissing    string
+	flagExclude    []string
+	flagVerbose    bool
+	flagOutput     string
+	flagMutation   string
+	flagDetailed   bool
 
 	scanCmd = &cobra.Command{
 		Use:   "scan [path]",
@@ -52,6 +54,10 @@ func init() {
 		"Enable verbose (debug-level) logging")
 	scanCmd.Flags().StringVarP(&flagOutput, "output", "o", "",
 		"Output file path (default: stdout)")
+	scanCmd.Flags().StringVar(&flagMutation, "mutation-report", "",
+		"Path to gremlins JSON mutation report to validate coverage reliability")
+	scanCmd.Flags().BoolVar(&flagDetailed, "detailed", false,
+		"Include mutation failure details in report output")
 	rootCmd.AddCommand(scanCmd)
 }
 
@@ -72,12 +78,13 @@ func runScan(cmd *cobra.Command, args []string) error {
 	lp := &l
 
 	entries, err := scan.Scan(&scan.Options{
-		Exclude: flagExclude,
-		Path:    path,
-		Missing: flagMissing,
-		Top:     flagTop,
-		Min:     flagMin,
-		Logger:  lp,
+		Exclude:        flagExclude,
+		Path:           path,
+		Missing:        flagMissing,
+		Top:            flagTop,
+		Min:            flagMin,
+		Logger:         lp,
+		MutationReport: flagMutation,
 	})
 	if err != nil {
 		return err
@@ -132,6 +139,7 @@ func output(path string, entries *score.EntryList, writter io.Writer) error {
 		Threshold: flagThreshold,
 		Writer:    writer,
 		BaseDir:   path,
+		Detailed:  flagDetailed,
 	}
 
 	if err := formatter.Format(entries, opts); err != nil {

@@ -10,19 +10,21 @@ import (
 	"github.com/padiazg/go-crap/internal/complexity"
 	"github.com/padiazg/go-crap/internal/coverage"
 	"github.com/padiazg/go-crap/internal/merge"
+	"github.com/padiazg/go-crap/internal/mutation"
 	"github.com/padiazg/go-crap/internal/score"
 	"github.com/padiazg/go-crap/pkg/logger"
 	"github.com/padiazg/go-crap/pkg/utils"
 )
 
 type Options struct {
-	Logger  logger.Logger
-	Timeout time.Duration
-	Missing string
-	Path    string
-	Exclude []string //*regexp.Regexp
-	Min     float64
-	Top     int
+	Logger         logger.Logger
+	Timeout        time.Duration
+	Missing        string
+	Path           string
+	Exclude        []string
+	Min            float64
+	Top            int
+	MutationReport string
 }
 
 func Scan(options *Options) (*score.EntryList, error) {
@@ -63,6 +65,16 @@ func Scan(options *Options) (*score.EntryList, error) {
 	}
 
 	entries := score.Score(merged, policy)
+
+	if options.MutationReport != "" {
+		mutReport, err := mutation.ParseReport(options.MutationReport)
+		if err != nil {
+			return nil, fmt.Errorf("mutation report: %w", err)
+		}
+
+		entries = mutation.Annotate(entries, mutReport, merged)
+	}
+
 	entries = applyFilters(entries, options.Top, options.Min)
 
 	return &score.EntryList{List: entries}, nil

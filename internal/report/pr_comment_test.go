@@ -267,3 +267,95 @@ func TestPRCommentFormatter_Format_no_table_when_no_crappy(t *testing.T) {
 	assert.Contains(t, output, "## No crappy functions")
 	assert.NotContains(t, output, "|")
 }
+
+func TestPRCommentFormatter_Format_detailed_mutations(t *testing.T) {
+	f := &PRCommentFormatter{}
+	buf := &bytes.Buffer{}
+
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{
+			File:              "/project/main.go",
+			Package:           "myapp",
+			FuncName:          "BadFunction",
+			Line:              10,
+			Complexity:        5,
+			Coverage:          90.0,
+			CRAP:              15.0,
+			CoverageUntrusted: true,
+			MutationScore:     0.5,
+			MutationDetails: []score.MutationDetail{
+				{MutantType: "CONDITIONALS_BOUNDARY", Line: 15, Status: "LIVED", OriginalText: "a < b", ReplacementText: "a >= b"},
+				{MutantType: "ARITHMETIC", Line: 18, Status: "LIVED", OriginalText: "a + b", ReplacementText: "a - b"},
+			},
+		},
+		{
+			File:              "/project/main.go",
+			Package:           "myapp",
+			FuncName:          "AlsoBad",
+			Line:              20,
+			Complexity:        3,
+			Coverage:          80.0,
+			CRAP:              15.0,
+			CoverageUntrusted: true,
+			MutationScore:     0.75,
+			MutationDetails: []score.MutationDetail{
+				{MutantType: "CONTROL_FLOW", Line: 22, Status: "LIVED"},
+			},
+		},
+	}}
+
+	opts := FormatOptions{
+		Threshold: 10,
+		Writer:    buf,
+		Detailed:  true,
+	}
+
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "Survived Mutants")
+	assert.Contains(t, output, "`CONDITIONALS_BOUNDARY`@L15")
+	assert.Contains(t, output, "`a < b` → `a >= b`")
+	assert.Contains(t, output, "`ARITHMETIC`@L18")
+	assert.Contains(t, output, "`a + b` → `a - b`")
+	assert.Contains(t, output, "`CONTROL_FLOW`@L22")
+	assert.Contains(t, output, "| Function | CRAP | Effective CRAP | Mutation Score | Survived Mutants |")
+}
+
+func TestPRCommentFormatter_Format_no_detailed_by_default(t *testing.T) {
+	f := &PRCommentFormatter{}
+	buf := &bytes.Buffer{}
+
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{
+			File:              "/project/main.go",
+			Package:           "myapp",
+			FuncName:          "Bad",
+			Line:              10,
+			Complexity:        5,
+			Coverage:          90.0,
+			CRAP:              15.0,
+			CoverageUntrusted: true,
+			MutationScore:     0.5,
+			MutationDetails: []score.MutationDetail{
+				{MutantType: "CONDITIONALS_BOUNDARY", Line: 15, Status: "LIVED", OriginalText: "a < b", ReplacementText: "a >= b"},
+			},
+		},
+	}}
+
+	opts := FormatOptions{
+		Threshold: 10,
+		Writer:    buf,
+		Detailed:  false,
+	}
+
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.NotContains(t, output, "Survived Mutants")
+	assert.NotContains(t, output, "CONDITIONALS_BOUNDARY")
+	assert.NotContains(t, output, "a < b")
+	assert.Contains(t, output, "| Function | CRAP | Effective CRAP | Mutation Score |")
+}

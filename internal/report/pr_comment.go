@@ -19,8 +19,13 @@ func (f *PRCommentFormatter) Format(entries *score.EntryList, opts FormatOptions
 
 	sorted := make([]score.CRAPEntry, len(entries.List))
 	copy(sorted, entries.List)
+	for i := range sorted {
+		if sorted[i].EffectiveCRAP == 0 {
+			sorted[i].EffectiveCRAP = sorted[i].CRAP
+		}
+	}
 	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].CRAP > sorted[j].CRAP
+		return sorted[i].EffectiveCRAP > sorted[j].EffectiveCRAP
 	})
 
 	halfThreshold := opts.Threshold / 2.0
@@ -49,14 +54,53 @@ func (f *PRCommentFormatter) Format(entries *score.EntryList, opts FormatOptions
 	fmt.Fprintln(opts.Writer, "|---|---:|---:|---:|---|---|")
 
 	for _, e := range crappy {
-		status := StatusSymbol(e.CRAP, opts.Threshold, halfThreshold)
+		status := StatusSymbol(e.EffectiveCRAP, opts.Threshold, halfThreshold)
 		loc := formatPRLocation(e, opts.BaseDir)
-		fmt.Fprintf(opts.Writer, "| %s | %.2f | %d | %.1f%% | `%s` | %s |\n",
-			status, e.CRAP, e.Complexity, e.Coverage, e.FuncName, loc)
+		covStr := fmt.Sprintf("%.1f%%", e.Coverage)
+		if e.CoverageUntrusted {
+			covStr += " \xe2\x9a\xa0"
+		}
+		fmt.Fprintf(opts.Writer, "| %s | %.2f | %d | %s | `%s` | %s |\n",
+			status, e.EffectiveCRAP, e.Complexity, covStr, e.FuncName, loc)
 	}
 
 	if len(entries.List) > maxPRCommentRows {
 		fmt.Fprintf(opts.Writer, "\n…and %d more\n", len(entries.List)-maxPRCommentRows)
+	}
+
+	unreliable := filterUnreliableCoverage(sorted)
+	if len(unreliable) > 0 {
+		fmt.Fprintln(opts.Writer)
+		fmt.Fprintln(opts.Writer, "## \u26a0\ufe0f Unreliable Coverage")
+		fmt.Fprintln(opts.Writer)
+
+		if opts.Detailed {
+			fmt.Fprintln(opts.Writer, "| Function | CRAP | Effective CRAP | Mutation Score | Survived Mutants |")
+			fmt.Fprintln(opts.Writer, "|---|---:|---:|---:|---|")
+			for _, e := range unreliable {
+				mutantsStr := ""
+				if len(e.MutationDetails) > 0 {
+					for i, md := range e.MutationDetails {
+						if i > 0 {
+							mutantsStr += ", "
+						}
+						mutantsStr += fmt.Sprintf("`%s`@L%d", md.MutantType, md.Line)
+						if md.OriginalText != "" && md.ReplacementText != "" {
+							mutantsStr += fmt.Sprintf("\n    `%s` → `%s`", md.OriginalText, md.ReplacementText)
+						}
+					}
+				}
+				fmt.Fprintf(opts.Writer, "| `%s` | %.2f | %.2f | %.1f%% | %s |\n",
+					e.FuncName, e.CRAP, e.EffectiveCRAP, e.MutationScore*100, mutantsStr)
+			}
+		} else {
+			fmt.Fprintln(opts.Writer, "| Function | CRAP | Effective CRAP | Mutation Score |")
+			fmt.Fprintln(opts.Writer, "|---|---:|---:|---:|")
+			for _, e := range unreliable {
+				fmt.Fprintf(opts.Writer, "| `%s` | %.2f | %.2f | %.1f%% |\n",
+					e.FuncName, e.CRAP, e.EffectiveCRAP, e.MutationScore*100)
+			}
+		}
 	}
 
 	return nil
@@ -65,7 +109,17 @@ func (f *PRCommentFormatter) Format(entries *score.EntryList, opts FormatOptions
 func filterAboveThreshold(entries []score.CRAPEntry, threshold float64) []score.CRAPEntry {
 	result := make([]score.CRAPEntry, 0)
 	for _, e := range entries {
-		if e.CRAP > threshold {
+		if e.EffectiveCRAP > threshold {
+			result = append(result, e)
+		}
+	}
+	return result
+}
+
+func filterUnreliableCoverage(entries []score.CRAPEntry) []score.CRAPEntry {
+	result := make([]score.CRAPEntry, 0)
+	for _, e := range entries {
+		if e.CoverageUntrusted {
 			result = append(result, e)
 		}
 	}

@@ -67,6 +67,8 @@ go-crap scan --exclude '.*_test\.go' --exclude 'pb/.*\.go'
 | `--exclude` | | Exclude files matching this regex (repeatable). Use `.*` for any path depth. e.g. `.*_test\.go` to exclude all test files, `pb/.*\.go` to exclude protobuf files | none |
 | `--verbose` | | Enable verbose (debug-level) logging | `false` |
 | `--output` | `-o` | Output file path (default: stdout) | stdout |
+| `--mutation-report` | | Path to gremlins JSON mutation report to validate coverage reliability | `""` |
+| `--detailed` | | Include mutation failure details (original code, replacement, line) in report output | `false` |
 | `--help` | `-h` | Help for scan | — |
 
 ### Output Formats
@@ -90,6 +92,22 @@ go-crap scan --format sarif > crap.sarif
 ```shell
 go-crap scan --format pr-comment > pr-comment.md
 ```
+
+### Example: Mutation report validation
+
+```shell
+go-crap scan --mutation-report gremlins-report.json
+```
+
+When a function has **lived** mutants (mutations that survived because tests didn't catch them), go-crap marks the coverage as unreliable (`⚠`) and recalculates the CRAP score assuming 0% coverage. This catches functions that appear well-tested but have blind spots.
+
+### Example: Detailed mutation output
+
+```shell
+go-crap scan --mutation-report gremlins-report.json --format json --detailed
+```
+
+The `--detailed` flag includes full mutation failure details in the output: `type`, `line`, `original_code`, and `replacement_code` for each survived mutant. In `json` format, these appear as a `mutation_details` array per entry. In `sarif` and `pr-comment` formats, survived mutations with code snippets are appended to the warning messages.
 
 ## What is CRAP?
 
@@ -116,6 +134,7 @@ go-crap scan
   │   ├── complexity.Analyze() — walk AST, compute cyclomatic complexity
   │   ├── merge.Merge()     — join by (filepath, funcname) with receiver support
   │   ├── score.Score()     — apply CRAP formula + missing policy
+  │   ├── mutation.Annotate() — validate coverage with mutation testing (optional)
   │   └── report.Format()   — table / json / github / sarif / pr-comment
   │
   └── pkg/utils/            — regex helpers for --exclude patterns
@@ -126,6 +145,7 @@ go-crap scan
 - **`internal/coverage`** — module discovery + `go test -cover` profiling (adapted from [test-finder](https://github.com/padiazg/test-finder), MIT)
 - **`internal/merge`** — double-index join of coverage and complexity data, with method receiver support
 - **`internal/score`** — CRAP formula + missing coverage policy + `EntryList` wrapper
+- **`internal/mutation`** — parses gremlins JSON mutation reports and annotates CRAP entries with coverage reliability
 - **`internal/report`** — output formatters (table, JSON, GitHub, SARIF, PR comment)
 - **`pkg/logger`** — Logger interface and configuration types
 - **`pkg/slogger`** — slog-backed Logger implementation
@@ -143,6 +163,8 @@ go-crap scan
 - `--format sarif` outputs SARIF 2.1.0 for integration with code scanning tools
 - `--format pr-comment` generates a markdown table for pull request comments
 - `--output -o` writes results to a file instead of stdout
+- `--mutation-report` validates coverage reliability against mutation testing results
+- `--detailed` includes mutation failure details (code, line, type) in report output
 
 ## Prior art and references
 

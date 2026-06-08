@@ -18,7 +18,18 @@ func (f *TableFormatter) Format(entries *score.EntryList, opts FormatOptions) er
 	}
 
 	sort.Slice(entries.List, func(i, j int) bool {
-		return entries.List[i].CRAP > entries.List[j].CRAP
+		effectiveI := entries.List[i].EffectiveCRAP
+		if effectiveI == 0 {
+			effectiveI = entries.List[i].CRAP
+		}
+		effectiveJ := entries.List[j].EffectiveCRAP
+		if effectiveJ == 0 {
+			effectiveJ = entries.List[j].CRAP
+		}
+		if effectiveI != effectiveJ {
+			return effectiveI > effectiveJ
+		}
+		return entries.List[i].MutationScore < entries.List[j].MutationScore
 	})
 
 	t := table.NewWriter()
@@ -29,10 +40,15 @@ func (f *TableFormatter) Format(entries *score.EntryList, opts FormatOptions) er
 	halfThreshold := opts.Threshold / 2.0
 
 	for _, e := range entries.List {
-		status := StatusSymbol(e.CRAP, opts.Threshold, halfThreshold)
+		effectiveCRAP := e.EffectiveCRAP
+		if effectiveCRAP == 0 {
+			effectiveCRAP = e.CRAP
+		}
+
+		status := StatusSymbol(effectiveCRAP, opts.Threshold, halfThreshold)
 		covBar := coverageBar(e.Coverage)
 
-		if e.CRAP > opts.Threshold {
+		if effectiveCRAP > opts.Threshold {
 			failed++
 		}
 
@@ -45,11 +61,16 @@ func (f *TableFormatter) Format(entries *score.EntryList, opts FormatOptions) er
 			}
 		}
 
+		covStr := fmt.Sprintf("%.1f%%", e.Coverage)
+		if e.CoverageUntrusted {
+			covStr += " \xe2\x9a\xa0"
+		}
+
 		t.AppendRow(table.Row{
 			status,
-			fmt.Sprintf("%.2f", e.CRAP),
+			fmt.Sprintf("%.2f", effectiveCRAP),
 			e.Complexity,
-			fmt.Sprintf("%s %.1f%%", covBar, e.Coverage),
+			fmt.Sprintf("%s %s", covBar, covStr),
 			e.FuncName,
 			loc,
 		})
