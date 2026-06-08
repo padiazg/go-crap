@@ -315,6 +315,19 @@ go-crap scan --fail-above --threshold 15
 
 Use `--verbose` when diagnosing issues with module discovery, coverage parsing, or path matching in CI environments.
 
+### Mutation report with CI
+
+```yaml
+      - name: Install gremlins
+        run: go install github.com/go-gremlins/gremlins/cmd/gremlins@latest
+      - name: Run mutation testing
+        run: gremlins unleash --output=gremlins-report.json
+      - name: Run go-crap with mutation validation
+        run: go-crap scan --mutation-report gremlins-report.json --fail-above --threshold 30
+      - name: Generate detailed report
+        run: go-crap scan --mutation-report gremlins-report.json --format json --detailed > crap-detailed.json
+```
+
 ### Report parsing
 
 The JSON output follows this schema:
@@ -331,7 +344,28 @@ The JSON output follows this schema:
       "line": 42,
       "cyclomatic": 8,
       "coverage": 0.25,
-      "crap": 125.0
+      "crap": 125.0,
+      "coverage_untrusted": false,
+      "mutation_score": 0.8,
+      "effective_crap": 125.0
+    }
+  ]
+}
+```
+
+When `--detailed` is used alongside `--mutation-report`, each entry with survived mutants includes a `mutation_details` array:
+
+```json
+{
+  "mutation_details": [
+    {
+      "type": "CONDITIONALS_BOUNDARY",
+      "mutator_name": "CB",
+      "file": "internal/pkg/foo.go",
+      "line": 50,
+      "status": "LIVED",
+      "original_text": "a < b",
+      "replacement_text": "a >= b"
     }
   ]
 }

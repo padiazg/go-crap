@@ -27,6 +27,8 @@ go-crap scan [path] [flags]
 | `--exclude` | | Exclude files matching this regex pattern (repeatable). Use `.*` to match any path depth. e.g. `.*_test\.go` to exclude all test files, `pb/.*\.go` to exclude protobuf files | none |
 | `--verbose` | | Enable verbose (debug-level) logging | `false` |
 | `--output` | `-o` | Output file path (default: stdout) | stdout |
+| `--mutation-report` | | Path to gremlins JSON mutation report to validate coverage reliability | `""` (disabled) |
+| `--detailed` | | Include mutation failure details (original/replacement code, line, type) in report output | `false` |
 
 ## Examples
 
@@ -110,3 +112,35 @@ go-crap scan --verbose
 ```
 
 Enables debug-level logging to help diagnose issues with module discovery, coverage parsing, or path matching.
+
+### Mutation report validation
+
+```shell
+go-crap scan --mutation-report gremlins-report.json
+```
+
+Validates coverage reliability by comparing mutation testing results against go-crap's coverage data. When a function has **lived** mutants (mutations that survived because tests didn't catch them), go-crap marks the coverage as unreliable and recalculates the CRAP score assuming 0% coverage.
+
+Unreliable coverage is indicated by:
+
+- A ⚠ warning next to the coverage percentage in `table` and `pr-comment` output
+- An additional `coverage-untrusted` SARIF result in `sarif` format
+- A mutation score in `json` output (`mutation_score` field)
+- An "Unreliable Coverage" section in `pr-comment` output listing all affected functions
+
+This is useful when you use [gremlins](https://github.com/go-gremlins/gremlins) or similar mutation testing tools to catch functions that appear well-tested but have blind spots.
+
+### Detailed mutation output
+
+```shell
+go-crap scan --mutation-report gremlins-report.json --format json --detailed
+```
+
+The `--detailed` flag includes full mutation failure details in the report output:
+
+- **JSON**: `mutation_details` array per entry with `type`, `mutator_name`, `file`, `line`, `status`, `original_text`, `replacement_text`
+- **SARIF**: survived mutations appended to warning messages with type, line, and code diff (e.g. `"a < b" → "a >= b"`)
+- **PR Comment**: `Survived Mutants` column in the Unreliable Coverage section, with code snippets inline
+- **Table**: no change — still shows ⚠ for untrusted coverage
+
+This is useful for debugging which specific mutants survived and what code transformations they represented.
