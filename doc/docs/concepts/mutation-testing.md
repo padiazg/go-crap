@@ -6,6 +6,17 @@ A mutant that gets caught by tests is **killed** — meaning your test caught th
 
 Coverage alone can lie. A function with 100% line coverage can still have untested logical paths. Mutation testing catches that gap.
 
+## Effective CRAP Score
+
+When a mutation report is provided, go-crap calculates two scores per function:
+
+- **`CRAP`** — based on test coverage (what `go test -cover` reports)
+- **`EffectiveCRAP`** — recalculated at 0% coverage when lived mutants exist
+
+go-crap uses `EffectiveCRAP` for all sorting and filtering (`--top`, `--min`, `--fail-above`). This ensures functions with survived mutants appear at the top of reports even if their test coverage looks good.
+
+`CoverageUntrusted` entries always survive `--top` truncation and `--min` filtering, guaranteeing they appear in every output.
+
 ## Gremlins
 
 [Gremlins](https://gremlins.dev/latest/) is a mutation testing tool for Go that go-crap integrates with via JSON reports.

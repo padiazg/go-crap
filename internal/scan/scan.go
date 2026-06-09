@@ -93,15 +93,22 @@ func parseMissingPolicy(s string) (score.MissingPolicy, error) {
 	}
 }
 
+func effectiveCRAP(e score.CRAPEntry) float64 {
+	if e.EffectiveCRAP == 0 {
+		return e.CRAP
+	}
+	return e.EffectiveCRAP
+}
+
 func applyFilters(entries []score.CRAPEntry, top int, min float64) []score.CRAPEntry {
 	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].CRAP > entries[j].CRAP
+		return effectiveCRAP(entries[i]) > effectiveCRAP(entries[j])
 	})
 
 	if min > 0 {
 		var filtered []score.CRAPEntry
 		for _, e := range entries {
-			if e.CRAP >= min {
+			if e.CoverageUntrusted || effectiveCRAP(e) >= min {
 				filtered = append(filtered, e)
 			}
 		}
@@ -109,7 +116,18 @@ func applyFilters(entries []score.CRAPEntry, top int, min float64) []score.CRAPE
 	}
 
 	if top > 0 && top < len(entries) {
-		return entries[:top]
+		var result []score.CRAPEntry
+		for _, e := range entries {
+			if e.CoverageUntrusted {
+				result = append(result, e)
+			}
+		}
+		for _, e := range entries {
+			if !e.CoverageUntrusted && len(result) < top {
+				result = append(result, e)
+			}
+		}
+		return result
 	}
 
 	return entries

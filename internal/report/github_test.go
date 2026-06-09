@@ -285,3 +285,103 @@ func TestGithubFormatter_Format_returns_nil_error(t *testing.T) {
 	err = f.Format(&score.EntryList{List: []score.CRAPEntry{}}, opts)
 	assert.NoError(t, err)
 }
+
+func TestGithubFormatter_Format_coverage_untrusted_below_threshold(t *testing.T) {
+	f := &GithubFormatter{}
+	buf := &bytes.Buffer{}
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{
+			File:              "/project/main.go",
+			Package:           "myapp",
+			FuncName:          "GoodFunction",
+			Line:              42,
+			Complexity:        2,
+			Coverage:          95.0,
+			CRAP:              3.0,
+			CoverageUntrusted: true,
+			MutationScore:     0.6,
+		},
+	}}
+	opts := FormatOptions{
+		Threshold: 30,
+		Writer:    buf,
+	}
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+
+	got := buf.String()
+	assert.Contains(t, got, "::warning")
+	assert.Contains(t, got, "coverage not reliable")
+	assert.Contains(t, got, "mutation score: 60.0%")
+	assert.Contains(t, got, "GoodFunction")
+}
+
+func TestGithubFormatter_Format_coverage_untrusted_above_threshold(t *testing.T) {
+	f := &GithubFormatter{}
+	buf := &bytes.Buffer{}
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{
+			File:              "/project/main.go",
+			Package:           "myapp",
+			FuncName:          "BadFunction",
+			Line:              10,
+			Complexity:        10,
+			Coverage:          0,
+			CRAP:              110.0,
+			CoverageUntrusted: true,
+			MutationScore:     0.3,
+		},
+	}}
+	opts := FormatOptions{
+		Threshold: 30,
+		Writer:    buf,
+	}
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+
+	got := buf.String()
+	lines := strings.Split(strings.TrimSpace(got), "\n")
+	assert.Len(t, lines, 2)
+	assert.Contains(t, got, "CRAP score 110.0")
+	assert.Contains(t, got, "coverage not reliable")
+}
+
+func TestGithubFormatter_Format_multiple_unreliable_below_threshold(t *testing.T) {
+	f := &GithubFormatter{}
+	buf := &bytes.Buffer{}
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{
+			File:              "/project/a.go",
+			Package:           "myapp",
+			FuncName:          "FuncA",
+			Line:              5,
+			Complexity:        2,
+			Coverage:          90.0,
+			CRAP:              5.0,
+			CoverageUntrusted: true,
+			MutationScore:     0.5,
+		},
+		{
+			File:              "/project/b.go",
+			Package:           "myapp",
+			FuncName:          "FuncB",
+			Line:              15,
+			Complexity:        3,
+			Coverage:          85.0,
+			CRAP:              8.0,
+			CoverageUntrusted: true,
+			MutationScore:     0.7,
+		},
+	}}
+	opts := FormatOptions{
+		Threshold: 30,
+		Writer:    buf,
+	}
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+
+	got := buf.String()
+	assert.Contains(t, got, "FuncA")
+	assert.Contains(t, got, "FuncB")
+	assert.Contains(t, got, "coverage not reliable")
+}

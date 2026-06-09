@@ -29,6 +29,12 @@ func (f *GithubFormatter) Format(entries *score.EntryList, opts FormatOptions) e
 			}
 		}
 
+		if e.CoverageUntrusted {
+			msg := fmt.Sprintf("%s:%d %s [coverage not reliable (mutation score: %.1f%%)]",
+				file, e.Line, e.FuncName, e.MutationScore*100)
+			fmt.Fprintf(opts.Writer, "::warning file=%s,line=%d::%s\n", file, e.Line, msg)
+		}
+
 		if effectiveCRAP > opts.Threshold {
 			msg := fmt.Sprintf("%s:%d %s CRAP score %.1f (CC=%d, cov=%.1f%%) exceeds threshold %.0f",
 				file, e.Line, e.FuncName, effectiveCRAP, e.Complexity, e.Coverage, opts.Threshold)

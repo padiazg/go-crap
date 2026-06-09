@@ -268,6 +268,95 @@ func TestPRCommentFormatter_Format_no_table_when_no_crappy(t *testing.T) {
 	assert.NotContains(t, output, "|")
 }
 
+func TestPRCommentFormatter_Format_unreliable_coverage_without_threshold_violation(t *testing.T) {
+	f := &PRCommentFormatter{}
+	buf := &bytes.Buffer{}
+
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{
+			File:              "/project/main.go",
+			Package:           "myapp",
+			FuncName:          "GoodFunction",
+			Line:              10,
+			Complexity:        2,
+			Coverage:          95.0,
+			CRAP:              5.0,
+			CoverageUntrusted: true,
+			MutationScore:     0.6,
+		},
+		{
+			File:              "/project/main.go",
+			Package:           "myapp",
+			FuncName:          "AlsoGood",
+			Line:              20,
+			Complexity:        1,
+			Coverage:          100.0,
+			CRAP:              1.0,
+			CoverageUntrusted: false,
+		},
+	}}
+
+	opts := FormatOptions{
+		Threshold: 30,
+		Writer:    buf,
+		Detailed:  true,
+	}
+
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "## No crappy functions")
+	assert.Contains(t, output, "## \u26a0\ufe0f Unreliable Coverage")
+	assert.Contains(t, output, "GoodFunction")
+	assert.Contains(t, output, "60.0%")
+}
+
+func TestPRCommentFormatter_Format_unreliable_with_crappy_functions(t *testing.T) {
+	f := &PRCommentFormatter{}
+	buf := &bytes.Buffer{}
+
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{
+			File:              "/project/main.go",
+			Package:           "myapp",
+			FuncName:          "BadFunction",
+			Line:              10,
+			Complexity:        10,
+			Coverage:          0,
+			CRAP:              110.0,
+			CoverageUntrusted: false,
+		},
+		{
+			File:              "/project/main.go",
+			Package:           "myapp",
+			FuncName:          "UnreliableGood",
+			Line:              20,
+			Complexity:        3,
+			Coverage:          90.0,
+			CRAP:              10.0,
+			CoverageUntrusted: true,
+			MutationScore:     0.7,
+		},
+	}}
+
+	opts := FormatOptions{
+		Threshold: 30,
+		Writer:    buf,
+	}
+
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "## 1 crappy function(s)")
+	assert.Contains(t, output, "BadFunction")
+	assert.Contains(t, output, "## \u26a0\ufe0f Unreliable Coverage")
+	assert.Contains(t, output, "UnreliableGood")
+	assert.Contains(t, output, "| ✗ |")
+	assert.Contains(t, output, "Mutation Score")
+}
+
 func TestPRCommentFormatter_Format_detailed_mutations(t *testing.T) {
 	f := &PRCommentFormatter{}
 	buf := &bytes.Buffer{}

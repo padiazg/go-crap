@@ -42,30 +42,30 @@ func (f *PRCommentFormatter) Format(entries *score.EntryList, opts FormatOptions
 
 	fmt.Fprintf(opts.Writer, "\n%d function(s) analyzed · threshold %.0f\n\n", len(sorted), opts.Threshold)
 
-	if len(crappy) == 0 {
-		return nil
-	}
-
 	if len(crappy) > maxPRCommentRows {
 		crappy = crappy[:maxPRCommentRows]
 	}
 
-	fmt.Fprintln(opts.Writer, "| | CRAP | CC | Cov % | Function | Location |")
-	fmt.Fprintln(opts.Writer, "|---|---:|---:|---:|---|---|")
+	if len(crappy) > 0 {
+		fmt.Fprintln(opts.Writer, "| | CRAP | CC | Cov % | Function | Location |")
+		fmt.Fprintln(opts.Writer, "|---|---:|---:|---:|---|---|")
 
-	for _, e := range crappy {
-		status := StatusSymbol(e.EffectiveCRAP, opts.Threshold, halfThreshold)
-		loc := formatPRLocation(e, opts.BaseDir)
-		covStr := fmt.Sprintf("%.1f%%", e.Coverage)
-		if e.CoverageUntrusted {
-			covStr += " \xe2\x9a\xa0"
+		for _, e := range crappy {
+			status := StatusSymbol(e.EffectiveCRAP, opts.Threshold, halfThreshold)
+			loc := formatPRLocation(e, opts.BaseDir)
+			covStr := fmt.Sprintf("%.1f%%", e.Coverage)
+			if e.CoverageUntrusted {
+				covStr += " \xe2\x9a\xa0"
+			}
+			fmt.Fprintf(opts.Writer, "| %s | %.2f | %d | %s | `%s` | %s |\n",
+				status, e.EffectiveCRAP, e.Complexity, covStr, e.FuncName, loc)
 		}
-		fmt.Fprintf(opts.Writer, "| %s | %.2f | %d | %s | `%s` | %s |\n",
-			status, e.EffectiveCRAP, e.Complexity, covStr, e.FuncName, loc)
-	}
 
-	if len(entries.List) > maxPRCommentRows {
-		fmt.Fprintf(opts.Writer, "\n…and %d more\n", len(entries.List)-maxPRCommentRows)
+		if len(entries.List) > maxPRCommentRows {
+			fmt.Fprintf(opts.Writer, "\n…and %d more\n", len(entries.List)-maxPRCommentRows)
+		}
+
+		fmt.Fprintln(opts.Writer)
 	}
 
 	unreliable := filterUnreliableCoverage(sorted)
