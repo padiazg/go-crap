@@ -5,7 +5,7 @@ All notable changes to go-crap will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## v0.4.0 (unreleased)
+## v0.4.0 - 2026-06-08
 
 ### Added
 
@@ -28,12 +28,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `ThresholdExceeded()` now uses `EffectiveCRAP` instead of `CRAP` for threshold comparison
-- Filtering (`--top`, `--min`) and sorting now use `EffectiveCRAP` when mutation report is provided
 - `--fail-above` now checks `EffectiveCRAP` against the threshold
 
 ### Fixed
 
 - Functions with lived mutants now show their true risk level via `EffectiveCRAP` (CRAP at 0% coverage)
+- `--top` no longer drops functions flagged with lived mutation mutants — `CoverageUntrusted` entries always survive truncation alongside the top trusted entries
+- `--min` no longer filters out `CoverageUntrusted` entries, even when their `CRAP` score is below the threshold
+- `github` format now emits `::warning` for `CoverageUntrusted` entries regardless of threshold
+- `pr-comment` format now always renders the "Unreliable Coverage" section when mutation report is provided, even when no function exceeds the CRAP threshold
 
 ## v0.3.0 - 2026-06-05
 

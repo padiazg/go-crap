@@ -21,14 +21,16 @@ go-crap scan [path] [flags]
 | `--threshold` | `-t` | Score above which a function is marked as problematic | `30.0` |
 | `--fail-above` | | Exit with code 1 if any function exceeds the threshold | `false` |
 | `--format` | `-f` | Output format: `table`, `json`, `github`, `sarif`, or `pr-comment` | `table` |
-| `--top` | | Show only the N worst offenders (0 = all) | `0` |
-| `--min` | | Hide entries below this score | `0` |
+| `--top` | | Show only the N worst offenders (0 = all). `CoverageUntrusted` entries always survive, even when `N` is small | `0` |
+| `--min` | | Hide entries below this score. `CoverageUntrusted` entries are never hidden, regardless of their score | `0` |
 | `--missing` | | Policy for functions without coverage: `pessimistic`, `optimistic`, or `skip` | `pessimistic` |
 | `--exclude` | | Exclude files matching this regex pattern (repeatable). Use `.*` to match any path depth. e.g. `.*_test\.go` to exclude all test files, `pb/.*\.go` to exclude protobuf files | none |
 | `--verbose` | | Enable verbose (debug-level) logging | `false` |
 | `--output` | `-o` | Output file path (default: stdout) | stdout |
 | `--mutation-report` | | Path to gremlins JSON mutation report to validate coverage reliability | `""` (disabled) |
 | `--detailed` | | Include mutation failure details (original/replacement code, line, type) in report output | `false` |
+
+> `CoverageUntrusted` has meaning only if `--mutation-report` was used.
 
 ## Examples
 
@@ -126,7 +128,8 @@ Unreliable coverage is indicated by:
 - A ⚠ warning next to the coverage percentage in `table` and `pr-comment` output
 - An additional `coverage-untrusted` SARIF result in `sarif` format
 - A mutation score in `json` output (`mutation_score` field)
-- An "Unreliable Coverage" section in `pr-comment` output listing all affected functions
+- A `::warning` annotation in `github` format, emitted even when the CRAP score is below threshold
+- An "Unreliable Coverage" section in `pr-comment` output listing all affected functions (always rendered when mutation report is provided)
 
 This is useful when you use [gremlins](https://github.com/go-gremlins/gremlins) or similar mutation testing tools to catch functions that appear well-tested but have blind spots.
 
