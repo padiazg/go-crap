@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"os"
-	"time"
 
 	"github.com/padiazg/go-crap/pkg/logger"
 )
@@ -81,39 +80,6 @@ func (l Logger) Error(msg string, args ...any) {
 func (l Logger) Fatal(msg string, args ...any) {
 	l.slog.ErrorContext(context.Background(), msg, args...)
 	os.Exit(1)
-}
-
-// Package-level convenience functions.
-var defaultLogger = New(&logger.Config{Level: "info", Format: "text"})
-
-// Debug logs at debug level using the default logger.
-func Debug(msg string, args ...any) {
-	defaultLogger.Debug(msg, args...)
-}
-
-// Info logs at info level using the default logger.
-func Info(msg string, args ...any) {
-	defaultLogger.Info(msg, args...)
-}
-
-// Warn logs at warn level using the default logger.
-func Warn(msg string, args ...any) {
-	defaultLogger.Warn(msg, args...)
-}
-
-// Error logs at error level using the default logger.
-func Error(msg string, args ...any) {
-	defaultLogger.Error(msg, args...)
-}
-
-// Fatal logs at error level then exits using the default logger.
-func Fatal(msg string, args ...any) {
-	defaultLogger.Fatal(msg, args...)
-}
-
-// Time logs duration with key at info level using the default logger.
-func Time(key string, start time.Time) {
-	Info(key, "elapsed", time.Since(start).String())
 }
 
 // Slog returns the underlying *slog.Logger.
