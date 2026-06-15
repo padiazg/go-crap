@@ -11,7 +11,7 @@ import (
 var (
 	versionCmd = &cobra.Command{
 		Use:   "version",
-		Short: "Shows TestGen version",
+		Short: "Shows go-crap version",
 		Run: func(cmd *cobra.Command, args []string) {
 			simple, _ := cmd.Flags().GetBool("simple")
 			if simple {

@@ -19,6 +19,8 @@ go-crap
 
 # Test cache
 coverage.out
+mutation.json
+mutation-report.json
 coverage.html
 *.test
 

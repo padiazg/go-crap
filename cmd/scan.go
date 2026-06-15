@@ -95,7 +95,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if flagFailAbove && entries.ThresholdExeeded(flagThreshold) {
+	if flagFailAbove && entries.ThresholdExceeded(flagThreshold) {
 		os.Exit(1)
 	}
 
@@ -119,8 +119,7 @@ func resolveFormatter(format string) (report.Formatter, error) {
 	}
 }
 
-func output(path string, entries *score.EntryList, writter io.Writer) error {
-	var writer io.Writer = writter
+func output(path string, entries *score.EntryList, writer io.Writer) error {
 	if flagOutput != "" {
 		f, err := os.Create(flagOutput)
 		if err != nil {
