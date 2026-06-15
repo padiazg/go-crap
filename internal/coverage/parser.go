@@ -121,6 +121,8 @@ type fileFunc struct {
 func parseFileProfile(modDir, filePath string, entries []profileEntry, modPath string) []FunctionCoverage {
 	src, err := os.Open(filePath)
 	if err != nil {
+		// Coverage file unreadable — skip silently.
+		// The function will appear with 0% coverage in the report.
 		return nil
 	}
 	defer src.Close()
@@ -128,6 +130,8 @@ func parseFileProfile(modDir, filePath string, entries []profileEntry, modPath s
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filePath, src, 0)
 	if err != nil {
+		// Coverage file unreadable — skip silently.
+		// The function will appear with 0% coverage in the report.
 		return nil
 	}
 
