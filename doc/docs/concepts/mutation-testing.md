@@ -35,6 +35,39 @@ gremlins unleash --output=gremlins-report.json
 
 Gremlins supports multiple mutators: conditional boundaries, increments, logical operators, function calls, and more. See the [Gremlins documentation](https://gremlins.dev/latest/) for the full list and configuration options.
 
+### Recommended configuration
+
+For reliable results, these flags are recommended:
+
+| Flag | Purpose |
+|------|---------|
+| `--timeout-coefficient 20` | Tests often time out before confirming whether a mutant lived or was killed, producing false results. A higher coefficient gives each mutant more time. |
+| `-S "l"` / `--output-statuses "l"` | Only output **lived** mutants. Killed mutants are not needed by go-crap, so filtering early keeps the report small. |
+| `--integration` | Runs tests as a full package suite instead of per-mutant isolation. Some mutants survive individual test runs but are caught when the whole package runs together. |
+| `--output=mutation.json` | Write results to a file that go-crap can consume via `--mutation-report`. |
+
+Combined one-liner:
+
+```shell
+gremlins unleash --timeout-coefficient 20 -S "l" --integration --output=mutation.json \
+  && go-crap scan --mutation-report mutation.json --exclude ".*_test.go" --top 10
+```
+
+Or as separate steps:
+
+```shell
+gremlins unleash \
+  --timeout-coefficient 20 \
+  -S "l" \
+  --integration \
+  --output=mutation.json
+
+go-crap scan \
+  --mutation-report mutation.json \
+  --exclude ".*_test.go" \
+  --top 10
+```
+
 ## Mutation reports with go-crap
 
 Use the `--mutation-report` flag to pass a gremlins JSON report to go-crap. go-crap matches mutants to functions by file and line range, then:
@@ -66,13 +99,32 @@ go-crap scan --mutation-report gremlins-report.json --format json --detailed
 
 ### GitHub Actions
 
+A practical CI setup uses two jobs: one to enforce a CRAP threshold on every push, and another to generate a PR comment with mutation data on pull requests.
+
 ```yaml
-name: mutation
-on: [push, pull_request]
+name: crap
+on:
+  push:
+    branches: [main, master]
+  pull_request:
 
 jobs:
-  mutation:
+  threshold:
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+      - name: Install go-crap
+        run: go install github.com/padiazg/go-crap@latest
+      - name: Score
+        run: go-crap scan --fail-above --threshold 30 --exclude '.*_test\.go'
+
+  pr-comment:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -81,15 +133,41 @@ jobs:
           cache: true
       - name: Install gremlins
         run: go install github.com/go-gremlins/gremlins/cmd/gremlins@latest
+      - name: Mutation testing
+        run: >-
+          gremlins unleash
+          --timeout-coefficient 20
+          -S "l"
+          --integration
+          --output=mutation-report.json
       - name: Install go-crap
         run: go install github.com/padiazg/go-crap@latest
-      - name: Run mutation testing
-        run: gremlins unleash --output=gremlins-report.json
-      - name: Run go-crap with mutation validation
-        run: go-crap scan --mutation-report gremlins-report.json --fail-above --threshold 30
+      - name: Generate PR comment
+        run: >-
+          go-crap scan
+          --format pr-comment
+          --threshold 30
+          --exclude '.*_test\.go'
+          --output pr-comment.md
+          --mutation-report mutation-report.json || true
+      - name: Get PR number
+        run: echo "${{ github.event.pull_request.number }}" > pr-number.txt
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: crap-comment
+          path: |
+            pr-comment.md
+            pr-number.txt
+            mutation-report.json
+          if-no-files-found: ignore
 ```
 
-See [CI Workflows](../integrations/ci.md) for platform-specific examples with SARIF, PR comments, and matrix builds.
+The `|| true` on the go-crap step ensures the PR comment is still uploaded even when functions exceed the threshold.
+
+For fork-safe posting of the PR comment, see [Fork-safe PR comment with mutation testing](../integrations/github-actions.md#fork-safe-pr-comment-with-mutation-testing) in the GitHub Actions page.
+
+See [CI Integrations](../integrations/index.md) for platform-specific examples with SARIF, PR comments, and matrix builds.
 
 ## Interpreting results
 
