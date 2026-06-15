@@ -8,6 +8,7 @@ import (
 	"github.com/padiazg/go-crap/internal/score"
 )
 
+// SARIFFormatter outputs CRAP entries as SARIF JSON.
 type SARIFFormatter struct{}
 
 func (f *SARIFFormatter) Format(entries *score.EntryList, opts FormatOptions) error {
@@ -21,8 +22,8 @@ func (f *SARIFFormatter) Format(entries *score.EntryList, opts FormatOptions) er
 
 		if effectiveCRAP > opts.Threshold {
 			results = append(results, sarifResult{
-				RuleID:  "crap/high-score",
-				Level:   "warning",
+				RuleID: "crap/high-score",
+				Level:  "warning",
 				Message: sarifMessage{
 					Text: formatMessage(e, effectiveCRAP, opts.Detailed),
 				},
@@ -45,8 +46,8 @@ func (f *SARIFFormatter) Format(entries *score.EntryList, opts FormatOptions) er
 			msg := fmt.Sprintf("Coverage not reliable for %s (mutation score: %.1f%%)", e.FuncName, e.MutationScore*100)
 			msg += formatMutantDetails(opts.Detailed, e.MutationDetails)
 			results = append(results, sarifResult{
-				RuleID:  "go-crap/coverage-untrusted",
-				Level:   "warning",
+				RuleID: "go-crap/coverage-untrusted",
+				Level:  "warning",
 				Message: sarifMessage{
 					Text: msg,
 				},
@@ -73,8 +74,8 @@ func (f *SARIFFormatter) Format(entries *score.EntryList, opts FormatOptions) er
 			{
 				Tool: sarifTool{
 					Driver: sarifDriver{
-						Name:             "go-crap",
-						InformationURI:   "https://github.com/padiazg/go-crap",
+						Name:           "go-crap",
+						InformationURI: "https://github.com/padiazg/go-crap",
 						DefaultConfiguration: sarifDefaultConfiguration{
 							Level: "warning",
 						},
@@ -137,14 +138,14 @@ func relativizePath(path, baseDir string) string {
 }
 
 type sarifLog struct {
-	Schema  string      `json:"$schema"`
-	Version string      `json:"version"`
-	Runs    []sarifRun  `json:"runs"`
+	Schema  string     `json:"$schema"`
+	Version string     `json:"version"`
+	Runs    []sarifRun `json:"runs"`
 }
 
 type sarifRun struct {
-	Tool    sarifTool    `json:"tool"`
 	Results []sarifResult `json:"results"`
+	Tool    sarifTool     `json:"tool"`
 }
 
 type sarifTool struct {
@@ -152,10 +153,10 @@ type sarifTool struct {
 }
 
 type sarifDriver struct {
-	Name             string          `json:"name"`
-	InformationURI   string          `json:"informationUri"`
+	Name                 string                    `json:"name"`
+	InformationURI       string                    `json:"informationUri"`
 	DefaultConfiguration sarifDefaultConfiguration `json:"defaultConfiguration"`
-	Rules            []sarifRule     `json:"rules"`
+	Rules                []sarifRule               `json:"rules"`
 }
 
 type sarifDefaultConfiguration struct {
@@ -163,9 +164,9 @@ type sarifDefaultConfiguration struct {
 }
 
 type sarifRule struct {
-	ID                 string              `json:"id"`
-	ShortDescription   sarifShortFullDescription `json:"shortDescription"`
-	FullDescription    sarifShortFullDescription `json:"fullDescription"`
+	ID               string                    `json:"id"`
+	ShortDescription sarifShortFullDescription `json:"shortDescription"`
+	FullDescription  sarifShortFullDescription `json:"fullDescription"`
 }
 
 type sarifShortFullDescription struct {
@@ -173,10 +174,10 @@ type sarifShortFullDescription struct {
 }
 
 type sarifResult struct {
-	RuleID    string           `json:"ruleId"`
-	Level     string           `json:"level"`
-	Message   sarifMessage     `json:"message"`
-	Locations []sarifLocation  `json:"locations"`
+	RuleID    string          `json:"ruleId"`
+	Level     string          `json:"level"`
+	Message   sarifMessage    `json:"message"`
+	Locations []sarifLocation `json:"locations"`
 }
 
 type sarifMessage struct {

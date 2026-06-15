@@ -4,6 +4,7 @@ import (
 	"github.com/padiazg/go-crap/internal/merge"
 )
 
+// MissingPolicy controls how functions without coverage are scored.
 type MissingPolicy int
 
 const (
@@ -22,6 +23,7 @@ type MutationDetail struct {
 	Line            int
 }
 
+// CRAPEntry holds the CRAP score and metadata for a single function.
 type CRAPEntry struct {
 	File              string
 	FuncName          string
@@ -38,10 +40,12 @@ type CRAPEntry struct {
 	Skipped           bool
 }
 
+// EntryList is a list of CRAP entries.
 type EntryList struct {
 	List []CRAPEntry
 }
 
+// EffectiveScore returns EffectiveCRAP if set, otherwise CRAP.
 func (e CRAPEntry) EffectiveScore() float64 {
 	if e.EffectiveCRAP != 0 {
 		return e.EffectiveCRAP
@@ -59,12 +63,15 @@ func (el *EntryList) ThresholdExceeded(threshold float64) bool {
 	return false
 }
 
+// CRAP computes the CRAP score for a function given its cyclomatic complexity and test coverage.
+// Coverage is a percentage (0-100).
 func CRAP(complexity int, coverage float64) float64 {
 	comp := float64(complexity)
 	cov := coverage / 100.0
 	return comp*comp*(1-cov)*(1-cov)*(1-cov) + comp
 }
 
+// Score calculates CRAP scores for merged entries using the given missing coverage policy.
 func Score(entries []merge.MergedEntry, policy MissingPolicy) []CRAPEntry {
 	result := make([]CRAPEntry, 0, len(entries))
 	for _, e := range entries {

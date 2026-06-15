@@ -14,30 +14,31 @@ type Report struct {
 }
 
 type JSONEntry struct {
-	Coverage        *float64 `json:"coverage"`
-	CoverageUntrusted bool   `json:"coverage_untrusted"`
-	File            string   `json:"file"`
-	Function        string   `json:"function"`
-	Receiver        string   `json:"receiver,omitempty"`
-	Package         string   `json:"package"`
-	CRAP            float64  `json:"crap"`
-	EffectiveCRAP   float64  `json:"effective_crap"`
-	MutationScore   float64  `json:"mutation_score"`
-	Cyclomatic      int      `json:"cyclomatic"`
-	Line            int      `json:"line"`
-	MutationDetails []JSONMutationDetail `json:"mutation_details,omitempty"`
+	Coverage          *float64             `json:"coverage"`
+	File              string               `json:"file"`
+	Function          string               `json:"function"`
+	Package           string               `json:"package"`
+	Receiver          string               `json:"receiver,omitempty"`
+	MutationDetails   []JSONMutationDetail `json:"mutation_details,omitempty"`
+	CRAP              float64              `json:"crap"`
+	Cyclomatic        int                  `json:"cyclomatic"`
+	EffectiveCRAP     float64              `json:"effective_crap"`
+	Line              int                  `json:"line"`
+	MutationScore     float64              `json:"mutation_score"`
+	CoverageUntrusted bool                 `json:"coverage_untrusted"`
 }
 
 type JSONMutationDetail struct {
-	Type            string `json:"type"`
-	MutatorName     string `json:"mutator_name,omitempty"`
 	File            string `json:"file"`
-	Line            int    `json:"line"`
-	Status          string `json:"status"`
+	MutatorName     string `json:"mutator_name,omitempty"`
 	OriginalText    string `json:"original_text,omitempty"`
 	ReplacementText string `json:"replacement_text,omitempty"`
+	Status          string `json:"status"`
+	Type            string `json:"type"`
+	Line            int    `json:"line"`
 }
 
+// JSONFormatter outputs CRAP entries as JSON.
 type JSONFormatter struct {
 	jsonMarshalIndent func(v any, prefix, indent string) ([]byte, error)
 }
@@ -67,15 +68,15 @@ func (f *JSONFormatter) Format(entries *score.EntryList, opts FormatOptions) err
 			}
 		}
 		entry := JSONEntry{
-			File:            file,
-			Package:         e.Package,
-			Function:        e.FuncName,
-			Receiver:        e.Receiver,
-			Line:            e.Line,
-			Cyclomatic:      e.Complexity,
-			CRAP:            e.CRAP,
-			EffectiveCRAP:   e.EffectiveCRAP,
-			MutationScore:   e.MutationScore,
+			File:              file,
+			Package:           e.Package,
+			Function:          e.FuncName,
+			Receiver:          e.Receiver,
+			Line:              e.Line,
+			Cyclomatic:        e.Complexity,
+			CRAP:              e.CRAP,
+			EffectiveCRAP:     e.EffectiveCRAP,
+			MutationScore:     e.MutationScore,
 			CoverageUntrusted: e.CoverageUntrusted,
 		}
 		if opts.Detailed && len(e.MutationDetails) > 0 {

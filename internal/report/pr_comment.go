@@ -9,6 +9,7 @@ import (
 
 const maxPRCommentRows = 25
 
+// PRCommentFormatter outputs CRAP entries as a GitHub PR comment.
 type PRCommentFormatter struct{}
 
 func (f *PRCommentFormatter) Format(entries *score.EntryList, opts FormatOptions) error {
