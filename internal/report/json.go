@@ -95,9 +95,7 @@ func (f *JSONFormatter) Format(entries *score.EntryList, opts FormatOptions) err
 				})
 			}
 		}
-		if e.Coverage > 0 || e.Coverage == 0 {
-			entry.Coverage = &e.Coverage
-		}
+		entry.Coverage = &e.Coverage
 		report.Entries = append(report.Entries, entry)
 	}
 
