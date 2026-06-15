@@ -13,37 +13,36 @@ const (
 )
 
 type MutationDetail struct {
-	MutantType    string
-	MutatorName   string
-	File          string
-	Line          int
-	Status        string
-	OriginalText  string
+	File            string
+	MutantType      string
+	MutatorName     string
+	OriginalText    string
 	ReplacementText string
+	Status          string
+	Line            int
 }
 
 type CRAPEntry struct {
-	File       string
-	Package    string
-	FuncName   string
-	Receiver   string
-	Line       int
-	Complexity int
-	Coverage   float64
-	CRAP       float64
-	Skipped    bool
-
-	CoverageUntrusted bool
-	MutationScore     float64
-	EffectiveCRAP     float64
+	File              string
+	FuncName          string
+	Package           string
+	Receiver          string
 	MutationDetails   []MutationDetail
+	Complexity        int
+	Coverage          float64
+	CRAP              float64
+	EffectiveCRAP     float64
+	Line              int
+	MutationScore     float64
+	CoverageUntrusted bool
+	Skipped           bool
 }
 
 type EntryList struct {
 	List []CRAPEntry
 }
 
-func (el *EntryList) ThresholdExeeded(threshold float64) bool {
+func (el *EntryList) ThresholdExceeded(threshold float64) bool {
 	for _, e := range el.List {
 		if e.EffectiveCRAP > threshold {
 			return true
@@ -71,15 +70,15 @@ func Score(entries []merge.MergedEntry, policy MissingPolicy) []CRAPEntry {
 				cov = 100.0
 			case MissingSkip:
 				result = append(result, CRAPEntry{
-					File:        e.File,
-					Package:     e.Package,
-					FuncName:    e.FuncName,
-					Receiver:    e.Receiver,
-					Line:        e.Line,
-					Complexity:  e.Complexity,
-					Coverage:    0,
-					CRAP:        float64(e.Complexity),
-					Skipped:     true,
+					File:          e.File,
+					Package:       e.Package,
+					FuncName:      e.FuncName,
+					Receiver:      e.Receiver,
+					Line:          e.Line,
+					Complexity:    e.Complexity,
+					Coverage:      0,
+					CRAP:          float64(e.Complexity),
+					Skipped:       true,
 					EffectiveCRAP: float64(e.Complexity),
 				})
 				continue
@@ -88,14 +87,14 @@ func Score(entries []merge.MergedEntry, policy MissingPolicy) []CRAPEntry {
 			cov = *e.Coverage
 		}
 		result = append(result, CRAPEntry{
-			File:        e.File,
-			Package:     e.Package,
-			FuncName:    e.FuncName,
-			Receiver:    e.Receiver,
-			Line:        e.Line,
-			Complexity:  e.Complexity,
-			Coverage:    cov,
-			CRAP:        CRAP(e.Complexity, cov),
+			File:          e.File,
+			Package:       e.Package,
+			FuncName:      e.FuncName,
+			Receiver:      e.Receiver,
+			Line:          e.Line,
+			Complexity:    e.Complexity,
+			Coverage:      cov,
+			CRAP:          CRAP(e.Complexity, cov),
 			EffectiveCRAP: CRAP(e.Complexity, cov),
 		})
 	}
