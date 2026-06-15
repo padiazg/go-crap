@@ -76,6 +76,12 @@ func TestScore_Optimistic(t *testing.T) {
 	}
 }
 
+func BenchmarkCRAP(b *testing.B) {
+	for b.Loop() {
+		CRAP(10, 75.0)
+	}
+}
+
 func TestScore_Skip(t *testing.T) {
 	entries := []merge.MergedEntry{
 		{
