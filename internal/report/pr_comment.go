@@ -2,7 +2,6 @@ package report
 
 import (
 	"fmt"
-	"path/filepath"
 	"sort"
 
 	"github.com/padiazg/go-crap/internal/score"
@@ -20,9 +19,7 @@ func (f *PRCommentFormatter) Format(entries *score.EntryList, opts FormatOptions
 	sorted := make([]score.CRAPEntry, len(entries.List))
 	copy(sorted, entries.List)
 	for i := range sorted {
-		if sorted[i].EffectiveCRAP == 0 {
-			sorted[i].EffectiveCRAP = sorted[i].CRAP
-		}
+		sorted[i].EffectiveCRAP = sorted[i].EffectiveScore()
 	}
 	sort.Slice(sorted, func(i, j int) bool {
 		return sorted[i].EffectiveCRAP > sorted[j].EffectiveCRAP
@@ -129,10 +126,8 @@ func filterUnreliableCoverage(entries []score.CRAPEntry) []score.CRAPEntry {
 func formatPRLocation(e score.CRAPEntry, baseDir string) string {
 	loc := fmt.Sprintf("`%s:%d`", e.File, e.Line)
 	if baseDir != "" {
-		if absBase, err := filepath.Abs(baseDir); err == nil {
-			if rel, err := filepath.Rel(absBase, e.File); err == nil && rel != e.File {
-				loc = fmt.Sprintf("`%s:%d`", rel, e.Line)
-			}
+		if rel := RelativizePath(e.File, baseDir); rel != e.File {
+			loc = fmt.Sprintf("`%s:%d`", rel, e.Line)
 		}
 	}
 	return loc

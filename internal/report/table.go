@@ -2,7 +2,6 @@ package report
 
 import (
 	"fmt"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -18,14 +17,8 @@ func (f *TableFormatter) Format(entries *score.EntryList, opts FormatOptions) er
 	}
 
 	sort.Slice(entries.List, func(i, j int) bool {
-		effectiveI := entries.List[i].EffectiveCRAP
-		if effectiveI == 0 {
-			effectiveI = entries.List[i].CRAP
-		}
-		effectiveJ := entries.List[j].EffectiveCRAP
-		if effectiveJ == 0 {
-			effectiveJ = entries.List[j].CRAP
-		}
+		effectiveI := entries.List[i].EffectiveScore()
+		effectiveJ := entries.List[j].EffectiveScore()
 		if effectiveI != effectiveJ {
 			return effectiveI > effectiveJ
 		}
@@ -40,10 +33,7 @@ func (f *TableFormatter) Format(entries *score.EntryList, opts FormatOptions) er
 	halfThreshold := opts.Threshold / 2.0
 
 	for _, e := range entries.List {
-		effectiveCRAP := e.EffectiveCRAP
-		if effectiveCRAP == 0 {
-			effectiveCRAP = e.CRAP
-		}
+		effectiveCRAP := e.EffectiveScore()
 
 		status := StatusSymbol(effectiveCRAP, opts.Threshold, halfThreshold)
 		covBar := coverageBar(e.Coverage)
@@ -54,10 +44,8 @@ func (f *TableFormatter) Format(entries *score.EntryList, opts FormatOptions) er
 
 		loc := fmt.Sprintf("%s:%d", e.File, e.Line)
 		if base := opts.BaseDir; base != "" {
-			if absBase, err := filepath.Abs(base); err == nil {
-				if rel, err := filepath.Rel(absBase, e.File); err == nil && rel != e.File {
-					loc = fmt.Sprintf("%s:%d", rel, e.Line)
-				}
+			if rel := RelativizePath(e.File, base); rel != e.File {
+				loc = fmt.Sprintf("%s:%d", rel, e.Line)
 			}
 		}
 
