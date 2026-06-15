@@ -12,9 +12,14 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.26.2'
-          cache: false
+          cache: true
       - run: go test ./...
       - run: go build -o go-crap .
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
 
   crap:
     runs-on: ubuntu-latest
@@ -47,3 +52,17 @@ jobs:
             pr-comment.md
             pr-number.txt
           if-no-files-found: ignore
+
+      - name: Generate PR comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { execFileSync } = require('child_process');
+            const comment = execFileSync('cat', ['pr-comment.md']).toString();
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });

@@ -1,4 +1,4 @@
-.PHONY: build test lint install clean
+.PHONY: build test lint
 
 build: pkg=github.com/padiazg/go-crap/pkg/version
 build: ldflags = -X $(pkg).version=$(shell git describe --tags --always --dirty) 
