@@ -77,7 +77,13 @@ nav:
   - Commands:
     - commands/scan.md
   - Integrations:
-    - CI Workflows: integrations/ci.md
+    - integrations/index.md
+    - GitHub Actions: integrations/github-actions.md
+    - Gitea: integrations/gitea.md
+    - GitLab CI: integrations/gitlab.md
+    - Azure DevOps: integrations/azure-devops.md
+    - CircleCI: integrations/circleci.md
+    - Jenkins: integrations/jenkins.md
   - Resources:
     - resources/index.md
     - resources/known-issues.md
