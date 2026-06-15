@@ -7,6 +7,7 @@ import (
 	"github.com/padiazg/go-crap/internal/coverage"
 )
 
+// MergedEntry combines complexity analysis with coverage data for a single function.
 type MergedEntry struct {
 	Coverage   *float64
 	File       string
@@ -84,6 +85,7 @@ func normalizeFuncName(name string) string {
 	return name
 }
 
+// Merge combines complexity statistics and coverage data into unified entries.
 func Merge(coverages []coverage.ModuleCoverage, stats []complexity.Stat) []MergedEntry {
 	idx := buildIndex(coverages)
 	var entries []MergedEntry

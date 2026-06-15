@@ -13,13 +13,14 @@ import (
 	"github.com/padiazg/go-crap/pkg/logger"
 )
 
+// Stat holds complexity analysis data for a single function.
 type Stat struct {
 	Pos        token.Position
-	EndLine    int
 	FuncName   string
-	Receiver   string
 	PkgName    string
+	Receiver   string
 	Complexity int
+	EndLine    int
 }
 
 type analyzeData struct {
@@ -54,6 +55,7 @@ func (a *analyzeData) Analyze() {
 	}
 }
 
+// Analyze walks directories, parses Go files, and returns cyclomatic complexity statistics for each function.
 func Analyze(paths []string, exclude *regexp.Regexp, l logger.Logger) []Stat {
 	a := newAnalyze(paths, exclude, l)
 	a.Analyze()

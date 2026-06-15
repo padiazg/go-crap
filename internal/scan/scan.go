@@ -20,11 +20,11 @@ type Options struct {
 	Logger         logger.Logger
 	Timeout        time.Duration
 	Missing        string
+	MutationReport string
 	Path           string
 	Exclude        []string
 	Min            float64
 	Top            int
-	MutationReport string
 }
 
 func Scan(options *Options) (*score.EntryList, error) {

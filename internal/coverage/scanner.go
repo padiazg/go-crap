@@ -21,6 +21,7 @@ type ScanOptions struct {
 	Path    string
 }
 
+// Scan walks the filesystem for Go modules, runs tests with coverage, and returns coverage data for each module.
 func Scan(ctx context.Context, opts ScanOptions) ([]ModuleCoverage, error) {
 	if opts.Timeout == 0 {
 		opts.Timeout = 10 * time.Minute

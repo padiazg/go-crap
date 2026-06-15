@@ -14,6 +14,7 @@ import (
 	"strings"
 )
 
+// FunctionCoverage holds coverage data for a single function within a module.
 type FunctionCoverage struct {
 	File     string
 	Package  string
@@ -22,6 +23,7 @@ type FunctionCoverage struct {
 	Coverage float64
 }
 
+// ModuleCoverage holds all coverage data for a single Go module.
 type ModuleCoverage struct {
 	Error      error
 	Dir        string

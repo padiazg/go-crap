@@ -7,10 +7,12 @@ import (
 	"github.com/padiazg/go-crap/internal/score"
 )
 
+// Formatter outputs CRAP entries in a specific format.
 type Formatter interface {
 	Format(entries *score.EntryList, opts FormatOptions) error
 }
 
+// FormatOptions configures report formatting behavior.
 type FormatOptions struct {
 	Writer    io.Writer
 	BaseDir   string
