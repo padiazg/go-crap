@@ -9,12 +9,12 @@ import (
 
 type MergedEntry struct {
 	Coverage   *float64
-	EndLine    int
 	File       string
 	FuncName   string
-	Receiver   string
 	Package    string
+	Receiver   string
 	Complexity int
+	EndLine    int
 	Line       int
 }
 
@@ -101,19 +101,19 @@ func Merge(coverages []coverage.ModuleCoverage, stats []complexity.Stat) []Merge
 		}
 
 		name := stat.FuncName
-	if stat.Receiver != "" {
-		name = stat.Receiver + "." + name
-	}
-	entries = append(entries, MergedEntry{
-		File:       stat.Pos.Filename,
-		EndLine:    stat.EndLine,
-		Package:    stat.PkgName,
-		FuncName:   name,
-		Receiver:   stat.Receiver,
-		Line:       stat.Pos.Line,
-		Complexity: stat.Complexity,
-		Coverage:   coverage,
-	})
+		if stat.Receiver != "" {
+			name = stat.Receiver + "." + name
+		}
+		entries = append(entries, MergedEntry{
+			File:       stat.Pos.Filename,
+			EndLine:    stat.EndLine,
+			Package:    stat.PkgName,
+			FuncName:   name,
+			Receiver:   stat.Receiver,
+			Line:       stat.Pos.Line,
+			Complexity: stat.Complexity,
+			Coverage:   coverage,
+		})
 	}
 	return entries
 }

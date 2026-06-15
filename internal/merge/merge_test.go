@@ -394,6 +394,50 @@ func TestMerge_ValueReceiverMatch(t *testing.T) {
 	}
 }
 
+func TestMerge_RelativePathsNotResolvedAgainstCWD(t *testing.T) {
+	coverages := []coverage.ModuleCoverage{
+		{
+			Dir:        "/some/long/path",
+			ModulePath: "test/pkg",
+			Functions: []coverage.FunctionCoverage{
+				{
+					File:     "internal/foo/bar.go",
+					Package:  "pkg",
+					Name:     "Foo",
+					Line:     10,
+					Coverage: 80.0,
+				},
+			},
+		},
+	}
+	stats := []complexity.Stat{
+		{
+			PkgName:    "pkg",
+			FuncName:   "Foo",
+			Complexity: 5,
+			Pos: struct {
+				Filename string
+				Offset   int
+				Line     int
+				Column   int
+			}{
+				Filename: "internal/foo/bar.go",
+				Line:     10,
+			},
+		},
+	}
+	r := Merge(coverages, stats)
+	for _, c := range checkMerge(
+		checkLen(1),
+		checkFuncName(0, "Foo"),
+		checkCoverage(0, false),
+		checkCoverageValue(0, 80.0),
+	) {
+		c(t, r)
+	}
+	assert.Equal(t, "internal/foo/bar.go", r[0].File, "relative path should be preserved unchanged")
+}
+
 func TestMerge_MethodMatch(t *testing.T) {
 	tests := []struct {
 		name           string
