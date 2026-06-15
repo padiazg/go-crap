@@ -94,10 +94,7 @@ func parseMissingPolicy(s string) (score.MissingPolicy, error) {
 }
 
 func effectiveCRAP(e score.CRAPEntry) float64 {
-	if e.EffectiveCRAP == 0 {
-		return e.CRAP
-	}
-	return e.EffectiveCRAP
+	return e.EffectiveScore()
 }
 
 func applyFilters(entries []score.CRAPEntry, top int, min float64) []score.CRAPEntry {

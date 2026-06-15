@@ -2,7 +2,6 @@ package report
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/padiazg/go-crap/internal/score"
 )
@@ -15,17 +14,12 @@ func (f *GithubFormatter) Format(entries *score.EntryList, opts FormatOptions) e
 	}
 
 	for _, e := range entries.List {
-		effectiveCRAP := e.EffectiveCRAP
-		if effectiveCRAP == 0 {
-			effectiveCRAP = e.CRAP
-		}
+		effectiveCRAP := e.EffectiveScore()
 
 		file := e.File
 		if base := opts.BaseDir; base != "" {
-			if absBase, err := filepath.Abs(base); err == nil {
-				if rel, err := filepath.Rel(absBase, e.File); err == nil && rel != e.File {
-					file = rel
-				}
+			if rel := RelativizePath(e.File, base); rel != e.File {
+				file = rel
 			}
 		}
 

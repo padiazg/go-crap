@@ -3,7 +3,6 @@ package report
 import (
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/padiazg/go-crap/internal/score"
@@ -18,10 +17,7 @@ func (f *SARIFFormatter) Format(entries *score.EntryList, opts FormatOptions) er
 
 	results := make([]sarifResult, 0)
 	for _, e := range entries.List {
-		effectiveCRAP := e.EffectiveCRAP
-		if effectiveCRAP == 0 {
-			effectiveCRAP = e.CRAP
-		}
+		effectiveCRAP := e.EffectiveScore()
 
 		if effectiveCRAP > opts.Threshold {
 			results = append(results, sarifResult{
@@ -135,13 +131,7 @@ func formatMutantDetails(detailed bool, details []score.MutationDetail) string {
 }
 
 func relativizePath(path, baseDir string) string {
-	if baseDir != "" {
-		if absBase, err := filepath.Abs(baseDir); err == nil {
-			if rel, err := filepath.Rel(absBase, path); err == nil && rel != path {
-				path = rel
-			}
-		}
-	}
+	path = RelativizePath(path, baseDir)
 	path = strings.ReplaceAll(path, `\`, `/`)
 	return path
 }
