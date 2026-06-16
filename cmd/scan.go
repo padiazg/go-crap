@@ -15,17 +15,17 @@ import (
 )
 
 var (
-	flagThreshold  float64
-	flagFailAbove  bool
-	flagFormat     string
-	flagTop        int
-	flagMin        float64
-	flagMissing    string
-	flagExclude    []string
-	flagVerbose    bool
-	flagOutput     string
-	flagMutation   string
-	flagDetailed   bool
+	flagThreshold float64
+	flagFailAbove bool
+	flagFormat    string
+	flagTop       int
+	flagMin       float64
+	flagMissing   string
+	flagExclude   []string
+	flagVerbose   bool
+	flagOutput    string
+	flagMutation  string
+	flagDetailed  bool
 
 	scanCmd = &cobra.Command{
 		Use:   "scan [path]",
@@ -90,7 +90,14 @@ func runScan(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	err = output(path, entries, cmd.OutOrStdout())
+	err = output(entries, outputConfig{
+		path:      path,
+		writer:    cmd.OutOrStdout(),
+		output:    flagOutput,
+		format:    flagFormat,
+		threshold: flagThreshold,
+		detailed:  flagDetailed,
+	})
 	if err != nil {
 		return err
 	}
@@ -119,26 +126,37 @@ func resolveFormatter(format string) (report.Formatter, error) {
 	}
 }
 
-func output(path string, entries *score.EntryList, writer io.Writer) error {
-	if flagOutput != "" {
-		f, err := os.Create(flagOutput)
+type outputConfig struct {
+	path      string
+	writer    io.Writer
+	output    string
+	format    string
+	threshold float64
+	detailed  bool
+}
+
+func output(entries *score.EntryList, config outputConfig) error {
+	if config.output != "" {
+		f, err := os.Create(config.output)
 		if err != nil {
 			return fmt.Errorf("output: %w", err)
 		}
+
 		defer f.Close()
-		writer = f
+
+		config.writer = f
 	}
 
-	formatter, err := resolveFormatter(flagFormat)
+	formatter, err := resolveFormatter(config.format)
 	if err != nil {
 		return err
 	}
 
 	opts := report.FormatOptions{
-		Threshold: flagThreshold,
-		Writer:    writer,
-		BaseDir:   path,
-		Detailed:  flagDetailed,
+		Threshold: config.threshold,
+		Writer:    config.writer,
+		BaseDir:   config.path,
+		Detailed:  config.detailed,
 	}
 
 	if err := formatter.Format(entries, opts); err != nil {
