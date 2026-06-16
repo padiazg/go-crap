@@ -293,3 +293,118 @@ func checkOutputOrder(orders ...string) checkTableFormatterOutputFn {
 		}
 	}
 }
+
+func TestStatusSymbol_boundary_half_threshold(t *testing.T) {
+	threshold := 10.0
+	halfThreshold := threshold / 2.0
+
+	assert.Equal(t, "✓", StatusSymbol(4.9, threshold, halfThreshold))
+	assert.Equal(t, "✓", StatusSymbol(halfThreshold, threshold, halfThreshold))
+	assert.Equal(t, "▲", StatusSymbol(halfThreshold+0.01, threshold, halfThreshold))
+	assert.Equal(t, "▲", StatusSymbol(threshold-0.01, threshold, halfThreshold))
+	assert.Equal(t, "✗", StatusSymbol(threshold+0.01, threshold, halfThreshold))
+	assert.Equal(t, "✗", StatusSymbol(20.0, threshold, halfThreshold))
+}
+
+func TestStatusSymbol_zero_threshold(t *testing.T) {
+	assert.Equal(t, "✗", StatusSymbol(0.01, 0.0, 0.0))
+	assert.Equal(t, "✗", StatusSymbol(100.0, 0.0, 0.0))
+}
+
+func Test_tableFormatter_coverage_untrusted_warning(t *testing.T) {
+	var buf strings.Builder
+	formatter := &TableFormatter{}
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{CRAP: 50.0, Coverage: 50.0, CoverageUntrusted: true, FuncName: "untrusted", Complexity: 5},
+	}}
+	err := formatter.Format(entries, FormatOptions{Writer: &buf, Threshold: 30.0})
+	assert.NoError(t, err)
+	output := buf.String()
+	assert.Contains(t, output, "\xe2\x9a\xa0")
+}
+
+func Test_tableFormatter_coverage_bar_at_boundaries(t *testing.T) {
+	var buf strings.Builder
+	formatter := &TableFormatter{}
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{CRAP: 10.0, Coverage: 0.0, CoverageUntrusted: false, FuncName: "zero"},
+		{CRAP: 10.0, Coverage: 100.0, CoverageUntrusted: false, FuncName: "full"},
+	}}
+	err := formatter.Format(entries, FormatOptions{Writer: &buf, Threshold: 30.0})
+	assert.NoError(t, err)
+	output := buf.String()
+	assert.Contains(t, output, "zero")
+	assert.Contains(t, output, "full")
+}
+
+func Test_tableFormatter_single_entry(t *testing.T) {
+	var buf strings.Builder
+	formatter := &TableFormatter{}
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{CRAP: 50.0, Coverage: 50.0, CoverageUntrusted: false, FuncName: "single", Complexity: 5, Line: 10, File: "file.go"},
+	}}
+	err := formatter.Format(entries, FormatOptions{Writer: &buf, Threshold: 30.0})
+	assert.NoError(t, err)
+	output := buf.String()
+	assert.Contains(t, output, "1/1 function")
+}
+
+func Test_tableFormatter_empty_threshold(t *testing.T) {
+	var buf strings.Builder
+	formatter := &TableFormatter{}
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{CRAP: 10.0, Coverage: 50.0, CoverageUntrusted: false, FuncName: "low"},
+	}}
+	err := formatter.Format(entries, FormatOptions{Writer: &buf, Threshold: 100.0})
+	assert.NoError(t, err)
+	output := buf.String()
+	assert.Contains(t, output, "0/1")
+}
+
+func TestTableFormatter_Format_failed_count_positive(t *testing.T) {
+	// INC_DEC :39 — failed++ changed to failed-- would produce negative count.
+	// Contains "1/1" would match "-1/1", so we also check NotContains "-1".
+	f := &TableFormatter{}
+	buf := &bytes.Buffer{}
+	entries := score.EntryList{List: []score.CRAPEntry{
+		{File: "/project/a.go", Package: "myapp", FuncName: "Bad", Line: 1, Complexity: 10, Coverage: 0, CRAP: 100},
+	}}
+	opts := FormatOptions{Threshold: 10, Writer: buf}
+	err := f.Format(&entries, opts)
+	require.NoError(t, err)
+	output := buf.String()
+	assert.Contains(t, output, "1/1 function(s)")
+	assert.NotContains(t, output, "-1/1")
+}
+
+func TestTableFormatter_Format_sort_equal_mutation_score_no_panic(t *testing.T) {
+	// COND_BOUND :26 — MutationScore < changed to <= creates broken comparator
+	// when EffectiveScore and MutationScore are equal. Go 1.22+ panics.
+	f := &TableFormatter{}
+	buf := &bytes.Buffer{}
+	entries := score.EntryList{List: make([]score.CRAPEntry, 20)}
+	for i := range 20 {
+		entries.List[i] = score.CRAPEntry{
+			File: "/project/main.go", Package: "myapp",
+			FuncName:      fmt.Sprintf("Func%d", i),
+			Line:          i + 1,
+			Complexity:    5,
+			Coverage:      0,
+			CRAP:          30,
+			MutationScore: 0.5,
+		}
+	}
+	opts := FormatOptions{Threshold: 200, Writer: buf}
+	err := f.Format(&entries, opts)
+	require.NoError(t, err)
+}
+
+func Test_coverageBar_at_zero(t *testing.T) {
+	bar := coverageBar(0.0)
+	assert.Equal(t, "░░░░░░░░░░", bar)
+}
+
+func Test_coverageBar_at_full(t *testing.T) {
+	bar := coverageBar(100.0)
+	assert.Equal(t, "██████████", bar)
+}

@@ -3,6 +3,7 @@ package scan
 import (
 	"testing"
 
+	"github.com/padiazg/go-crap/internal/merge"
 	"github.com/padiazg/go-crap/internal/score"
 	"github.com/stretchr/testify/assert"
 )
@@ -381,4 +382,100 @@ func TestScan(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_parseMissingPolicy_valid_values(t *testing.T) {
+	policy, err := parseMissingPolicy("pessimistic")
+	assert.NoError(t, err)
+	assert.Equal(t, score.MissingPessimistic, policy)
+
+	policy, err = parseMissingPolicy("optimistic")
+	assert.NoError(t, err)
+	assert.Equal(t, score.MissingOptimistic, policy)
+
+	policy, err = parseMissingPolicy("skip")
+	assert.NoError(t, err)
+	assert.Equal(t, score.MissingSkip, policy)
+}
+
+func Test_parseMissingPolicy_empty_default(t *testing.T) {
+	policy, err := parseMissingPolicy("")
+	assert.NoError(t, err)
+	assert.Equal(t, score.MissingPessimistic, policy)
+}
+
+func Test_parseMissingPolicy_case_insensitive(t *testing.T) {
+	policy, err := parseMissingPolicy("PESSIMISTIC")
+	assert.NoError(t, err)
+	assert.Equal(t, score.MissingPessimistic, policy)
+
+	policy, err = parseMissingPolicy("Optimistic")
+	assert.NoError(t, err)
+	assert.Equal(t, score.MissingOptimistic, policy)
+}
+
+func Test_parseMissingPolicy_invalid(t *testing.T) {
+	_, err := parseMissingPolicy("invalid")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown missing policy")
+}
+
+func Test_applyFilters_min_zero(t *testing.T) {
+	entries := []score.CRAPEntry{
+		{CRAP: 10.0, Coverage: 5, CoverageUntrusted: true, FuncName: "untrusted"},
+	}
+	result := applyFilters(entries, 0, 0)
+	assert.Len(t, result, 1)
+	assert.Equal(t, "untrusted", result[0].FuncName)
+}
+
+func Test_applyFilters_top_boundary_one(t *testing.T) {
+	entries := []score.CRAPEntry{
+		{CRAP: 50.0, Coverage: 8, CoverageUntrusted: true, FuncName: "top1"},
+		{CRAP: 30.0, Coverage: 6, CoverageUntrusted: false, FuncName: "top2"},
+		{CRAP: 20.0, Coverage: 4, CoverageUntrusted: false, FuncName: "top3"},
+	}
+	result := applyFilters(entries, 1, 0)
+	assert.Len(t, result, 1)
+	assert.Equal(t, "top1", result[0].FuncName)
+}
+
+func Test_applyFilters_min_boundary_exactly_met(t *testing.T) {
+	entries := []score.CRAPEntry{
+		{CRAP: 20.0, Coverage: 5, CoverageUntrusted: false, FuncName: "exact"},
+		{CRAP: 10.0, Coverage: 3, CoverageUntrusted: false, FuncName: "below"},
+	}
+	result := applyFilters(entries, 0, 20.0)
+	assert.Len(t, result, 1)
+	assert.Equal(t, "exact", result[0].FuncName)
+}
+
+func Test_applyFilters_min_boundary_not_met(t *testing.T) {
+	entries := []score.CRAPEntry{
+		{CRAP: 19.99, Coverage: 5, CoverageUntrusted: false, FuncName: "below"},
+		{CRAP: 10.0, Coverage: 3, CoverageUntrusted: false, FuncName: "below2"},
+	}
+	result := applyFilters(entries, 0, 20.0)
+	assert.Empty(t, result)
+}
+
+func Test_applyFilters_untrusted_survives_min(t *testing.T) {
+	entries := []score.CRAPEntry{
+		{CRAP: 50.0, Coverage: 8, CoverageUntrusted: true, FuncName: "untrusted"},
+		{CRAP: 10.0, Coverage: 3, CoverageUntrusted: false, FuncName: "belowMin"},
+	}
+	result := applyFilters(entries, 0, 20.0)
+	assert.Len(t, result, 1)
+	assert.Equal(t, "untrusted", result[0].FuncName)
+}
+
+func Test_applyMutationAnnotations_empty_report(t *testing.T) {
+	entries := []score.CRAPEntry{
+		{File: "a.go", FuncName: "Foo", Line: 1, Complexity: 5, Coverage: 80, CRAP: 30},
+	}
+	merged := []merge.MergedEntry{}
+
+	opts := &Options{MutationReport: ""}
+	result := applyMutationAnnotations(opts, entries, merged)
+	assert.Equal(t, entries, result)
 }

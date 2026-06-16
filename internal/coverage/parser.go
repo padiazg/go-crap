@@ -120,6 +120,13 @@ type fileFunc struct {
 	declLine  int
 }
 
+type funcCoverage struct {
+	name     string
+	declLine int
+	total    int
+	covered  int
+}
+
 func parseFileProfile(modDir, filePath string, entries []profileEntry, modPath string) []FunctionCoverage {
 	src, err := os.Open(filePath)
 	if err != nil {
@@ -137,13 +144,21 @@ func parseFileProfile(modDir, filePath string, entries []profileEntry, modPath s
 		return nil
 	}
 
-	// Extract all function declarations with their AST ranges
+	funcs := extractFileFuncs(fset, node)
+	funcMap, orderedFuncs := buildFuncMap(funcs)
+	attributeBlocks(fset, node, entries, funcMap)
+	results := buildCoverageResults(funcMap, orderedFuncs, filePath, modPath)
+	return results
+}
+
+func extractFileFuncs(fset *token.FileSet, node *ast.File) []fileFunc {
 	var funcs []fileFunc
 	ast.Inspect(node, func(n ast.Node) bool {
 		fd, ok := n.(*ast.FuncDecl)
 		if !ok {
 			return true
 		}
+
 		name := fd.Name.Name
 		if fd.Recv != nil {
 			recv := extractRecvName(fd.Recv)
@@ -151,30 +166,29 @@ func parseFileProfile(modDir, filePath string, entries []profileEntry, modPath s
 				name = recv + "." + name
 			}
 		}
+
 		startLine := fset.Position(fd.Pos()).Line
 		endLine := fset.Position(fd.End()).Line
-		// Use body start for attribution (skip declarations without bodies)
 		declLine := startLine
+
 		if fd.Body != nil {
 			declLine = fset.Position(fd.Body.Lbrace).Line
 		}
+
 		funcs = append(funcs, fileFunc{
 			name:      name,
 			startLine: startLine,
 			endLine:   endLine,
 			declLine:  declLine,
 		})
+
 		return true
 	})
 
-	// Build coverage per function
-	type funcCoverage struct {
-		name     string
-		declLine int
-		total    int
-		covered  int
-	}
+	return funcs
+}
 
+func buildFuncMap(funcs []fileFunc) (map[string]*funcCoverage, []string) {
 	funcMap := make(map[string]*funcCoverage)
 	var orderedFuncs []string
 
@@ -185,8 +199,10 @@ func parseFileProfile(modDir, filePath string, entries []profileEntry, modPath s
 			orderedFuncs = append(orderedFuncs, key)
 		}
 	}
+	return funcMap, orderedFuncs
+}
 
-	// Attribute each block to a function using AST-level attribution
+func attributeBlocks(fset *token.FileSet, node *ast.File, entries []profileEntry, funcMap map[string]*funcCoverage) {
 	for _, e := range entries {
 		fn := findFunctionForBlock(fset, node, e.start)
 		if fn != nil {
@@ -199,9 +215,9 @@ func parseFileProfile(modDir, filePath string, entries []profileEntry, modPath s
 			}
 		}
 	}
+}
 
-	pkgPath := modPath
-
+func buildCoverageResults(funcMap map[string]*funcCoverage, orderedFuncs []string, filePath, pkgPath string) []FunctionCoverage {
 	var results []FunctionCoverage
 	for _, key := range orderedFuncs {
 		fc := funcMap[key]
@@ -227,34 +243,45 @@ type funcDeclInfo struct {
 }
 
 func findFunctionForBlock(fset *token.FileSet, node *ast.File, blockLine int) *funcDeclInfo {
-	// Walk AST and find function whose body contains this block line
+	best := findInnermostFunc(fset, node, blockLine)
+	if best == nil {
+		return nil
+	}
+
+	name := resolveReceiverPrefix(node, best.name)
+	return &funcDeclInfo{name: name, bodyStart: best.bodyStart, bodyEnd: best.bodyEnd}
+}
+
+func findInnermostFunc(fset *token.FileSet, node *ast.File, blockLine int) *funcDeclInfo {
 	var best *funcDeclInfo
 	ast.Inspect(node, func(n ast.Node) bool {
 		fd, ok := n.(*ast.FuncDecl)
 		if !ok || fd.Body == nil {
 			return true
 		}
+
 		bodyStart := fset.Position(fd.Body.Lbrace).Line
 		bodyEnd := fset.Position(fd.Body.Rbrace).Line
-		if blockLine >= bodyStart && blockLine <= bodyEnd {
-			// Prefer innermost function
-			if best == nil || bodyStart > best.bodyStart {
-				best = &funcDeclInfo{
-					name:      fd.Name.Name,
-					bodyStart: bodyStart,
-					bodyEnd:   bodyEnd,
-				}
+		if (blockLine >= bodyStart) && (blockLine <= bodyEnd) {
+			if best == nil {
+				best = &funcDeclInfo{}
+			}
+
+			if bodyStart > best.bodyStart {
+				best.name = fd.Name.Name
+				best.bodyStart = bodyStart
+				best.bodyEnd = bodyEnd
 			}
 		}
-		return true // continue inspecting for nested functions
+
+		return true
 	})
 
-	if best == nil {
-		return nil
-	}
+	return best
+}
 
-	// Handle receiver
-	name := best.name
+func resolveReceiverPrefix(node *ast.File, funcName string) string {
+	name := funcName
 	for _, fd := range node.Decls {
 		funcDecl, ok := fd.(*ast.FuncDecl)
 		if !ok || funcDecl.Name.Name != name {
@@ -268,8 +295,7 @@ func findFunctionForBlock(fset *token.FileSet, node *ast.File, blockLine int) *f
 			}
 		}
 	}
-
-	return &funcDeclInfo{name: name, bodyStart: best.bodyStart, bodyEnd: best.bodyEnd}
+	return name
 }
 
 func readProfileEntries(r io.Reader) ([]profileEntry, error) {
@@ -300,33 +326,40 @@ func parseProfileLine(line string) (profileEntry, error) {
 	entry.path = line[:colonIdx]
 	rest := line[colonIdx+1:]
 
+	startLine, covered, err := parsePositionFields(rest)
+	if err != nil {
+		return entry, err
+	}
+	entry.start = startLine
+	entry.covered = covered
+
+	return entry, nil
+}
+
+func parsePositionFields(rest string) (startLine int, covered bool, err error) {
 	spaceIdx := strings.Index(rest, " ")
 	if spaceIdx <= 0 {
-		return entry, fmt.Errorf("invalid line: %s", line)
+		return 0, false, fmt.Errorf("invalid line: %s", rest)
 	}
 
 	posStr := rest[:spaceIdx]
 	parts := strings.Split(posStr, ",")
 	if len(parts) != 2 {
-		return entry, fmt.Errorf("invalid position: %s", posStr)
+		return 0, false, fmt.Errorf("invalid position: %s", posStr)
 	}
 
-	startLine, _ := parseCoord(parts[0])
-	entry.start = startLine
+	startLine, _ = parseCoord(parts[0])
 
 	coveredStr := strings.Fields(rest[spaceIdx+1:])
 	if len(coveredStr) < 2 {
-		return entry, fmt.Errorf("invalid fields: %s", rest)
+		return 0, false, fmt.Errorf("invalid fields: %s", rest)
 	}
 
-	covered, err := strconv.Atoi(coveredStr[1])
-	if err != nil || covered == 0 {
-		entry.covered = false
-	} else {
-		entry.covered = true
+	coveredInt, err := strconv.Atoi(coveredStr[1])
+	if err != nil || coveredInt == 0 {
+		return startLine, false, nil
 	}
-
-	return entry, nil
+	return startLine, true, nil
 }
 
 func parseCoord(s string) (line, col int) {

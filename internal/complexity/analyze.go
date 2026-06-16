@@ -63,6 +63,11 @@ func Analyze(paths []string, exclude *regexp.Regexp, l logger.Logger) []Stat {
 }
 
 func (a *analyzeData) analyzeDir(dir string) {
+	a.analyzeGoFiles(dir)
+	a.walkSubdirs(dir)
+}
+
+func (a *analyzeData) analyzeGoFiles(dir string) {
 	entries, err := filepath.Glob(filepath.Join(dir, "*.go"))
 	if err != nil {
 		a.logger.Debug("complexity analyze: glob error", "dir", dir, "error", err.Error())
@@ -76,7 +81,9 @@ func (a *analyzeData) analyzeDir(dir string) {
 
 		a.analyzeFile(entry)
 	}
+}
 
+func (a *analyzeData) walkSubdirs(dir string) {
 	dirs, err := filepath.Glob(filepath.Join(dir, "*"))
 	if err != nil {
 		a.logger.Debug("complexity analyze: glob error for subdirs", "dir", dir, "error", err.Error())
@@ -85,20 +92,24 @@ func (a *analyzeData) analyzeDir(dir string) {
 
 	for _, dirEntry := range dirs {
 		info, err := os.Stat(dirEntry)
-		if err != nil || !info.IsDir() {
-			if err != nil {
-				a.logger.Debug("complexity analyze: stat error", "dir", dirEntry, "error", err.Error())
-			}
+		if err != nil {
+			a.logger.Debug("complexity analyze: stat error", "dir", dirEntry, "error", err.Error())
+			continue
+		}
+		if !info.IsDir() {
 			continue
 		}
 
-		base := info.Name()
-		if strings.HasPrefix(base, ".") || strings.HasPrefix(base, "_") || base == "vendor" || base == "testdata" {
+		if shouldSkipDir(info.Name()) {
 			continue
 		}
 
 		a.analyzeDir(dirEntry)
 	}
+}
+
+func shouldSkipDir(name string) bool {
+	return strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") || name == "vendor" || name == "testdata"
 }
 
 func (a *analyzeData) analyzeFile(file string) {

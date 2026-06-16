@@ -2,6 +2,7 @@ package report
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -447,4 +448,349 @@ func TestPRCommentFormatter_Format_no_detailed_by_default(t *testing.T) {
 	assert.NotContains(t, output, "CONDITIONALS_BOUNDARY")
 	assert.NotContains(t, output, "a < b")
 	assert.Contains(t, output, "| Function | CRAP | Effective CRAP | Mutation Score |")
+}
+
+func TestPRCommentFormatter_Format_sort_stability_with_equal_effective_crap(t *testing.T) {
+	f := &PRCommentFormatter{}
+	buf := &bytes.Buffer{}
+
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{File: "/project/a.go", Package: "myapp", FuncName: "EqualA", Line: 1, Complexity: 5, Coverage: 0, CRAP: 40, EffectiveCRAP: 40},
+		{File: "/project/b.go", Package: "myapp", FuncName: "EqualB", Line: 2, Complexity: 5, Coverage: 0, CRAP: 30, EffectiveCRAP: 40},
+		{File: "/project/c.go", Package: "myapp", FuncName: "JustBelow", Line: 3, Complexity: 3, Coverage: 0, CRAP: 20, EffectiveCRAP: 20},
+	}}
+
+	opts := FormatOptions{
+		Threshold: 10,
+		Writer:    buf,
+	}
+
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+
+	output := buf.String()
+	posA := strings.Index(output, "EqualA")
+	posB := strings.Index(output, "EqualB")
+	posC := strings.Index(output, "JustBelow")
+	require.GreaterOrEqual(t, posA, 0, "EqualA should appear in output")
+	require.GreaterOrEqual(t, posB, 0, "EqualB should appear in output")
+	require.GreaterOrEqual(t, posC, 0, "JustBelow should appear in output")
+	require.Greater(t, posC, posA, "JustBelow (EffectiveCRAP=20) should appear after EqualA and EqualB (EffectiveCRAP=40)")
+}
+
+func TestPRCommentFormatter_Format_boundary_25_entries_exactly(t *testing.T) {
+	f := &PRCommentFormatter{}
+	buf := &bytes.Buffer{}
+
+	entries := &score.EntryList{List: make([]score.CRAPEntry, 25)}
+	for i := range 25 {
+		entries.List[i] = score.CRAPEntry{
+			File:       "/project/main.go",
+			Package:    "myapp",
+			FuncName:   fmt.Sprintf("Func%d", i),
+			Line:       i + 1,
+			Complexity: 10,
+			Coverage:   0,
+			CRAP:       float64(100 - i),
+		}
+	}
+
+	opts := FormatOptions{
+		Threshold: 0,
+		Writer:    buf,
+	}
+
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.NotContains(t, output, "and .* more", "exactly 25 entries should not show truncation message")
+	assert.Contains(t, output, "Func0")
+	assert.Contains(t, output, "Func24")
+}
+
+func TestPRCommentFormatter_Format_boundary_26_entries_truncated(t *testing.T) {
+	f := &PRCommentFormatter{}
+	buf := &bytes.Buffer{}
+
+	entries := &score.EntryList{List: make([]score.CRAPEntry, 26)}
+	for i := range 26 {
+		entries.List[i] = score.CRAPEntry{
+			File:       "/project/main.go",
+			Package:    "myapp",
+			FuncName:   fmt.Sprintf("Func%d", i),
+			Line:       i + 1,
+			Complexity: 10,
+			Coverage:   0,
+			CRAP:       float64(100 - i),
+		}
+	}
+
+	opts := FormatOptions{
+		Threshold: 0,
+		Writer:    buf,
+	}
+
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "and 1 more", "26 entries should show truncation with exactly 1 more")
+	assert.NotContains(t, output, "Func25")
+	assert.Contains(t, output, "Func0")
+}
+
+func TestPRCommentFormatter_Format_status_symbol_all_above_threshold(t *testing.T) {
+	// All entries above threshold should show "✗" regardless of halfThreshold
+	// This verifies the ARITHMETIC_BASE mutant at halfThreshold calc doesn't
+	// affect output (all entries in crappy table are above threshold, so
+	// StatusSymbol always returns "✗" for them)
+	f := &PRCommentFormatter{}
+	buf := &bytes.Buffer{}
+
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{File: "/project/main.go", Package: "myapp", FuncName: "JustOver", Line: 1, Complexity: 6, Coverage: 0, CRAP: 21},
+		{File: "/project/main.go", Package: "myapp", FuncName: "FarOver", Line: 2, Complexity: 15, Coverage: 0, CRAP: 225},
+	}}
+
+	opts := FormatOptions{
+		Threshold: 20,
+		Writer:    buf,
+	}
+
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+
+	output := buf.String()
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "JustOver") || strings.Contains(line, "FarOver") {
+			assert.Contains(t, line, "✗", "Entries above threshold should show ✗")
+			assert.NotContains(t, line, "▲", "Entries above threshold should NOT show ▲")
+			assert.NotContains(t, line, "✓", "Entries above threshold should NOT show ✓")
+		}
+	}
+}
+
+func Test_formatMutantsStr_empty_details(t *testing.T) {
+	got := formatMutantsStr(nil)
+	assert.Empty(t, got)
+
+	got = formatMutantsStr([]score.MutationDetail{})
+	assert.Empty(t, got)
+}
+
+func Test_formatMutantsStr_single_detail_no_text(t *testing.T) {
+	details := []score.MutationDetail{
+		{MutantType: "CONDITIONALS_BOUNDARY", Line: 10, Status: "LIVED"},
+	}
+	got := formatMutantsStr(details)
+	assert.Contains(t, got, "`CONDITIONALS_BOUNDARY`@L10")
+	assert.NotContains(t, got, "\n    `")
+}
+
+func Test_formatMutantsStr_multiple_details_with_text(t *testing.T) {
+	details := []score.MutationDetail{
+		{MutantType: "ARITHMETIC", Line: 5, Status: "LIVED", OriginalText: "a + b", ReplacementText: "a - b"},
+		{MutantType: "CONDITIONALS_NEGATION", Line: 8, Status: "LIVED", OriginalText: "x == y", ReplacementText: "x != y"},
+		{MutantType: "INVERT_NEGATIVES", Line: 12, Status: "LIVED"},
+	}
+	got := formatMutantsStr(details)
+	assert.Contains(t, got, "`ARITHMETIC`@L5")
+	assert.Contains(t, got, "`a + b` → `a - b`")
+	assert.Contains(t, got, ", ")
+	assert.Contains(t, got, "`CONDITIONALS_NEGATION`@L8")
+	assert.Contains(t, got, "`x == y` → `x != y`")
+	assert.Contains(t, got, "`INVERT_NEGATIVES`@L12")
+}
+
+func Test_formatMutantsStr_detail_with_empty_text(t *testing.T) {
+	details := []score.MutationDetail{
+		{MutantType: "CONDITIONALS_BOUNDARY", Line: 10, Status: "LIVED", OriginalText: "", ReplacementText: ""},
+	}
+	got := formatMutantsStr(details)
+	assert.Contains(t, got, "`CONDITIONALS_BOUNDARY`@L10")
+	assert.NotContains(t, got, "→")
+}
+
+func TestPRCommentFormatter_Format_detailed_unreliable_with_mutation_details(t *testing.T) {
+	f := &PRCommentFormatter{}
+	buf := &bytes.Buffer{}
+
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{
+			File:              "/project/main.go",
+			Package:           "myapp",
+			FuncName:          "UnreliableFunc",
+			Line:              10,
+			Complexity:        5,
+			Coverage:          90.0,
+			CRAP:              15.0,
+			CoverageUntrusted: true,
+			MutationScore:     0.5,
+			MutationDetails: []score.MutationDetail{
+				{MutantType: "CONDITIONALS_BOUNDARY", Line: 15, Status: "LIVED", OriginalText: "a < b", ReplacementText: "a >= b"},
+			},
+		},
+	}}
+
+	opts := FormatOptions{
+		Threshold: 30,
+		Writer:    buf,
+		Detailed:  true,
+	}
+
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "## \u26a0\ufe0f Unreliable Coverage")
+	assert.Contains(t, output, "UnreliableFunc")
+	assert.Contains(t, output, "`CONDITIONALS_BOUNDARY`@L15")
+	assert.Contains(t, output, "`a < b` → `a >= b`")
+}
+
+func TestPRCommentFormatter_Format_25_total_no_truncation_message(t *testing.T) {
+	// COND_BOUND :47 — with exactly 25 total entries, no "…and" truncation
+	// message should appear. Mutant >= would print "…and 0 more".
+	f := &PRCommentFormatter{}
+	buf := &bytes.Buffer{}
+	entries := &score.EntryList{List: make([]score.CRAPEntry, 25)}
+	for i := range 25 {
+		entries.List[i] = score.CRAPEntry{
+			File: "/project/main.go", Package: "myapp",
+			FuncName:   fmt.Sprintf("Func%d", i),
+			Line:       i + 1,
+			Complexity: 10,
+			Coverage:   0,
+			CRAP:       float64(100 - i),
+		}
+	}
+	opts := FormatOptions{Threshold: 0, Writer: buf}
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+	output := buf.String()
+	assert.NotContains(t, output, "…and")
+}
+
+func TestPRCommentFormatter_Format_unreliable_non_detailed_exact_mutation_score(t *testing.T) {
+	// ARITH :76 — e.MutationScore*100 in non-detailed unreliable section.
+	// Mutant would change *100 to /100 or +100, producing wrong percentage.
+	f := &PRCommentFormatter{}
+	buf := &bytes.Buffer{}
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{
+			File: "/project/main.go", Package: "myapp",
+			FuncName:          "UnreliableFunc",
+			Line:              10,
+			Complexity:        2,
+			Coverage:          90.0,
+			CRAP:              5.0,
+			CoverageUntrusted: true,
+			MutationScore:     0.75,
+		},
+	}}
+	opts := FormatOptions{Threshold: 30, Writer: buf, Detailed: false}
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+	output := buf.String()
+	assert.Contains(t, output, "75.0%")
+}
+
+func Test_formatMutantsStr_no_leading_comma(t *testing.T) {
+	// COND_BOUND :87 — i > 0 changed to i >= 0 would add leading comma.
+	// COND_NEG :87 — negation would remove commas between items.
+	details := []score.MutationDetail{
+		{MutantType: "FIRST", Line: 1},
+		{MutantType: "SECOND", Line: 2},
+	}
+	got := formatMutantsStr(details)
+	assert.False(t, strings.HasPrefix(got, ","), "should not start with comma")
+	assert.True(t, strings.HasPrefix(got, "`"), "should start with backtick")
+	assert.Contains(t, got, ", `SECOND`")
+}
+
+func TestPRCommentFormatter_Format_25_entries_few_crappy_no_panic(t *testing.T) {
+	// COND_BOUND :122 — len(entries.List) > maxPRCommentRows changed to >=
+	// would try crappy[:25] with only 3 items → panic.
+	f := &PRCommentFormatter{}
+	buf := &bytes.Buffer{}
+	entries := &score.EntryList{List: make([]score.CRAPEntry, 25)}
+	for i := range 25 {
+		crap := 5.0
+		if i < 3 {
+			crap = 100.0
+		}
+		entries.List[i] = score.CRAPEntry{
+			File: "/project/main.go", Package: "myapp",
+			FuncName:   fmt.Sprintf("Func%d", i),
+			Line:       i + 1,
+			Complexity: 10,
+			Coverage:   0,
+			CRAP:       crap,
+		}
+	}
+	opts := FormatOptions{Threshold: 30, Writer: buf}
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+	output := buf.String()
+	assert.Contains(t, output, "3 crappy function(s)")
+}
+
+func TestPRCommentFormatter_Format_sort_equal_crap_no_panic(t *testing.T) {
+	// COND_BOUND :114 — > changed to >= creates broken comparator for equal
+	// EffectiveCRAP values. Go 1.22+ panics on broken comparators.
+	f := &PRCommentFormatter{}
+	buf := &bytes.Buffer{}
+	entries := &score.EntryList{List: make([]score.CRAPEntry, 20)}
+	for i := range 20 {
+		entries.List[i] = score.CRAPEntry{
+			File: "/project/main.go", Package: "myapp",
+			FuncName:   fmt.Sprintf("Func%d", i),
+			Line:       i + 1,
+			Complexity: 5,
+			Coverage:   0,
+			CRAP:       30,
+		}
+	}
+	opts := FormatOptions{Threshold: 10, Writer: buf}
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+}
+
+func TestPRCommentFormatter_Format_detailed_unreliable_without_text_fields(t *testing.T) {
+	f := &PRCommentFormatter{}
+	buf := &bytes.Buffer{}
+
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{
+			File:              "/project/main.go",
+			Package:           "myapp",
+			FuncName:          "UnreliableFunc",
+			Line:              10,
+			Complexity:        5,
+			Coverage:          90.0,
+			CRAP:              15.0,
+			CoverageUntrusted: true,
+			MutationScore:     0.5,
+			MutationDetails: []score.MutationDetail{
+				{MutantType: "CONTROL_FLOW", Line: 15, Status: "LIVED"},
+			},
+		},
+	}}
+
+	opts := FormatOptions{
+		Threshold: 30,
+		Writer:    buf,
+		Detailed:  true,
+	}
+
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+
+	output := buf.String()
+	assert.Contains(t, output, "## \u26a0\ufe0f Unreliable Coverage")
+	assert.Contains(t, output, "UnreliableFunc")
+	assert.Contains(t, output, "`CONTROL_FLOW`@L15")
+	assert.NotContains(t, output, "→")
 }

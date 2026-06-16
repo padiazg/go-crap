@@ -385,3 +385,90 @@ func TestGithubFormatter_Format_multiple_unreliable_below_threshold(t *testing.T
 	assert.Contains(t, got, "FuncB")
 	assert.Contains(t, got, "coverage not reliable")
 }
+
+
+func TestGithubFormatter_Format_crap_warning_exact_mutation_score(t *testing.T) {
+	// ARITH :53 — e.MutationScore*100 in formatGithubCRAPWarning appended text.
+	// Mutant changes *100, producing wrong percentage on the CRAP warning line.
+	f := &GithubFormatter{}
+	buf := &bytes.Buffer{}
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{
+			File: "/project/main.go", Package: "myapp",
+			FuncName:          "BadFunc",
+			Line:              10,
+			Complexity:        10,
+			Coverage:          0,
+			CRAP:              100,
+			CoverageUntrusted: true,
+			MutationScore:     0.75,
+		},
+	}}
+	opts := FormatOptions{Threshold: 30, Writer: buf}
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+	got := buf.String()
+	lines := strings.Split(strings.TrimSpace(got), "\n")
+	require.Len(t, lines, 2)
+	// Second line is the CRAP warning which appends mutation score
+	assert.Contains(t, lines[1], "CRAP score")
+	assert.Contains(t, lines[1], "mutation score: 75.0%")
+}
+
+func TestGithubFormatter_nil_entries(t *testing.T) {
+	formatter := &GithubFormatter{}
+	var buf strings.Builder
+	err := formatter.Format(nil, FormatOptions{Writer: &buf})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "nil")
+}
+
+func TestGithubFormatter_untrusted_below_threshold(t *testing.T) {
+	formatter := &GithubFormatter{}
+	var buf strings.Builder
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{CRAP: 20.0, Coverage: 50.0, CoverageUntrusted: true, FuncName: "untrusted",
+			MutationScore: 0.5, File: "file.go", Line: 10},
+	}}
+	err := formatter.Format(entries, FormatOptions{Writer: &buf, Threshold: 30.0})
+	assert.NoError(t, err)
+	output := buf.String()
+	assert.Contains(t, output, "coverage not reliable")
+	assert.Contains(t, output, "50.0%")
+}
+
+func TestGithubFormatter_untrusted_above_threshold(t *testing.T) {
+	formatter := &GithubFormatter{}
+	var buf strings.Builder
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{CRAP: 50.0, Coverage: 50.0, CoverageUntrusted: true, FuncName: "untrusted",
+			MutationScore: 0.5, File: "file.go", Line: 10},
+	}}
+	err := formatter.Format(entries, FormatOptions{Writer: &buf, Threshold: 30.0})
+	assert.NoError(t, err)
+	output := buf.String()
+	assert.Contains(t, output, "CRAP score")
+	assert.Contains(t, output, "coverage not reliable")
+}
+
+func TestGithubFormatter_threshold_exactly_met(t *testing.T) {
+	formatter := &GithubFormatter{}
+	var buf strings.Builder
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{CRAP: 30.0, Coverage: 50.0, CoverageUntrusted: false, FuncName: "exact", File: "f.go", Line: 1},
+	}}
+	err := formatter.Format(entries, FormatOptions{Writer: &buf, Threshold: 30.0})
+	assert.NoError(t, err)
+	assert.Empty(t, strings.TrimSpace(buf.String()))
+}
+
+func TestGithubFormatter_one_above_threshold(t *testing.T) {
+	formatter := &GithubFormatter{}
+	var buf strings.Builder
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{CRAP: 30.01, Coverage: 50.0, CoverageUntrusted: false, FuncName: "above", File: "f.go", Line: 1},
+	}}
+	err := formatter.Format(entries, FormatOptions{Writer: &buf, Threshold: 30.0})
+	assert.NoError(t, err)
+	assert.NotEmpty(t, strings.TrimSpace(buf.String()))
+}

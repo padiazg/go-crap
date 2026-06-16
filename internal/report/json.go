@@ -61,40 +61,7 @@ func (f *JSONFormatter) Format(entries *score.EntryList, opts FormatOptions) err
 	}
 
 	for _, e := range entries.List {
-		file := e.File
-		if base := opts.BaseDir; base != "" {
-			if rel := RelativizePath(e.File, base); rel != e.File {
-				file = rel
-			}
-		}
-		entry := JSONEntry{
-			File:              file,
-			Package:           e.Package,
-			Function:          e.FuncName,
-			Receiver:          e.Receiver,
-			Line:              e.Line,
-			Cyclomatic:        e.Complexity,
-			CRAP:              e.CRAP,
-			EffectiveCRAP:     e.EffectiveCRAP,
-			MutationScore:     e.MutationScore,
-			CoverageUntrusted: e.CoverageUntrusted,
-		}
-		if opts.Detailed && len(e.MutationDetails) > 0 {
-			entry.MutationDetails = make([]JSONMutationDetail, 0, len(e.MutationDetails))
-			for _, md := range e.MutationDetails {
-				entry.MutationDetails = append(entry.MutationDetails, JSONMutationDetail{
-					Type:            md.MutantType,
-					MutatorName:     md.MutatorName,
-					File:            md.File,
-					Line:            md.Line,
-					Status:          md.Status,
-					OriginalText:    md.OriginalText,
-					ReplacementText: md.ReplacementText,
-				})
-			}
-		}
-		entry.Coverage = &e.Coverage
-		report.Entries = append(report.Entries, entry)
+		report.Entries = append(report.Entries, f.convertToJSONEntry(e, opts))
 	}
 
 	data, err := f.jsonMarshalIndent(report, "", "  ")
@@ -104,4 +71,44 @@ func (f *JSONFormatter) Format(entries *score.EntryList, opts FormatOptions) err
 
 	fmt.Fprintln(opts.Writer, string(data))
 	return nil
+}
+
+func (f *JSONFormatter) convertToJSONEntry(e score.CRAPEntry, opts FormatOptions) JSONEntry {
+	file := e.File
+	if base := opts.BaseDir; base != "" {
+		if rel := RelativizePath(e.File, base); rel != e.File {
+			file = rel
+		}
+	}
+
+	entry := JSONEntry{
+		File:              file,
+		Package:           e.Package,
+		Function:          e.FuncName,
+		Receiver:          e.Receiver,
+		Line:              e.Line,
+		Cyclomatic:        e.Complexity,
+		CRAP:              e.CRAP,
+		EffectiveCRAP:     e.EffectiveCRAP,
+		MutationScore:     e.MutationScore,
+		CoverageUntrusted: e.CoverageUntrusted,
+	}
+
+	if opts.Detailed && len(e.MutationDetails) > 0 {
+		entry.MutationDetails = make([]JSONMutationDetail, 0, len(e.MutationDetails))
+		for _, md := range e.MutationDetails {
+			entry.MutationDetails = append(entry.MutationDetails, JSONMutationDetail{
+				Type:            md.MutantType,
+				MutatorName:     md.MutatorName,
+				File:            md.File,
+				Line:            md.Line,
+				Status:          md.Status,
+				OriginalText:    md.OriginalText,
+				ReplacementText: md.ReplacementText,
+			})
+		}
+	}
+
+	entry.Coverage = &e.Coverage
+	return entry
 }
