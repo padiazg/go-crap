@@ -555,32 +555,9 @@ func Test_classifyMutants_boundary_inclusive(t *testing.T) {
 	assert.Equal(t, StatusLived, livedMutants[0].Status)
 }
 
-func Test_annotateEntry_killed_equals_lived(t *testing.T) {
-	e := &score.CRAPEntry{File: "a.go", FuncName: "Foo", Complexity: 5, Coverage: 80, CRAP: 30}
-	annotateEntry(e, 1, 1, nil)
-	assert.True(t, e.CoverageUntrusted)
-	assert.InDelta(t, 0.5, e.MutationScore, 0.001, "MutationScore should be 1/(1+1) = 0.5")
-}
-
-func Test_annotateEntry_all_killed_boundary(t *testing.T) {
-	e := &score.CRAPEntry{File: "a.go", FuncName: "Foo", Complexity: 5, Coverage: 80, CRAP: 30}
-	annotateEntry(e, 3, 0, nil)
-	assert.False(t, e.CoverageUntrusted)
-	assert.InDelta(t, 1.0, e.MutationScore, 0.001)
-	assert.Equal(t, 30.0, e.EffectiveCRAP)
-}
-
-func Test_annotateEntry_no_mutants_in_range(t *testing.T) {
-	e := &score.CRAPEntry{File: "a.go", FuncName: "Foo", Complexity: 5, Coverage: 80, CRAP: 30}
-	annotateEntry(e, 0, 0, nil)
-	assert.False(t, e.CoverageUntrusted)
-	assert.Equal(t, -1.0, e.MutationScore)
-	assert.Equal(t, 30.0, e.EffectiveCRAP)
-}
-
 func Test_classifyMutants_boundary(t *testing.T) {
 	mutants := []Mutant{
-		{Line: 10, Status: StatusLived},  // startLine = 10, should be included
+		{Line: 10, Status: StatusLived},   // startLine = 10, should be included
 		{Line: 100, Status: StatusKilled}, // endLine = 100, should be included
 		{Line: 101, Status: StatusLived},  // past endLine, should NOT be included
 		{Line: 9, Status: StatusLived},    // before startLine, should NOT be included
@@ -592,4 +569,205 @@ func Test_classifyMutants_boundary(t *testing.T) {
 	assert.Equal(t, 1, lived, "1 mutant should be lived (line 10)")
 	assert.Equal(t, 1, len(livedMutants))
 	assert.Equal(t, StatusLived, livedMutants[0].Status)
+}
+
+type annotateEntryCheckFn func(*testing.T, *score.CRAPEntry)
+
+var checkannotateEntry = func(fns ...annotateEntryCheckFn) []annotateEntryCheckFn { return fns }
+
+func checkCoverageUntrusted(want bool) annotateEntryCheckFn {
+	return func(t *testing.T, e *score.CRAPEntry) {
+		t.Helper()
+		assert.Equal(t, want, e.CoverageUntrusted, "CoverageUntrusted mismatch")
+	}
+}
+
+func checkMutationScore(want float64) annotateEntryCheckFn {
+	return func(t *testing.T, e *score.CRAPEntry) {
+		t.Helper()
+		assert.InDelta(t, want, e.MutationScore, 0.001, "MutationScore mismatch")
+	}
+}
+
+func checkEffectiveCRAP(want float64) annotateEntryCheckFn {
+	return func(t *testing.T, e *score.CRAPEntry) {
+		t.Helper()
+		assert.InDelta(t, want, e.EffectiveCRAP, 0.001, "EffectiveCRAP mismatch")
+	}
+}
+
+func checkMutationDetailsLen(want int) annotateEntryCheckFn {
+	return func(t *testing.T, e *score.CRAPEntry) {
+		t.Helper()
+		assert.Equal(t, want, len(e.MutationDetails), "MutationDetails count mismatch")
+	}
+}
+
+func checkMutationDetailsNil(want bool) annotateEntryCheckFn {
+	return func(t *testing.T, e *score.CRAPEntry) {
+		t.Helper()
+		if want {
+			assert.Nilf(t, e.MutationDetails, "MutationDetails should be nil")
+		} else {
+			assert.NotNilf(t, e.MutationDetails, "MutationDetails should'nt be nil")
+		}
+
+	}
+}
+
+func Test_annotateEntry(t *testing.T) {
+	tests := []struct {
+		name         string
+		e            *score.CRAPEntry
+		killed       int
+		lived        int
+		livedMutants []Mutant
+		checks       []annotateEntryCheckFn
+	}{
+		{
+			name:   "lived_killed_equal",
+			e:      &score.CRAPEntry{File: "a.go", FuncName: "Foo", Complexity: 5, Coverage: 80, CRAP: score.CRAP(5, 80)},
+			killed: 1,
+			lived:  1,
+			livedMutants: []Mutant{{
+				Type:            "COND",
+				Line:            10,
+				Status:          StatusLived,
+				OriginalCode:    "x > 0",
+				ReplacementCode: "x <= 0",
+			}},
+			checks: checkannotateEntry(
+				checkCoverageUntrusted(true),
+				checkMutationScore(0.5),
+				checkEffectiveCRAP(score.CRAP(5, 0)),
+				checkMutationDetailsLen(1),
+			),
+		},
+		{
+			name:         "all_killed",
+			e:            &score.CRAPEntry{File: "a.go", FuncName: "Foo", Complexity: 5, Coverage: 80, CRAP: 30},
+			killed:       3,
+			lived:        0,
+			livedMutants: nil,
+			checks: checkannotateEntry(
+				checkCoverageUntrusted(false),
+				checkMutationScore(1.0),
+				checkEffectiveCRAP(30),
+				checkMutationDetailsLen(0),
+				checkMutationDetailsNil(true),
+			),
+		},
+		{
+			name:         "no_mutants",
+			e:            &score.CRAPEntry{File: "a.go", FuncName: "Foo", Complexity: 5, Coverage: 80, CRAP: 30},
+			killed:       0,
+			lived:        0,
+			livedMutants: nil,
+			checks: checkannotateEntry(
+				checkCoverageUntrusted(false),
+				checkMutationScore(-1),
+				checkEffectiveCRAP(30),
+				checkMutationDetailsLen(0),
+			),
+		},
+		{
+			name:   "all_lived_no_killed",
+			e:      &score.CRAPEntry{File: "b.go", FuncName: "Bar", Complexity: 3, Coverage: 60, CRAP: score.CRAP(3, 60)},
+			killed: 0,
+			lived:  2,
+			livedMutants: []Mutant{
+				{Type: "COND", Line: 5, Status: StatusLived},
+				{Type: "ARITHMETIC", Line: 8, Status: StatusLived},
+			},
+			checks: checkannotateEntry(
+				checkCoverageUntrusted(true),
+				checkMutationScore(0),
+				checkEffectiveCRAP(score.CRAP(3, 0)),
+				checkMutationDetailsLen(2),
+			),
+		},
+		{
+			name:   "most_killed_one_lived",
+			e:      &score.CRAPEntry{File: "c.go", FuncName: "Baz", Complexity: 10, Coverage: 90, CRAP: 10.01},
+			killed: 9,
+			lived:  1,
+			livedMutants: []Mutant{{
+				Type:   "COND",
+				Line:   20,
+				Status: StatusLived,
+			}},
+			checks: checkannotateEntry(
+				checkCoverageUntrusted(true),
+				checkMutationScore(0.9),
+				checkEffectiveCRAP(score.CRAP(10, 0)),
+				checkMutationDetailsLen(1),
+			),
+		},
+		{
+			name:   "high_complexity",
+			e:      &score.CRAPEntry{File: "d.go", FuncName: "Qux", Complexity: 50, Coverage: 100, CRAP: 2501},
+			killed: 5,
+			lived:  5,
+			livedMutants: []Mutant{{
+				Type:   "COND",
+				Line:   30,
+				Status: StatusLived,
+			}},
+			checks: checkannotateEntry(
+				checkCoverageUntrusted(true),
+				checkMutationScore(0.5),
+				checkEffectiveCRAP(score.CRAP(50, 0)),
+				checkMutationDetailsLen(1),
+			),
+		},
+		{
+			name:   "complexity_one",
+			e:      &score.CRAPEntry{File: "e.go", FuncName: "Simple", Complexity: 1, Coverage: 50, CRAP: score.CRAP(1, 50)},
+			killed: 0,
+			lived:  1,
+			livedMutants: []Mutant{{
+				Type:   "COND",
+				Line:   1,
+				Status: StatusLived,
+			}},
+			checks: checkannotateEntry(
+				checkCoverageUntrusted(true),
+				checkMutationScore(0),
+				checkEffectiveCRAP(score.CRAP(1, 0)),
+				checkMutationDetailsLen(1),
+			),
+		},
+		{
+			name:   "mutation_details_populated",
+			e:      &score.CRAPEntry{File: "f.go", FuncName: "Details", Complexity: 2, Coverage: 40, CRAP: score.CRAP(2, 40)},
+			killed: 2,
+			lived:  1,
+			livedMutants: []Mutant{
+				{
+					Type:            "CONDITIONALS_BOUNDARY",
+					MutatorName:     "conditional1",
+					Line:            15,
+					Status:          StatusLived,
+					OriginalCode:    "x > y",
+					ReplacementCode: "x >= y",
+				},
+			},
+			checks: checkannotateEntry(
+				checkCoverageUntrusted(true),
+				checkMutationScore(2.0/3.0),
+				checkEffectiveCRAP(score.CRAP(2, 0)),
+				checkMutationDetailsLen(1),
+			),
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			annotateEntry(tt.e, tt.killed, tt.lived, tt.livedMutants)
+			for _, c := range tt.checks {
+				c(t, tt.e)
+			}
+		})
+	}
 }

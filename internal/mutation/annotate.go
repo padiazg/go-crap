@@ -75,38 +75,40 @@ func classifyMutants(mutants []Mutant, startLine, endLine int) (killed, lived in
 }
 
 func annotateEntry(e *score.CRAPEntry, killed, lived int, livedMutants []Mutant) {
+	if killed == 0 && lived == 0 {
+		e.MutationScore = -1
+		e.EffectiveCRAP = e.CRAP
+		return
+	}
+
 	if lived > 0 {
 		e.CoverageUntrusted = true
 		e.MutationScore = float64(killed) / float64(killed+lived)
 		e.EffectiveCRAP = score.CRAP(e.Complexity, 0)
-		if len(livedMutants) > 0 {
-			e.MutationDetails = buildMutationDetails(livedMutants)
-		}
-	} else {
-		e.CoverageUntrusted = false
-		total := killed + lived
-		if total > 0 {
-			e.MutationScore = float64(killed) / float64(total)
-		} else {
-			e.MutationScore = -1
-		}
-		e.EffectiveCRAP = e.CRAP
+		e.MutationDetails = buildMutationDetails(livedMutants)
+
+		return
 	}
+
+	e.CoverageUntrusted = false
+	e.MutationScore = 1
+	e.EffectiveCRAP = e.CRAP
 }
 
 func buildMutationDetails(livedMutants []Mutant) []score.MutationDetail {
 	details := make([]score.MutationDetail, 0, len(livedMutants))
 	for _, m := range livedMutants {
 		details = append(details, score.MutationDetail{
-			MutantType:    m.Type,
-			MutatorName:   m.MutatorName,
-			File:          m.File,
-			Line:          m.Line,
-			Status:        string(m.Status),
-			OriginalText:  m.OriginalCode,
+			MutantType:      m.Type,
+			MutatorName:     m.MutatorName,
+			File:            m.File,
+			Line:            m.Line,
+			Status:          string(m.Status),
+			OriginalText:    m.OriginalCode,
 			ReplacementText: m.ReplacementCode,
 		})
 	}
+
 	return details
 }
 
@@ -127,22 +129,26 @@ func buildMutantsByFile(mutants []Mutant) map[string][]Mutant {
 
 func buildMutantFileSuffix(path string) string {
 	var parts []string
+
 	if strings.ContainsRune(path, '\\') {
 		parts = strings.Split(path, "\\")
 	} else {
 		parts = strings.Split(path, "/")
 	}
+
 	filtered := make([]string, 0, len(parts))
 	for _, p := range parts {
 		if p != "" {
 			filtered = append(filtered, p)
 		}
 	}
-	if len(filtered) >= 3 {
+
+	switch {
+	case len(filtered) >= 3:
 		return strings.Join(filtered[len(filtered)-3:], "/")
-	}
-	if len(filtered) == 1 {
+	case len(filtered) == 1:
 		return filtered[0]
+	default:
+		return strings.Join(filtered, "/")
 	}
-	return strings.Join(filtered, "/")
 }
