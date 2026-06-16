@@ -42,24 +42,28 @@ func buildIndex(coverages []coverage.ModuleCoverage) *pathIndex {
 
 func buildSuffix(path string) string {
 	var parts []string
+
 	if strings.ContainsRune(path, '\\') {
 		parts = strings.Split(path, "\\")
 	} else {
 		parts = strings.Split(path, "/")
 	}
+
 	filtered := make([]string, 0, len(parts))
 	for _, p := range parts {
 		if p != "" {
 			filtered = append(filtered, p)
 		}
 	}
-	if len(filtered) >= 3 {
+
+	switch {
+	case len(filtered) >= 3:
 		return strings.Join(filtered[len(filtered)-3:], "/")
-	}
-	if len(filtered) == 1 {
+	case len(filtered) == 1:
 		return filtered[0]
+	default:
+		return strings.Join(filtered, "/")
 	}
-	return strings.Join(filtered, "/")
 }
 
 func (idx *pathIndex) lookup(absPath string) ([]coverage.FunctionCoverage, bool) {
@@ -79,8 +83,8 @@ func normalizeFuncName(name string) string {
 		return name[idx+2:]
 	}
 	// Type.Method or *Type.Method → Method
-	if idx := strings.Index(name, "."); idx != -1 {
-		return name[idx+1:]
+	if _, after, ok := strings.Cut(name, "."); ok {
+		return after
 	}
 	return name
 }

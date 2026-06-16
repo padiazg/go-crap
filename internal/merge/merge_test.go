@@ -475,44 +475,6 @@ func TestMerge_MethodMatch(t *testing.T) {
 	}
 }
 
-func Test_buildSuffix_single_segment(t *testing.T) {
-	assert.Equal(t, "pkg", buildSuffix("pkg"))
-	assert.Equal(t, "file.go", buildSuffix("file.go"))
-	assert.Equal(t, "path", buildSuffix("/path"))
-}
-
-func Test_buildSuffix_two_segments(t *testing.T) {
-	assert.Equal(t, "a/b", buildSuffix("a/b"))
-	assert.Equal(t, "vendor/pkg", buildSuffix("vendor/pkg"))
-	assert.Equal(t, "internal/pkg", buildSuffix("internal/pkg"))
-}
-
-func Test_buildSuffix_three_segments(t *testing.T) {
-	assert.Equal(t, "a/b/c", buildSuffix("a/b/c"))
-	assert.Equal(t, "internal/pkg/file", buildSuffix("internal/pkg/file"))
-	assert.Equal(t, "github.com/user/pkg", buildSuffix("github.com/user/pkg"))
-}
-
-func Test_buildSuffix_more_than_three_segments(t *testing.T) {
-	assert.Equal(t, "c/d/e", buildSuffix("a/b/c/d/e"))
-	assert.Equal(t, "pkg/subpkg/file", buildSuffix("github.com/user/pkg/subpkg/file"))
-}
-
-func Test_buildSuffix_windows_path(t *testing.T) {
-	assert.Equal(t, "pkg/subpkg/file", buildSuffix("C:\\Users\\pkg\\subpkg\\file"))
-	assert.Equal(t, "C:/file.go", buildSuffix("C:\\file.go"))
-}
-
-func Test_buildSuffix_empty_segments(t *testing.T) {
-	assert.Equal(t, "a/b", buildSuffix("/a//b"))
-	assert.Equal(t, "a/b/c", buildSuffix("/a/b/c"))
-}
-
-func Test_buildSuffix_with_leading_trailing_slashes(t *testing.T) {
-	assert.Equal(t, "a/b/c", buildSuffix("/a/b/c/"))
-	assert.Equal(t, "a/b/c", buildSuffix("/a/b/c"))
-}
-
 func Test_buildIndex_empty(t *testing.T) {
 	idx := buildIndex(nil)
 	require.NotNil(t, idx)
@@ -574,4 +536,36 @@ func Test_pathIndex_lookup_not_found(t *testing.T) {
 	idx := buildIndex(nil)
 	_, ok := idx.lookup("/nonexistent/path/file.go")
 	assert.False(t, ok)
+}
+
+func Test_buildSuffix(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{"single segment no slash", "pkg", "pkg"},
+		{"single file", "file.go", "file.go"},
+		{"single path segment", "/path", "path"},
+		{"two segments", "a/b", "a/b"},
+		{"vendor path", "vendor/pkg", "vendor/pkg"},
+		{"internal path", "internal/pkg", "internal/pkg"},
+		{"three segments", "a/b/c", "a/b/c"},
+		{"more than three segments", "a/b/c/d/e", "c/d/e"},
+		{"internal pkg file", "internal/pkg/file", "internal/pkg/file"},
+		{"module path three", "github.com/user/pkg", "github.com/user/pkg"},
+		{"module subpackage", "github.com/user/pkg/subpkg/file", "pkg/subpkg/file"},
+		{"windows path", "C:\\Users\\pkg\\subpkg\\file", "pkg/subpkg/file"},
+		{"windows root path", "C:\\file.go", "C:/file.go"},
+		{"empty segments", "/a//b", "a/b"},
+		{"leading slash", "/a/b/c", "a/b/c"},
+		{"leading and trailing slash", "/a/b/c/", "a/b/c"},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			r := buildSuffix(tt.path)
+			assert.Equal(t, tt.want, r)
+		})
+	}
 }
