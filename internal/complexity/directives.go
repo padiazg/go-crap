@@ -9,15 +9,17 @@ type directives struct {
 	exclude bool
 }
 
-func parseDirectives(doc *ast.CommentGroup) directives {
+func parseDirectives(doc *ast.CommentGroup) bool {
 	if doc == nil {
-		return directives{}
+		return false
 	}
+
 	for _, c := range doc.List {
 		text := strings.TrimSpace(c.Text)
-		if text == "//go-crap:ignore" || text == "//gocyclo:ignore" {
-			return directives{exclude: true}
+		if (text == "//go-crap:ignore") || (text == "//gocyclo:ignore") {
+			return true
 		}
 	}
-	return directives{}
+
+	return false
 }

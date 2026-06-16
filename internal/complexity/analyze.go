@@ -171,8 +171,7 @@ func (a *analyzeData) analyzeASTFile(f *ast.File, fset *token.FileSet) {
 			continue
 		}
 
-		directives := parseDirectives(fnDecl.Doc)
-		if directives.exclude {
+		if parseDirectives(fnDecl.Doc) {
 			continue
 		}
 
