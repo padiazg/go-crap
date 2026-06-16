@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/padiazg/go-crap/internal/score"
@@ -355,4 +356,67 @@ func TestJSONFormatter_Format(t *testing.T) {
 			}
 		})
 	}
+}
+
+
+func TestJSONFormatter_nil_entries(t *testing.T) {
+	formatter := NewJSONFormatter()
+	var buf strings.Builder
+	err := formatter.Format(nil, FormatOptions{Writer: &buf})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "nil")
+}
+
+func TestJSONFormatter_coverage_zero_in_output(t *testing.T) {
+	formatter := NewJSONFormatter()
+	var buf strings.Builder
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{CRAP: 10.0, Coverage: 0.0, CoverageUntrusted: false, FuncName: "zeroCover"},
+	}}
+	err := formatter.Format(entries, FormatOptions{Writer: &buf})
+	assert.NoError(t, err)
+	output := buf.String()
+	assert.Contains(t, output, "coverage")
+	assert.Contains(t, output, "0")
+}
+
+func TestJSONFormatter_coverage_value_precision(t *testing.T) {
+	formatter := NewJSONFormatter()
+	var buf strings.Builder
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{CRAP: 10.0, Coverage: 50.5, CoverageUntrusted: false, FuncName: "hasCov"},
+	}}
+	err := formatter.Format(entries, FormatOptions{Writer: &buf})
+	assert.NoError(t, err)
+	output := buf.String()
+	assert.Contains(t, output, "coverage")
+	assert.Contains(t, output, "50.5")
+}
+
+func TestJSONFormatter_entry_with_receiver(t *testing.T) {
+	formatter := NewJSONFormatter()
+	var buf strings.Builder
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{CRAP: 20.0, Coverage: 50.0, CoverageUntrusted: false, FuncName: "Method", Receiver: "MyType"},
+	}}
+	err := formatter.Format(entries, FormatOptions{Writer: &buf})
+	assert.NoError(t, err)
+	output := buf.String()
+	assert.Contains(t, output, `"receiver"`)
+	assert.Contains(t, output, "MyType")
+}
+
+func TestJSONFormatter_detailed_disabled_omits_mutations(t *testing.T) {
+	formatter := NewJSONFormatter()
+	var buf strings.Builder
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{CRAP: 50.0, Coverage: 50.0, CoverageUntrusted: true, FuncName: "untrusted",
+			MutationScore: 0.5, MutationDetails: []score.MutationDetail{
+				{MutantType: "CONDITIONALS_BOUNDARY", Line: 10, Status: "lived"},
+			}},
+	}}
+	err := formatter.Format(entries, FormatOptions{Writer: &buf, Detailed: false})
+	assert.NoError(t, err)
+	output := buf.String()
+	assert.NotContains(t, output, "mutation_details")
 }

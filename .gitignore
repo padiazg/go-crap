@@ -50,6 +50,7 @@ dist/
 !AGENTS.md
 !CHANGELOG.md
 !.github/**/*.md
+mutation.json
 
 # MkDocs site
 doc/site/

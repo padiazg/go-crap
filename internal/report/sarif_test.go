@@ -591,3 +591,123 @@ func TestSARIFFormatter_Format_detailed_disabled(t *testing.T) {
 	assert.NotContains(t, got, "survived mutations:")
 	assert.NotContains(t, got, "\u003c")
 }
+
+
+func TestSARIFFormatter_Format_exact_threshold_no_high_score_result(t *testing.T) {
+	// COND_BOUND :23 — effectiveCRAP > opts.Threshold changed to >= would
+	// include entries at exact threshold. Must produce empty results.
+	f := &SARIFFormatter{}
+	buf := &bytes.Buffer{}
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{File: "/project/main.go", Package: "myapp", FuncName: "Exact",
+			Line: 1, Complexity: 5, Coverage: 100, CRAP: 30},
+	}}
+	opts := FormatOptions{Threshold: 30, Writer: buf}
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+	var parsed sarifLog
+	err = json.Unmarshal(buf.Bytes(), &parsed)
+	require.NoError(t, err)
+	assert.Empty(t, parsed.Runs[0].Results)
+}
+
+func TestSARIFFormatter_Format_untrusted_exact_mutation_score(t *testing.T) {
+	// ARITH :46 — e.MutationScore*100 changed to /100 or +100 would
+	// produce wrong percentage in untrusted warning message.
+	f := &SARIFFormatter{}
+	buf := &bytes.Buffer{}
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{
+			File: "/project/main.go", Package: "myapp",
+			FuncName:          "UnreliableFunc",
+			Line:              10,
+			Complexity:        2,
+			Coverage:          90.0,
+			CRAP:              5.0,
+			CoverageUntrusted: true,
+			MutationScore:     0.65,
+		},
+	}}
+	opts := FormatOptions{Threshold: 30, Writer: buf}
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+	output := buf.String()
+	assert.Contains(t, output, "mutation score: 65.0%")
+}
+
+func TestSARIFFormatter_nil_entries(t *testing.T) {
+	formatter := &SARIFFormatter{}
+	var buf strings.Builder
+	err := formatter.Format(nil, FormatOptions{Writer: &buf})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "nil")
+}
+
+func TestSARIFFormatter_untrusted_only(t *testing.T) {
+	formatter := &SARIFFormatter{}
+	var buf strings.Builder
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{CRAP: 20.0, Coverage: 50.0, CoverageUntrusted: true, FuncName: "untrusted",
+			MutationScore: 0.5, File: "file.go", Line: 10},
+	}}
+	err := formatter.Format(entries, FormatOptions{Writer: &buf, Threshold: 30.0})
+	assert.NoError(t, err)
+	output := buf.String()
+	assert.Contains(t, output, "coverage-untrusted")
+	assert.Contains(t, output, "Coverage not reliable")
+}
+
+func TestSARIFFormatter_high_score_only(t *testing.T) {
+	formatter := &SARIFFormatter{}
+	var buf strings.Builder
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{CRAP: 50.0, Coverage: 50.0, CoverageUntrusted: false, FuncName: "highScore", File: "file.go", Line: 10},
+	}}
+	err := formatter.Format(entries, FormatOptions{Writer: &buf, Threshold: 30.0})
+	assert.NoError(t, err)
+	output := buf.String()
+	assert.Contains(t, output, "high-score")
+	assert.NotContains(t, output, "coverage-untrusted")
+}
+
+func TestSARIFFormatter_high_score_and_untrusted(t *testing.T) {
+	formatter := &SARIFFormatter{}
+	var buf strings.Builder
+	entries := &score.EntryList{List: []score.CRAPEntry{
+		{CRAP: 50.0, Coverage: 50.0, CoverageUntrusted: true, FuncName: "both",
+			MutationScore: 0.5, File: "file.go", Line: 10},
+	}}
+	err := formatter.Format(entries, FormatOptions{Writer: &buf, Threshold: 30.0})
+	assert.NoError(t, err)
+	output := buf.String()
+	assert.Contains(t, output, "high-score")
+	assert.Contains(t, output, "coverage-untrusted")
+}
+
+func Test_relativizePath_backslash_conversion(t *testing.T) {
+	result := relativizePath("C:\\Users\\file.go", "")
+	assert.Contains(t, result, "/")
+	assert.NotContains(t, result, "\\")
+}
+
+func TestFormatMutantDetails_detailed_with_code(t *testing.T) {
+	details := []score.MutationDetail{
+		{MutantType: "CONDITIONALS_BOUNDARY", Line: 10, OriginalText: "a > b", ReplacementText: "a >= b"},
+	}
+	result := formatMutantDetails(true, details)
+	assert.Contains(t, result, "CONDITIONALS_BOUNDARY@L10")
+	assert.Contains(t, result, `"a > b"`)
+	assert.Contains(t, result, `"a >= b"`)
+}
+
+func Test_formatMessage_untrusted_with_details(t *testing.T) {
+	e := score.CRAPEntry{
+		FuncName: "testFunc", CoverageUntrusted: true, MutationScore: 0.5,
+		MutationDetails: []score.MutationDetail{
+			{MutantType: "CONDITIONALS_NEGATION", Line: 5},
+		},
+	}
+	msg := formatMessage(e, 30.0, true)
+	assert.Contains(t, msg, "mutation score: 50.0%")
+	assert.Contains(t, msg, "CONDITIONALS_NEGATION@L5")
+}

@@ -16,28 +16,41 @@ func (f *GithubFormatter) Format(entries *score.EntryList, opts FormatOptions) e
 
 	for _, e := range entries.List {
 		effectiveCRAP := e.EffectiveScore()
-
-		file := e.File
-		if base := opts.BaseDir; base != "" {
-			if rel := RelativizePath(e.File, base); rel != e.File {
-				file = rel
-			}
-		}
+		file := resolveGithubFile(e, opts.BaseDir)
 
 		if e.CoverageUntrusted {
-			msg := fmt.Sprintf("%s:%d %s [coverage not reliable (mutation score: %.1f%%)]",
-				file, e.Line, e.FuncName, e.MutationScore*100)
+			msg := formatGithubUntrustedWarning(file, e)
 			fmt.Fprintf(opts.Writer, "::warning file=%s,line=%d::%s\n", file, e.Line, msg)
 		}
 
 		if effectiveCRAP > opts.Threshold {
-			msg := fmt.Sprintf("%s:%d %s CRAP score %.1f (CC=%d, cov=%.1f%%) exceeds threshold %.0f",
-				file, e.Line, e.FuncName, effectiveCRAP, e.Complexity, e.Coverage, opts.Threshold)
-			if e.CoverageUntrusted {
-				msg += fmt.Sprintf(" [coverage not reliable (mutation score: %.1f%%)]", e.MutationScore*100)
-			}
+			msg := formatGithubCRAPWarning(file, e, effectiveCRAP, opts.Threshold)
 			fmt.Fprintf(opts.Writer, "::warning file=%s,line=%d::%s\n", file, e.Line, msg)
 		}
 	}
 	return nil
+}
+
+func resolveGithubFile(e score.CRAPEntry, baseDir string) string {
+	file := e.File
+	if baseDir != "" {
+		if rel := RelativizePath(e.File, baseDir); rel != e.File {
+			file = rel
+		}
+	}
+	return file
+}
+
+func formatGithubUntrustedWarning(file string, e score.CRAPEntry) string {
+	return fmt.Sprintf("%s:%d %s [coverage not reliable (mutation score: %.1f%%)]",
+		file, e.Line, e.FuncName, e.MutationScore*100)
+}
+
+func formatGithubCRAPWarning(file string, e score.CRAPEntry, effectiveCRAP, threshold float64) string {
+	msg := fmt.Sprintf("%s:%d %s CRAP score %.1f (CC=%d, cov=%.1f%%) exceeds threshold %.0f",
+		file, e.Line, e.FuncName, effectiveCRAP, e.Complexity, e.Coverage, threshold)
+	if e.CoverageUntrusted {
+		msg += fmt.Sprintf(" [coverage not reliable (mutation score: %.1f%%)]", e.MutationScore*100)
+	}
+	return msg
 }

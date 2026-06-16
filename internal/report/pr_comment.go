@@ -2,10 +2,98 @@ package report
 
 import (
 	"fmt"
+	"io"
 	"sort"
 
 	"github.com/padiazg/go-crap/internal/score"
 )
+
+func (f *PRCommentFormatter) writePRHeader(w io.Writer, sorted []score.CRAPEntry, crappy []score.CRAPEntry, threshold float64) {
+	fmt.Fprintln(w, "<!-- go-crap-report -->")
+	fmt.Fprintln(w)
+
+	if len(crappy) == 0 {
+		fmt.Fprintln(w, "## No crappy functions")
+	} else {
+		fmt.Fprintf(w, "## %d crappy function(s)\n", len(crappy))
+	}
+
+	fmt.Fprintf(w, "\n%d function(s) analyzed · threshold %.0f\n\n", len(sorted), threshold)
+}
+
+func (f *PRCommentFormatter) writeCrappyTable(w io.Writer, crappy []score.CRAPEntry, total int, threshold, halfThreshold float64, baseDir string) {
+	if len(crappy) > maxPRCommentRows {
+		crappy = crappy[:maxPRCommentRows]
+	}
+
+	if len(crappy) == 0 {
+		return
+	}
+
+	fmt.Fprintln(w, "| | CRAP | CC | Cov % | Function | Location |")
+	fmt.Fprintln(w, "|---|---:|---:|---:|---|---|")
+
+	for _, e := range crappy {
+		status := StatusSymbol(e.EffectiveCRAP, threshold, halfThreshold)
+		loc := formatPRLocation(e, baseDir)
+		covStr := fmt.Sprintf("%.1f%%", e.Coverage)
+		if e.CoverageUntrusted {
+			covStr += " \xe2\x9a\xa0"
+		}
+		fmt.Fprintf(w, "| %s | %.2f | %d | %s | `%s` | %s |\n",
+			status, e.EffectiveCRAP, e.Complexity, covStr, e.FuncName, loc)
+	}
+
+	if total > maxPRCommentRows {
+		fmt.Fprintf(w, "\n…and %d more\n", total-maxPRCommentRows)
+	}
+
+	fmt.Fprintln(w)
+}
+
+func (f *PRCommentFormatter) writeUnreliableSection(w io.Writer, unreliable []score.CRAPEntry, detailed bool) {
+	if len(unreliable) == 0 {
+		return
+	}
+
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "## \u26a0\ufe0f Unreliable Coverage")
+	fmt.Fprintln(w)
+
+	if detailed {
+		fmt.Fprintln(w, "| Function | CRAP | Effective CRAP | Mutation Score | Survived Mutants |")
+		fmt.Fprintln(w, "|---|---:|---:|---:|---|")
+		for _, e := range unreliable {
+			mutantsStr := formatMutantsStr(e.MutationDetails)
+			fmt.Fprintf(w, "| `%s` | %.2f | %.2f | %.1f%% | %s |\n",
+				e.FuncName, e.CRAP, e.EffectiveCRAP, e.MutationScore*100, mutantsStr)
+		}
+	} else {
+		fmt.Fprintln(w, "| Function | CRAP | Effective CRAP | Mutation Score |")
+		fmt.Fprintln(w, "|---|---:|---:|---:|")
+		for _, e := range unreliable {
+			fmt.Fprintf(w, "| `%s` | %.2f | %.2f | %.1f%% |\n",
+				e.FuncName, e.CRAP, e.EffectiveCRAP, e.MutationScore*100)
+		}
+	}
+}
+
+func formatMutantsStr(details []score.MutationDetail) string {
+	if len(details) == 0 {
+		return ""
+	}
+	var mutantsStr string
+	for i, md := range details {
+		if i > 0 {
+			mutantsStr += ", "
+		}
+		mutantsStr += fmt.Sprintf("`%s`@L%d", md.MutantType, md.Line)
+		if md.OriginalText != "" && md.ReplacementText != "" {
+			mutantsStr += fmt.Sprintf("\n    `%s` → `%s`", md.OriginalText, md.ReplacementText)
+		}
+	}
+	return mutantsStr
+}
 
 const maxPRCommentRows = 25
 
@@ -29,77 +117,16 @@ func (f *PRCommentFormatter) Format(entries *score.EntryList, opts FormatOptions
 	halfThreshold := opts.Threshold / 2.0
 	crappy := filterAboveThreshold(sorted, opts.Threshold)
 
-	fmt.Fprintln(opts.Writer, "<!-- go-crap-report -->")
-	fmt.Fprintln(opts.Writer)
+	f.writePRHeader(opts.Writer, sorted, crappy, opts.Threshold)
 
-	if len(crappy) == 0 {
-		fmt.Fprintln(opts.Writer, "## No crappy functions")
-	} else {
-		fmt.Fprintf(opts.Writer, "## %d crappy function(s)\n", len(crappy))
-	}
-
-	fmt.Fprintf(opts.Writer, "\n%d function(s) analyzed · threshold %.0f\n\n", len(sorted), opts.Threshold)
-
-	if len(crappy) > maxPRCommentRows {
+	if len(entries.List) > maxPRCommentRows {
 		crappy = crappy[:maxPRCommentRows]
 	}
 
-	if len(crappy) > 0 {
-		fmt.Fprintln(opts.Writer, "| | CRAP | CC | Cov % | Function | Location |")
-		fmt.Fprintln(opts.Writer, "|---|---:|---:|---:|---|---|")
-
-		for _, e := range crappy {
-			status := StatusSymbol(e.EffectiveCRAP, opts.Threshold, halfThreshold)
-			loc := formatPRLocation(e, opts.BaseDir)
-			covStr := fmt.Sprintf("%.1f%%", e.Coverage)
-			if e.CoverageUntrusted {
-				covStr += " \xe2\x9a\xa0"
-			}
-			fmt.Fprintf(opts.Writer, "| %s | %.2f | %d | %s | `%s` | %s |\n",
-				status, e.EffectiveCRAP, e.Complexity, covStr, e.FuncName, loc)
-		}
-
-		if len(entries.List) > maxPRCommentRows {
-			fmt.Fprintf(opts.Writer, "\n…and %d more\n", len(entries.List)-maxPRCommentRows)
-		}
-
-		fmt.Fprintln(opts.Writer)
-	}
+	f.writeCrappyTable(opts.Writer, crappy, len(entries.List), opts.Threshold, halfThreshold, opts.BaseDir)
 
 	unreliable := filterUnreliableCoverage(sorted)
-	if len(unreliable) > 0 {
-		fmt.Fprintln(opts.Writer)
-		fmt.Fprintln(opts.Writer, "## \u26a0\ufe0f Unreliable Coverage")
-		fmt.Fprintln(opts.Writer)
-
-		if opts.Detailed {
-			fmt.Fprintln(opts.Writer, "| Function | CRAP | Effective CRAP | Mutation Score | Survived Mutants |")
-			fmt.Fprintln(opts.Writer, "|---|---:|---:|---:|---|")
-			for _, e := range unreliable {
-				mutantsStr := ""
-				if len(e.MutationDetails) > 0 {
-					for i, md := range e.MutationDetails {
-						if i > 0 {
-							mutantsStr += ", "
-						}
-						mutantsStr += fmt.Sprintf("`%s`@L%d", md.MutantType, md.Line)
-						if md.OriginalText != "" && md.ReplacementText != "" {
-							mutantsStr += fmt.Sprintf("\n    `%s` → `%s`", md.OriginalText, md.ReplacementText)
-						}
-					}
-				}
-				fmt.Fprintf(opts.Writer, "| `%s` | %.2f | %.2f | %.1f%% | %s |\n",
-					e.FuncName, e.CRAP, e.EffectiveCRAP, e.MutationScore*100, mutantsStr)
-			}
-		} else {
-			fmt.Fprintln(opts.Writer, "| Function | CRAP | Effective CRAP | Mutation Score |")
-			fmt.Fprintln(opts.Writer, "|---|---:|---:|---:|")
-			for _, e := range unreliable {
-				fmt.Fprintf(opts.Writer, "| `%s` | %.2f | %.2f | %.1f%% |\n",
-					e.FuncName, e.CRAP, e.EffectiveCRAP, e.MutationScore*100)
-			}
-		}
-	}
+	f.writeUnreliableSection(opts.Writer, unreliable, opts.Detailed)
 
 	return nil
 }

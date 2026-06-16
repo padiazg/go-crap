@@ -2,8 +2,11 @@ package coverage
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -187,6 +190,125 @@ func Test_discoverModules(t *testing.T) {
 				assert.NoError(t, err)
 			}
 			assert.Equal(t, tt.wantLen, len(modules))
+		})
+	}
+}
+
+func Test_discoverModules_empty_root(t *testing.T) {
+	modules, err := discoverModules(context.Background(), "/dev/null", nil)
+	assert.NoError(t, err)
+	assert.Empty(t, modules)
+}
+
+func Test_discoverModules_nested_modules(t *testing.T) {
+	tempDir := t.TempDir()
+
+	os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte("module root\n"), 0644)
+	subDir := filepath.Join(tempDir, "sub")
+	os.MkdirAll(subDir, 0755)
+	os.WriteFile(filepath.Join(subDir, "go.mod"), []byte("module root/sub\n"), 0644)
+
+	modules, err := discoverModules(context.Background(), tempDir, nil)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, modules)
+}
+
+func Test_filterByExclude_nil_regex(t *testing.T) {
+	funcs := []FunctionCoverage{
+		{File: "file1.go", Name: "Func1", Coverage: 100.0},
+		{File: "file2.go", Name: "Func2", Coverage: 50.0},
+	}
+	result := filterByExclude(funcs, nil)
+	assert.Len(t, result, 2)
+}
+
+func Test_filterByExclude_matching_pattern(t *testing.T) {
+	funcs := []FunctionCoverage{
+		{File: "pkg/main.go", Name: "Main", Coverage: 100.0},
+		{File: "pkg/main_test.go", Name: "TestMain", Coverage: 80.0},
+		{File: "pkg/util.go", Name: "Util", Coverage: 60.0},
+	}
+	regex, _ := regexp.Compile("_test\\.go$")
+	result := filterByExclude(funcs, regex)
+	assert.Len(t, result, 2)
+	assert.Equal(t, "Main", result[0].Name)
+	assert.Equal(t, "Util", result[1].Name)
+}
+
+func Test_filterByExclude_no_match_keeps_all(t *testing.T) {
+	funcs := []FunctionCoverage{
+		{File: "pkg/main.go", Name: "Main", Coverage: 100.0},
+	}
+	regex, _ := regexp.Compile("nonexistent")
+	result := filterByExclude(funcs, regex)
+	assert.Len(t, result, 1)
+}
+
+func Test_filterByExclude_empty_functions(t *testing.T) {
+	regex, _ := regexp.Compile("test")
+	result := filterByExclude(nil, regex)
+	assert.Empty(t, result)
+}
+
+func Test_filterByExclude_recursive_pattern(t *testing.T) {
+	funcs := []FunctionCoverage{
+		{File: "pkg/api/v1/handler.go", Name: "Handler", Coverage: 100.0},
+		{File: "pkg/api/v1/handler.pb.go", Name: "PBHandler", Coverage: 100.0},
+		{File: "pkg/api/v2/handler.go", Name: "HandlerV2", Coverage: 80.0},
+	}
+	regex, _ := regexp.Compile("\\.pb\\.go$")
+	result := filterByExclude(funcs, regex)
+	assert.Len(t, result, 2)
+	assert.NotEqual(t, "PBHandler", result[0].Name)
+}
+
+func Test_readModulePath(t *testing.T) {
+	tempDir := t.TempDir()
+	os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte("module github.com/user/pkg\n\ngo 1.21\n"), 0644)
+	path, err := readModulePath(tempDir)
+	assert.NoError(t, err)
+	assert.Equal(t, "github.com/user/pkg", path)
+}
+
+func Test_readModulePath_no_module(t *testing.T) {
+	tempDir := t.TempDir()
+	os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte("\n"), 0644)
+	_, err := readModulePath(tempDir)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no module declaration")
+}
+
+func TestScan_timeout_preserved(t *testing.T) {
+	tests := []struct {
+		name    string
+		timeout time.Duration
+		want    time.Duration
+	}{
+		{
+			name:    "zero_timeout_defaults_to_10m",
+			timeout: 0,
+			want:    10 * time.Minute,
+		},
+		{
+			name:    "nonzero_timeout_preserved",
+			timeout: 5 * time.Second,
+			want:    5 * time.Second,
+		},
+		{
+			name:    "custom_timeout_preserved",
+			timeout: 30 * time.Minute,
+			want:    30 * time.Minute,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := ScanOptions{
+				Path:    "../testdata",
+				Timeout: tt.timeout,
+			}
+			r, err := Scan(context.Background(), opts)
+			assert.NoError(t, err)
+			assert.NotEmpty(t, r)
 		})
 	}
 }

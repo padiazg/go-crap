@@ -35,34 +35,10 @@ func (f *TableFormatter) Format(entries *score.EntryList, opts FormatOptions) er
 
 	for _, e := range entries.List {
 		effectiveCRAP := e.EffectiveScore()
-
-		status := StatusSymbol(effectiveCRAP, opts.Threshold, halfThreshold)
-		covBar := coverageBar(e.Coverage)
-
 		if effectiveCRAP > opts.Threshold {
 			failed++
 		}
-
-		loc := fmt.Sprintf("%s:%d", e.File, e.Line)
-		if base := opts.BaseDir; base != "" {
-			if rel := RelativizePath(e.File, base); rel != e.File {
-				loc = fmt.Sprintf("%s:%d", rel, e.Line)
-			}
-		}
-
-		covStr := fmt.Sprintf("%.1f%%", e.Coverage)
-		if e.CoverageUntrusted {
-			covStr += " \xe2\x9a\xa0"
-		}
-
-		t.AppendRow(table.Row{
-			status,
-			fmt.Sprintf("%.2f", effectiveCRAP),
-			e.Complexity,
-			fmt.Sprintf("%s %s", covBar, covStr),
-			e.FuncName,
-			loc,
-		})
+		t.AppendRow(f.formatTableRow(e, opts, halfThreshold))
 	}
 
 	fmt.Fprintf(opts.Writer, "\n")
@@ -74,6 +50,41 @@ func (f *TableFormatter) Format(entries *score.EntryList, opts FormatOptions) er
 		fmt.Fprintf(opts.Writer, "%d/%d function(s) exceed threshold CRAP %.0f.\n", failed, total, opts.Threshold)
 	}
 	return nil
+}
+
+func (f *TableFormatter) formatTableRow(e score.CRAPEntry, opts FormatOptions, halfThreshold float64) table.Row {
+	effectiveCRAP := e.EffectiveScore()
+	status := StatusSymbol(effectiveCRAP, opts.Threshold, halfThreshold)
+	covBar := coverageBar(e.Coverage)
+	loc := f.formatLocation(e, opts.BaseDir)
+	covStr := f.formatCoverageString(e)
+
+	return table.Row{
+		status,
+		fmt.Sprintf("%.2f", effectiveCRAP),
+		e.Complexity,
+		fmt.Sprintf("%s %s", covBar, covStr),
+		e.FuncName,
+		loc,
+	}
+}
+
+func (f *TableFormatter) formatLocation(e score.CRAPEntry, baseDir string) string {
+	loc := fmt.Sprintf("%s:%d", e.File, e.Line)
+	if baseDir != "" {
+		if rel := RelativizePath(e.File, baseDir); rel != e.File {
+			loc = fmt.Sprintf("%s:%d", rel, e.Line)
+		}
+	}
+	return loc
+}
+
+func (f *TableFormatter) formatCoverageString(e score.CRAPEntry) string {
+	covStr := fmt.Sprintf("%.1f%%", e.Coverage)
+	if e.CoverageUntrusted {
+		covStr += " \xe2\x9a\xa0"
+	}
+	return covStr
 }
 
 func StatusSymbol(crap, threshold, halfThreshold float64) string {

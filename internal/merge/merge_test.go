@@ -6,6 +6,7 @@ import (
 	"github.com/padiazg/go-crap/internal/complexity"
 	"github.com/padiazg/go-crap/internal/coverage"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type MergeFn func(*testing.T, []MergedEntry)
@@ -472,4 +473,105 @@ func TestMerge_MethodMatch(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_buildSuffix_single_segment(t *testing.T) {
+	assert.Equal(t, "pkg", buildSuffix("pkg"))
+	assert.Equal(t, "file.go", buildSuffix("file.go"))
+	assert.Equal(t, "path", buildSuffix("/path"))
+}
+
+func Test_buildSuffix_two_segments(t *testing.T) {
+	assert.Equal(t, "a/b", buildSuffix("a/b"))
+	assert.Equal(t, "vendor/pkg", buildSuffix("vendor/pkg"))
+	assert.Equal(t, "internal/pkg", buildSuffix("internal/pkg"))
+}
+
+func Test_buildSuffix_three_segments(t *testing.T) {
+	assert.Equal(t, "a/b/c", buildSuffix("a/b/c"))
+	assert.Equal(t, "internal/pkg/file", buildSuffix("internal/pkg/file"))
+	assert.Equal(t, "github.com/user/pkg", buildSuffix("github.com/user/pkg"))
+}
+
+func Test_buildSuffix_more_than_three_segments(t *testing.T) {
+	assert.Equal(t, "c/d/e", buildSuffix("a/b/c/d/e"))
+	assert.Equal(t, "pkg/subpkg/file", buildSuffix("github.com/user/pkg/subpkg/file"))
+}
+
+func Test_buildSuffix_windows_path(t *testing.T) {
+	assert.Equal(t, "pkg/subpkg/file", buildSuffix("C:\\Users\\pkg\\subpkg\\file"))
+	assert.Equal(t, "C:/file.go", buildSuffix("C:\\file.go"))
+}
+
+func Test_buildSuffix_empty_segments(t *testing.T) {
+	assert.Equal(t, "a/b", buildSuffix("/a//b"))
+	assert.Equal(t, "a/b/c", buildSuffix("/a/b/c"))
+}
+
+func Test_buildSuffix_with_leading_trailing_slashes(t *testing.T) {
+	assert.Equal(t, "a/b/c", buildSuffix("/a/b/c/"))
+	assert.Equal(t, "a/b/c", buildSuffix("/a/b/c"))
+}
+
+func Test_buildIndex_empty(t *testing.T) {
+	idx := buildIndex(nil)
+	require.NotNil(t, idx)
+	assert.Empty(t, idx.byAbsolute)
+	assert.Empty(t, idx.bySuffix)
+}
+
+func Test_buildIndex_with_data(t *testing.T) {
+	coverages := []coverage.ModuleCoverage{
+		{
+			ModulePath: "mod/path",
+			Functions: []coverage.FunctionCoverage{
+				{File: "/home/user/mod/path/file.go", Name: "Func1", Coverage: 100.0},
+			},
+		},
+	}
+	idx := buildIndex(coverages)
+	require.NotNil(t, idx)
+	require.NotEmpty(t, idx.byAbsolute)
+	require.NotEmpty(t, idx.bySuffix)
+	absKey := "/home/user/mod/path/file.go"
+	_, ok := idx.byAbsolute[absKey]
+	assert.True(t, ok)
+}
+
+func Test_pathIndex_lookup_by_absolute(t *testing.T) {
+	coverages := []coverage.ModuleCoverage{
+		{
+			ModulePath: "mod/path",
+			Functions: []coverage.FunctionCoverage{
+				{File: "/home/user/mod/path/file.go", Name: "Func1", Coverage: 100.0},
+			},
+		},
+	}
+	idx := buildIndex(coverages)
+	fns, ok := idx.lookup("/home/user/mod/path/file.go")
+	assert.True(t, ok)
+	assert.NotEmpty(t, fns)
+	assert.Equal(t, "Func1", fns[0].Name)
+}
+
+func Test_pathIndex_lookup_by_suffix(t *testing.T) {
+	coverages := []coverage.ModuleCoverage{
+		{
+			ModulePath: "github.com/user/pkg",
+			Functions: []coverage.FunctionCoverage{
+				{File: "/home/user/gopath/src/github.com/user/pkg/file.go", Name: "Func1", Coverage: 50.0},
+			},
+		},
+	}
+	idx := buildIndex(coverages)
+	fns, ok := idx.lookup("user/pkg/file.go")
+	assert.True(t, ok)
+	assert.NotEmpty(t, fns)
+	assert.Equal(t, "Func1", fns[0].Name)
+}
+
+func Test_pathIndex_lookup_not_found(t *testing.T) {
+	idx := buildIndex(nil)
+	_, ok := idx.lookup("/nonexistent/path/file.go")
+	assert.False(t, ok)
 }
