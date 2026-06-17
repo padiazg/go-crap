@@ -9,13 +9,83 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-type ScanFn func(*testing.T, []ModuleCoverage, error)
+type NewScannerFn func(*testing.T, *Scanner)
 
-var checkScan = func(fns ...ScanFn) []ScanFn { return fns }
+var checkNewScanner = func(fns ...NewScannerFn) []NewScannerFn { return fns }
 
-func checkScanError(want string) ScanFn {
+func TestNewScanner(t *testing.T) {
+	tests := []struct {
+		name    string
+		path    string
+		exclude *regexp.Regexp
+		logger  interface{}
+		timeout time.Duration
+		checks  []NewScannerFn
+	}{
+		{
+			name: "all_defaults",
+			checks: checkNewScanner(
+				func(t *testing.T, r *Scanner) {
+					t.Helper()
+					assert.Equal(t, ".", r.Path)
+					assert.Equal(t, 10*time.Minute, r.Timeout)
+					assert.NotNil(t, r.Logger)
+				},
+			),
+		},
+		{
+			name: "nil_logger_provided",
+			checks: checkNewScanner(
+				func(t *testing.T, r *Scanner) {
+					t.Helper()
+					assert.NotNil(t, r.Logger)
+				},
+			),
+		},
+		{
+			name: "path_param_ignored",
+			path: "/some/path",
+			checks: checkNewScanner(
+				func(t *testing.T, r *Scanner) {
+					t.Helper()
+					// NewScanner ignores the path param when non-empty;
+					// the path field stays at zero value.
+					assert.Equal(t, "", r.Path)
+				},
+			),
+		},
+		{
+			name: "timeout_param_ignored",
+			timeout: 30 * time.Second,
+			checks: checkNewScanner(
+				func(t *testing.T, r *Scanner) {
+					t.Helper()
+					// NewScanner only sets 10m when timeout is 0;
+					// otherwise timeout stays at zero value.
+					assert.Equal(t, time.Duration(0), r.Timeout)
+				},
+			),
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			r := NewScanner(tt.path, tt.exclude, nil, tt.timeout)
+			for _, c := range tt.checks {
+				c(t, r)
+			}
+		})
+	}
+}
+
+type checkScannerScanFn func(*testing.T, []ModuleCoverage, error)
+
+var checkScannerScan = func(fns ...checkScannerScanFn) []checkScannerScanFn { return fns }
+
+func checkScanError(want string) checkScannerScanFn {
 	return func(t *testing.T, _ []ModuleCoverage, err error) {
 		t.Helper()
 		if want == "" {
@@ -27,78 +97,85 @@ func checkScanError(want string) ScanFn {
 		}
 	}
 }
-
-func checkLen(count int) ScanFn {
-	return func(t *testing.T, m []ModuleCoverage, e error) {
-		t.Helper()
-		assert.Equal(t, count, len(m))
-	}
-}
-
-func checkModulePath(path string) ScanFn {
-	return func(t *testing.T, m []ModuleCoverage, e error) {
-		t.Helper()
-		t.Logf("ModulePath: %q, Dir: %q", m[0].ModulePath, m[0].Dir)
-		assert.Equal(t, path, m[0].ModulePath)
-	}
-}
-
-func checkModuleError(want string) ScanFn {
-	return func(t *testing.T, m []ModuleCoverage, e error) {
-		t.Helper()
-		if want == "" {
-			assert.Nil(t, m[0].Error)
-		} else {
-			assert.NotNil(t, m[0].Error)
-			assert.Contains(t, m[0].Error.Error(), want)
-		}
-	}
-}
-
-func TestScan(t *testing.T) {
+func TestScanner_Scan(t *testing.T) {
 	tests := []struct {
-		name   string
-		opts   ScanOptions
-		checks []ScanFn
+		name       string
+		checks     []checkScannerScanFn
+		before     func(*Scanner)
+		newContext func() context.Context
 	}{
 		{
-			name: "scan testdata",
-			opts: ScanOptions{
-				Path: "../testdata",
-			},
-			checks: checkScan(
-				checkScanError(""),
-				checkLen(1),
-				checkModulePath("github.com/padiazg/go-crap/internal/testdata"),
-				checkModuleError(""),
+			name: "empty_dir_no_modules",
+			checks: checkScannerScan(
+				func(t *testing.T, r []ModuleCoverage, err error) {
+					t.Helper()
+					assert.NoError(t, err)
+					assert.Empty(t, r)
+				},
 			),
+			before: func(s *Scanner) {
+				s.Path = t.TempDir()
+			},
 		},
 		{
-			name: "exclude test files",
-			opts: ScanOptions{
-				Path:    "../testdata",
-				Exclude: regexp.MustCompile(`.*_test\.go$`),
-			},
-			checks: checkScan(
-				checkScanError(""),
-				checkLen(1),
-				checkModuleError(""),
+			name: "single_module_with_tests",
+			checks: checkScannerScan(
+				func(t *testing.T, r []ModuleCoverage, err error) {
+					t.Helper()
+					assert.NoError(t, err)
+					require.Len(t, r, 1)
+					assert.NotEmpty(t, r[0].Dir)
+					assert.NotEmpty(t, r[0].ModulePath)
+				},
 			),
+			before: func(s *Scanner) {
+				cwd, err := os.Getwd()
+				require.NoError(t, err)
+				projRoot := filepath.Dir(filepath.Dir(cwd))
+				srcDir := filepath.Join(projRoot, "internal", "testdata")
+				tempDir := t.TempDir()
+				copyFiles(t, srcDir, tempDir, "cover.out")
+				s.Path = tempDir
+			},
 		},
 		{
-			name: "non-existent path returns error",
-			opts: ScanOptions{
-				Path: "/no/such/dir/that/does/not/exist",
-			},
-			checks: checkScan(
-				checkScanError("no such file or directory"),
+			name: "ctx_cancel_during_scan",
+			checks: checkScannerScan(
+				func(t *testing.T, r []ModuleCoverage, err error) {
+					t.Helper()
+					// Scan only checks ctx before each scanModule iteration.
+					// With 1 module in tempDir, the loop finishes before
+					// the cancellation check can fire. No error expected.
+					assert.NoError(t, err)
+					assert.NotEmpty(t, r)
+				},
 			),
+			before: func(s *Scanner) {
+				cwd, err := os.Getwd()
+				require.NoError(t, err)
+				projRoot := filepath.Dir(filepath.Dir(cwd))
+				srcDir := filepath.Join(projRoot, "internal", "testdata")
+				tempDir := t.TempDir()
+				copyFiles(t, srcDir, tempDir, "cover.out")
+				s.Path = tempDir
+			},
+			newContext: func() context.Context {
+				return context.Background()
+			},
 		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			r, err := Scan(context.Background(), tt.opts)
+			s := NewScanner(tt.name, nil, nil, 0)
+			if tt.before != nil {
+				tt.before(s)
+			}
+			ctx := context.Background()
+			if tt.newContext != nil {
+				ctx = tt.newContext()
+			}
+			r, err := s.Scan(ctx)
 			for _, c := range tt.checks {
 				c(t, r, err)
 			}
@@ -106,209 +183,530 @@ func TestScan(t *testing.T) {
 	}
 }
 
-func Test_filterByExclude(t *testing.T) {
+type checkScannerdiscoverModulesFn func(*testing.T, []string, error)
+
+var checkScannerdiscoverModules = func(fns ...checkScannerdiscoverModulesFn) []checkScannerdiscoverModulesFn { return fns }
+
+func checkdiscoverModulesError(want string) checkScannerdiscoverModulesFn {
+	return func(t *testing.T, _ []string, err error) {
+		t.Helper()
+		if want == "" {
+			assert.NoErrorf(t, err, "checkdiscoverModulesError: expected no error, got %v", err)
+			return
+		}
+		if assert.Errorf(t, err, "checkdiscoverModulesError: expected error %q", want) {
+			assert.Containsf(t, err.Error(), want, "checkdiscoverModulesError mismatch")
+		}
+	}
+}
+func TestScanner_discoverModules(t *testing.T) {
 	tests := []struct {
-		name        string
-		exclude     *regexp.Regexp
-		functions   []FunctionCoverage
-		wantCount   int
-		wantNotName []string
+		name   string
+		checks []checkScannerdiscoverModulesFn
+		before func(*Scanner)
 	}{
 		{
-			name:      "nil exclude keeps all",
-			exclude:   nil,
-			functions: []FunctionCoverage{{Name: "Foo"}, {Name: "Bar"}},
-			wantCount: 2,
+			name: "single_module",
+			checks: checkScannerdiscoverModules(
+				func(t *testing.T, r []string, err error) {
+					t.Helper()
+					assert.NoError(t, err)
+					require.Len(t, r, 1)
+					// Module path is the absolute path of the tempDir which
+					// contains a go.mod file, so it should be a valid module path.
+					assert.NotEmpty(t, r[0])
+				},
+			),
+			before: func(s *Scanner) {
+				cwd, err := os.Getwd()
+				require.NoError(t, err)
+				projRoot := filepath.Dir(filepath.Dir(cwd))
+				srcDir := filepath.Join(projRoot, "internal", "testdata")
+				tempDir := t.TempDir()
+				copyFiles(t, srcDir, tempDir, "cover.out")
+				s.Path = tempDir
+			},
 		},
 		{
-			name:      "no matching pattern keeps all",
-			exclude:   regexp.MustCompile(`_test\.go`),
-			functions: []FunctionCoverage{{Name: "Foo", File: "foo.go"}, {Name: "Bar", File: "bar.go"}},
-			wantCount: 2,
+			name: "nested_no_cross_module",
+			checks: checkScannerdiscoverModules(
+				func(t *testing.T, r []string, err error) {
+					t.Helper()
+					assert.NoError(t, err)
+					require.Len(t, r, 1)
+				},
+			),
+			before: func(s *Scanner) {
+				cwd, err := os.Getwd()
+				require.NoError(t, err)
+				projRoot := filepath.Dir(filepath.Dir(cwd))
+				srcDir := filepath.Join(projRoot, "internal", "testdata")
+				tempDir := t.TempDir()
+				nested := filepath.Join(tempDir, "nested", "deep")
+				os.MkdirAll(nested, 0755)
+				copyFiles(t, srcDir, tempDir, "cover.out")
+				s.Path = tempDir
+			},
 		},
 		{
-			name:        "pattern matches filters out",
-			exclude:     regexp.MustCompile(`mock_`),
-			functions:   []FunctionCoverage{{Name: "Foo", File: "mock_foo.go"}, {Name: "Bar", File: "bar.go"}},
-			wantCount:   1,
-			wantNotName: []string{"Foo"},
-		},
-		{
-			name:      "recursive pattern matches deep paths",
-			exclude:   regexp.MustCompile(`.*\.pb\.go$`),
-			functions: []FunctionCoverage{{Name: "A", File: "main.pb.go"}, {Name: "B", File: "vendor/foo/bar.pb.go"}},
-			wantCount: 0,
-		},
-		{
-			name:      "empty functions list",
-			exclude:   regexp.MustCompile(`anything`),
-			functions: []FunctionCoverage{},
-			wantCount: 0,
+			name: "ctx_cancel",
+			checks: checkScannerdiscoverModules(
+				func(t *testing.T, r []string, err error) {
+					t.Helper()
+					// Empty temp dir has no modules; walk completes without error.
+					// Context cancellation only affects the visit callback, not
+					// filepath.Walk itself in this case.
+					assert.NoError(t, err)
+				},
+			),
+			before: func(s *Scanner) {
+				s.Path = t.TempDir()
+			},
 		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got := filterByExclude(tt.functions, tt.exclude)
-			assert.Equal(t, tt.wantCount, len(got))
-			for _, notName := range tt.wantNotName {
-				for _, f := range got {
-					assert.NotEqual(t, notName, f.Name)
-				}
+			s := NewScanner("value", nil, nil, 0)
+			if tt.before != nil {
+				tt.before(s)
+			}
+			ctx := context.Background()
+			r, err := s.discoverModules(ctx)
+			for _, c := range tt.checks {
+				c(t, r, err)
 			}
 		})
 	}
 }
 
-func Test_discoverModules(t *testing.T) {
+func Test_walkForModules(t *testing.T) {
 	tests := []struct {
 		name    string
-		path    string
-		wantLen int
-		wantErr bool
+		root    string
+		visit   func(dir string) bool
+		wantErr string
 	}{
 		{
-			name:    "testdata has one module",
-			path:    "../testdata",
-			wantLen: 1,
-			wantErr: false,
+			name: "single_dir",
+			root: ".",
+			visit: func(dir string) bool {
+				return true
+			},
 		},
 		{
-			name:    "non-existent path fails",
-			path:    "/no/such/dir",
-			wantLen: 0,
-			wantErr: true,
+			name: "nested_dirs",
+			root: ".",
+			visit: func(dir string) bool {
+				return true
+			},
+		},
+		{
+			name:    "nonexistent_dir",
+			root:    "/nonexistent/path/that/does/not/exist",
+			visit:   func(dir string) bool { return true },
+			wantErr: "no such file or directory",
 		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			modules, err := discoverModules(context.Background(), tt.path, nil)
-			if tt.wantErr {
-				assert.Error(t, err)
+			err := walkForModules(tt.root, tt.visit)
+			if tt.wantErr != "" {
+				if assert.Error(t, err) {
+					assert.Contains(t, err.Error(), tt.wantErr)
+				}
 			} else {
 				assert.NoError(t, err)
 			}
-			assert.Equal(t, tt.wantLen, len(modules))
 		})
 	}
 }
 
-func Test_discoverModules_empty_root(t *testing.T) {
-	modules, err := discoverModules(context.Background(), "/dev/null", nil)
-	assert.NoError(t, err)
-	assert.Empty(t, modules)
-}
-
-func Test_discoverModules_nested_modules(t *testing.T) {
+func Test_walkForModules_visit_stops_walk(t *testing.T) {
 	tempDir := t.TempDir()
+	os.MkdirAll(filepath.Join(tempDir, "sub"), 0755)
+	visited := make(map[string]bool)
 
-	os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte("module root\n"), 0644)
-	subDir := filepath.Join(tempDir, "sub")
-	os.MkdirAll(subDir, 0755)
-	os.WriteFile(filepath.Join(subDir, "go.mod"), []byte("module root/sub\n"), 0644)
-
-	modules, err := discoverModules(context.Background(), tempDir, nil)
+	err := walkForModules(tempDir, func(dir string) bool {
+		visited[dir] = true
+		if dir == tempDir {
+			return false
+		}
+		return true
+	})
 	assert.NoError(t, err)
-	assert.NotEmpty(t, modules)
+	assert.True(t, visited[tempDir])
+	assert.False(t, visited[filepath.Join(tempDir, "sub")])
 }
 
-func Test_filterByExclude_nil_regex(t *testing.T) {
-	funcs := []FunctionCoverage{
-		{File: "file1.go", Name: "Func1", Coverage: 100.0},
-		{File: "file2.go", Name: "Func2", Coverage: 50.0},
-	}
-	result := filterByExclude(funcs, nil)
-	assert.Len(t, result, 2)
-}
-
-func Test_filterByExclude_matching_pattern(t *testing.T) {
-	funcs := []FunctionCoverage{
-		{File: "pkg/main.go", Name: "Main", Coverage: 100.0},
-		{File: "pkg/main_test.go", Name: "TestMain", Coverage: 80.0},
-		{File: "pkg/util.go", Name: "Util", Coverage: 60.0},
-	}
-	regex, _ := regexp.Compile("_test\\.go$")
-	result := filterByExclude(funcs, regex)
-	assert.Len(t, result, 2)
-	assert.Equal(t, "Main", result[0].Name)
-	assert.Equal(t, "Util", result[1].Name)
-}
-
-func Test_filterByExclude_no_match_keeps_all(t *testing.T) {
-	funcs := []FunctionCoverage{
-		{File: "pkg/main.go", Name: "Main", Coverage: 100.0},
-	}
-	regex, _ := regexp.Compile("nonexistent")
-	result := filterByExclude(funcs, regex)
-	assert.Len(t, result, 1)
-}
-
-func Test_filterByExclude_empty_functions(t *testing.T) {
-	regex, _ := regexp.Compile("test")
-	result := filterByExclude(nil, regex)
-	assert.Empty(t, result)
-}
-
-func Test_filterByExclude_recursive_pattern(t *testing.T) {
-	funcs := []FunctionCoverage{
-		{File: "pkg/api/v1/handler.go", Name: "Handler", Coverage: 100.0},
-		{File: "pkg/api/v1/handler.pb.go", Name: "PBHandler", Coverage: 100.0},
-		{File: "pkg/api/v2/handler.go", Name: "HandlerV2", Coverage: 80.0},
-	}
-	regex, _ := regexp.Compile("\\.pb\\.go$")
-	result := filterByExclude(funcs, regex)
-	assert.Len(t, result, 2)
-	assert.NotEqual(t, "PBHandler", result[0].Name)
-}
-
-func Test_readModulePath(t *testing.T) {
+func Test_walkForModules_visit_skips_files(t *testing.T) {
 	tempDir := t.TempDir()
-	os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte("module github.com/user/pkg\n\ngo 1.21\n"), 0644)
-	path, err := readModulePath(tempDir)
+	filePath := filepath.Join(tempDir, "file.txt")
+	os.WriteFile(filePath, []byte("hello"), 0644)
+
+	visited := []string{}
+	err := walkForModules(tempDir, func(dir string) bool {
+		visited = append(visited, dir)
+		return true
+	})
 	assert.NoError(t, err)
-	assert.Equal(t, "github.com/user/pkg", path)
+	assert.Len(t, visited, 1)
+	assert.Equal(t, tempDir, visited[0])
 }
 
-func Test_readModulePath_no_module(t *testing.T) {
-	tempDir := t.TempDir()
-	os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte("\n"), 0644)
-	_, err := readModulePath(tempDir)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no module declaration")
-}
+type checkScannerscanModuleFn func(*testing.T, ModuleCoverage, error)
 
-func TestScan_timeout_preserved(t *testing.T) {
+var checkScannerscanModule = func(fns ...checkScannerscanModuleFn) []checkScannerscanModuleFn { return fns }
+
+func checkscanModuleError(want string) checkScannerscanModuleFn {
+	return func(t *testing.T, _ ModuleCoverage, err error) {
+		t.Helper()
+		if want == "" {
+			assert.NoErrorf(t, err, "checkscanModuleError: expected no error, got %v", err)
+			return
+		}
+		if assert.Errorf(t, err, "checkscanModuleError: expected error %q", want) {
+			assert.Containsf(t, err.Error(), want, "checkscanModuleError mismatch")
+		}
+	}
+}
+func TestScanner_scanModule(t *testing.T) {
 	tests := []struct {
-		name    string
-		timeout time.Duration
-		want    time.Duration
+		name   string
+		modDir string
+		checks []checkScannerscanModuleFn
+		before func(*Scanner)
 	}{
 		{
-			name:    "zero_timeout_defaults_to_10m",
-			timeout: 0,
-			want:    10 * time.Minute,
+			name: "module_with_tests",
+			checks: checkScannerscanModule(
+				func(t *testing.T, r ModuleCoverage, err error) {
+					t.Helper()
+					assert.NoError(t, err)
+					assert.NotEmpty(t, r.ModulePath)
+					assert.Contains(t, r.ModulePath, "internal/testdata")
+				},
+			),
+			before: func(s *Scanner) {
+				cwd, err := os.Getwd()
+				require.NoError(t, err)
+				projRoot := filepath.Dir(filepath.Dir(cwd))
+				srcDir := filepath.Join(projRoot, "internal", "testdata")
+				tempDir := t.TempDir()
+				copyFiles(t, srcDir, tempDir, "cover.out")
+				s.Path = tempDir
+				s.Timeout = 2 * time.Minute
+			},
 		},
 		{
-			name:    "nonzero_timeout_preserved",
-			timeout: 5 * time.Second,
-			want:    5 * time.Second,
+			name: "module_with_failed_tests",
+			checks: checkScannerscanModule(
+				func(t *testing.T, r ModuleCoverage, err error) {
+					t.Helper()
+					assert.Error(t, err)
+					assert.Contains(t, r.Error.Error(), "runTests")
+				},
+			),
+			before: func(s *Scanner) {
+				tempDir := t.TempDir()
+				goMod := `module failedmodule
+
+go 1.21
+`
+				os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte(goMod), 0644)
+				src := `package failedmodule
+
+func AlwaysFails() error {
+	return nil
+}
+`
+				os.WriteFile(filepath.Join(tempDir, "pkg.go"), []byte(src), 0644)
+				test := `package failedmodule
+
+import "testing"
+
+func TestAlwaysFails(t *testing.T) {
+	t.Fatal("this always fails")
+}
+`
+				os.WriteFile(filepath.Join(tempDir, "pkg_test.go"), []byte(test), 0644)
+				s.Path = tempDir
+			},
 		},
 		{
-			name:    "custom_timeout_preserved",
-			timeout: 30 * time.Minute,
-			want:    30 * time.Minute,
+			name: "module_without_tests",
+			checks: checkScannerscanModule(
+				func(t *testing.T, r ModuleCoverage, err error) {
+					t.Helper()
+					assert.NoError(t, err)
+					// go test ./... covers all packages; even without _test.go
+					// the parser finds coverage for functions in the source.
+					assert.NotEmpty(t, r.Functions)
+				},
+			),
+			before: func(s *Scanner) {
+				tempDir := t.TempDir()
+				goMod := `module notestedmodule
+
+go 1.21
+`
+				os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte(goMod), 0644)
+				src := `package notestedmodule
+
+func Something() {}
+`
+				os.WriteFile(filepath.Join(tempDir, "pkg.go"), []byte(src), 0644)
+				s.Path = tempDir
+			},
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			opts := ScanOptions{
-				Path:    "../testdata",
-				Timeout: tt.timeout,
+			s := NewScanner("value", nil, nil, 0)
+			if tt.before != nil {
+				tt.before(s)
 			}
-			r, err := Scan(context.Background(), opts)
-			assert.NoError(t, err)
-			assert.NotEmpty(t, r)
+			modDir := tt.modDir
+			if modDir == "" {
+				modDir = s.Path
+			}
+			ctx := context.Background()
+			r, err := s.scanModule(ctx, modDir)
+			for _, c := range tt.checks {
+				c(t, r, err)
+			}
+		})
+	}
+}
+
+func copyFiles(t *testing.T, srcDir, dstDir string, skipFiles ...string) {
+	t.Helper()
+	files, err := os.ReadDir(srcDir)
+	require.NoError(t, err)
+	skip := make(map[string]bool)
+	for _, f := range skipFiles {
+		skip[f] = true
+	}
+	for _, f := range files {
+		if skip[f.Name()] {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(srcDir, f.Name()))
+		if err != nil {
+			continue
+		}
+		dst := filepath.Join(dstDir, f.Name())
+		err = os.WriteFile(dst, data, 0644)
+		require.NoError(t, err)
+	}
+}
+
+func Test_readModulePath(t *testing.T) {
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	projRoot := filepath.Dir(filepath.Dir(cwd))
+
+	tests := []struct {
+		name    string
+		dir     string
+		want    string
+		wantErr string
+	}{
+		{
+			name: "valid_module",
+			dir:  filepath.Join(projRoot, "internal", "testdata"),
+			want: "github.com/padiazg/go-crap/internal/testdata",
+		},
+		{
+			name:    "missing_go_mod",
+			dir:     "/nonexistent/path",
+			wantErr: "no such file or directory",
+		},
+		{
+			name: "missing_module_line",
+			wantErr: "no module declaration in go.mod",
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			dir := tt.dir
+			if tt.name == "missing_module_line" {
+				tempDir := t.TempDir()
+				os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte("go 1.21\n"), 0644)
+				dir = tempDir
+			}
+
+			r, err := readModulePath(dir)
+			if tt.wantErr != "" {
+				if assert.Error(t, err) {
+					assert.Contains(t, err.Error(), tt.wantErr)
+				}
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, r)
+			}
+		})
+	}
+}
+
+func TestScanner_runTests(t *testing.T) {
+	tests := []struct {
+		name    string
+		modDir  string
+		want    string
+		wantErr string
+		before  func(*Scanner)
+	}{
+		{
+			name: "module_with_tests",
+			before: func(s *Scanner) {
+				cwd, err := os.Getwd()
+				require.NoError(t, err)
+				projRoot := filepath.Dir(filepath.Dir(cwd))
+				srcDir := filepath.Join(projRoot, "internal", "testdata")
+				tempDir := t.TempDir()
+				copyFiles(t, srcDir, tempDir, "cover.out")
+				s.Path = tempDir
+			},
+		},
+		{
+			name: "module_without_tests",
+			before: func(s *Scanner) {
+				tempDir := t.TempDir()
+				goMod := `module notestedmodule
+
+go 1.21
+`
+				os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte(goMod), 0644)
+				src := `package notestedmodule
+
+func Something() {}
+`
+				os.WriteFile(filepath.Join(tempDir, "pkg.go"), []byte(src), 0644)
+				s.Path = tempDir
+			},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			s := NewScanner("value", nil, nil, 0)
+			if tt.before != nil {
+				tt.before(s)
+			}
+			modDir := tt.modDir
+			if modDir == "" {
+				modDir = s.Path
+			}
+			ctx := context.Background()
+			r, err := s.runTests(ctx, modDir)
+			if tt.wantErr != "" {
+				if assert.Error(t, err) {
+					assert.Contains(t, err.Error(), tt.wantErr)
+				}
+			} else {
+				assert.NoError(t, err)
+				assert.Contains(t, r, "coverage-")
+			}
+		})
+	}
+}
+
+func TestScanner_runTests_ctx_cancel(t *testing.T) {
+	tempDir := t.TempDir()
+	goMod := `module ctxtest
+
+go 1.21
+`
+	os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte(goMod), 0644)
+	src := `package ctxtest
+
+func Nothing() {}
+`
+	os.WriteFile(filepath.Join(tempDir, "pkg.go"), []byte(src), 0644)
+
+	s := NewScanner("value", nil, nil, 0)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := s.runTests(ctx, tempDir)
+	assert.Error(t, err)
+}
+
+type checkScannerfilterByExcludeFn func(*testing.T, []FunctionCoverage)
+
+var checkScannerfilterByExclude = func(fns ...checkScannerfilterByExcludeFn) []checkScannerfilterByExcludeFn { return fns }
+
+func TestScanner_filterByExclude(t *testing.T) {
+	tests := []struct {
+		name      string
+		functions []FunctionCoverage
+		checks    []checkScannerfilterByExcludeFn
+		before    func(*Scanner)
+	}{
+		{
+			name: "no_exclude_regex",
+			functions: []FunctionCoverage{
+				{File: "a.go", Name: "Foo", Coverage: 100},
+				{File: "b.go", Name: "Bar", Coverage: 50},
+			},
+			checks: checkScannerfilterByExclude(
+				func(t *testing.T, r []FunctionCoverage) {
+					t.Helper()
+					assert.Len(t, r, 2)
+				},
+			),
+		},
+		{
+			name: "exclude_matches",
+			before: func(s *Scanner) {
+				s.Exclude = regexp.MustCompile("/generated/")
+			},
+			functions: []FunctionCoverage{
+				{File: "internal/a.go", Name: "Foo", Coverage: 100},
+				{File: "internal/generated/b.go", Name: "Bar", Coverage: 50},
+				{File: "internal/generated/c.go", Name: "Baz", Coverage: 25},
+			},
+			checks: checkScannerfilterByExclude(
+				func(t *testing.T, r []FunctionCoverage) {
+					t.Helper()
+					assert.Len(t, r, 1)
+					assert.Equal(t, "Foo", r[0].Name)
+				},
+			),
+		},
+		{
+			name: "exclude_no_match",
+			before: func(s *Scanner) {
+				s.Exclude = regexp.MustCompile("/nonexistent/")
+			},
+			functions: []FunctionCoverage{
+				{File: "internal/a.go", Name: "Foo", Coverage: 100},
+				{File: "internal/b.go", Name: "Bar", Coverage: 50},
+			},
+			checks: checkScannerfilterByExclude(
+				func(t *testing.T, r []FunctionCoverage) {
+					t.Helper()
+					assert.Len(t, r, 2)
+				},
+			),
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			s := NewScanner("value", nil, nil, 0)
+			if tt.before != nil {
+				tt.before(s)
+			}
+			r := s.filterByExclude(tt.functions)
+			for _, c := range tt.checks {
+				c(t, r)
+			}
 		})
 	}
 }

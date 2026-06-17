@@ -363,18 +363,21 @@ func parsePositionFields(rest string) (startLine int, covered bool, err error) {
 }
 
 func parseCoord(s string) (line, col int) {
-	sep := strings.Index(s, ".")
-	if sep <= 0 {
+	before, after, ok := strings.Cut(s, ".")
+	if !ok {
 		return 0, 0
 	}
-	line, err := strconv.Atoi(s[:sep])
+
+	line, err := strconv.Atoi(before)
 	if err != nil {
 		return 0, 0
 	}
-	col, err = strconv.Atoi(s[sep+1:])
+
+	col, err = strconv.Atoi(after)
 	if err != nil {
 		return line, 0
 	}
+
 	return line, col
 }
 

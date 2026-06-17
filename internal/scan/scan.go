@@ -69,11 +69,8 @@ func buildExcludeRegex(exclude []string) (*regexp.Regexp, error) {
 }
 
 func runCoverageAnalysis(ctx context.Context, options *Options, exclude *regexp.Regexp) ([]coverage.ModuleCoverage, error) {
-	coverages, err := coverage.Scan(ctx, coverage.ScanOptions{
-		Path:    options.Path,
-		Exclude: exclude,
-		Logger:  options.Logger,
-	})
+	scanner := coverage.NewScanner(options.Path, exclude, options.Logger, 0)
+	coverages, err := scanner.Scan(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("coverage scan: %w", err)
 	}

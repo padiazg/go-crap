@@ -316,20 +316,6 @@ func testFunc() {
 	}
 }
 
-func Test_parseCoord_boundary(t *testing.T) {
-	line, col := parseCoord("0.0")
-	assert.Equal(t, 0, line)
-	assert.Equal(t, 0, col)
-
-	line, col = parseCoord("1.1")
-	assert.Equal(t, 1, line)
-	assert.Equal(t, 1, col)
-
-	line, col = parseCoord("100.200")
-	assert.Equal(t, 100, line)
-	assert.Equal(t, 200, col)
-}
-
 func Test_parseCoverProfile_boundary_empty_profile(t *testing.T) {
 	tempDir := t.TempDir()
 	profPath := filepath.Join(tempDir, "cover.out")
@@ -382,12 +368,6 @@ func Test_parseProfileLine_boundary_no_colon(t *testing.T) {
 func Test_parseProfileLine_boundary_colon_at_zero(t *testing.T) {
 	_, err := parseProfileLine(":10.5,20.10 0 1")
 	assert.Error(t, err, "colon at position 0 means empty path should be rejected")
-}
-
-func Test_parseCoord_boundary_dot_at_zero(t *testing.T) {
-	line, col := parseCoord(".10")
-	assert.Equal(t, 0, line)
-	assert.Equal(t, 0, col, "dot at position 0 means empty line number should return 0")
 }
 
 func Test_readProfileEntries_boundary_empty_reader(t *testing.T) {
@@ -821,6 +801,34 @@ func foo() { x := 1 }; func bar() { y := 2 }
 			for _, c := range tt.checks {
 				c(t, r)
 			}
+		})
+	}
+}
+
+func Test_parseCoord(t *testing.T) {
+	tests := []struct {
+		name     string
+		s        string
+		wantLine int
+		wantCol  int
+	}{
+		{name: "normal", s: "10.5", wantLine: 10, wantCol: 5},
+		{name: "zero_line", s: "0.1", wantLine: 0, wantCol: 1},
+		{name: "multi_digit_line_col", s: "123.456", wantLine: 123, wantCol: 456},
+		{name: "dot_at_start", s: ".5", wantLine: 0, wantCol: 0},
+		{name: "no_dot", s: "123", wantLine: 0, wantCol: 0},
+		{name: "negative_line", s: "-1.5", wantLine: -1, wantCol: 5},
+		{name: "non_numeric_line", s: "abc.5", wantLine: 0, wantCol: 0},
+		{name: "non_numeric_col", s: "10.abc", wantLine: 10, wantCol: 0},
+		{name: "empty_string", s: "", wantLine: 0, wantCol: 0},
+		{name: "not_present", s: "abc", wantLine: 0, wantCol: 0},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			l, c := parseCoord(tt.s)
+			assert.Equalf(t, tt.wantLine, l, "line: %d, want %d", l, tt.wantLine)
+			assert.Equalf(t, tt.wantCol, c, "col: %d, want %d", c, tt.wantCol)
 		})
 	}
 }
