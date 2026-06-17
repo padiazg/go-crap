@@ -11,27 +11,38 @@ import (
 	"strings"
 	"time"
 
+	"github.com/padiazg/go-crap/pkg/dummylogger"
 	"github.com/padiazg/go-crap/pkg/logger"
 )
 
-type ScanOptions struct {
+type Scanner struct {
 	Exclude *regexp.Regexp
 	Logger  logger.Logger
 	Timeout time.Duration
 	Path    string
 }
 
-// Scan walks the filesystem for Go modules, runs tests with coverage, and returns coverage data for each module.
-func Scan(ctx context.Context, opts ScanOptions) ([]ModuleCoverage, error) {
-	if opts.Timeout == 0 {
+func NewScanner(path string, exclude *regexp.Regexp, logger logger.Logger, timeout time.Duration) *Scanner {
+	var opts Scanner
+
+	if timeout == 0 {
 		opts.Timeout = 10 * time.Minute
 	}
 
-	if opts.Path == "" {
+	if path == "" {
 		opts.Path = "."
 	}
 
-	modules, err := discoverModules(ctx, opts.Path, opts.Logger)
+	if logger == nil {
+		opts.Logger = dummylogger.New(nil)
+	}
+
+	return &opts
+}
+
+// Scan walks the filesystem for Go modules, runs tests with coverage, and returns coverage data for each module.
+func (s *Scanner) Scan(ctx context.Context) ([]ModuleCoverage, error) {
+	modules, err := s.discoverModules(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("discover modules: %w", err)
 	}
@@ -44,11 +55,9 @@ func Scan(ctx context.Context, opts ScanOptions) ([]ModuleCoverage, error) {
 		default:
 		}
 
-		mc, err := scanModule(ctx, modDir, opts.Exclude, opts.Timeout, opts.Logger)
+		mc, err := s.scanModule(ctx, modDir)
 		if err != nil {
-			if opts.Logger != nil {
-				opts.Logger.Debug("coverage scan: module error", "module", modDir, "error", err.Error())
-			}
+			s.Logger.Debug("coverage scan: module error", "module", modDir, "error", err.Error())
 			results = append(results, ModuleCoverage{
 				Dir:   modDir,
 				Error: fmt.Errorf("scan %s: %w", modDir, err),
@@ -62,9 +71,9 @@ func Scan(ctx context.Context, opts ScanOptions) ([]ModuleCoverage, error) {
 	return results, nil
 }
 
-func discoverModules(ctx context.Context, root string, l logger.Logger) ([]string, error) {
+func (s *Scanner) discoverModules(ctx context.Context) ([]string, error) {
 	var modules []string
-	err := walkForModules(root, func(dir string) bool {
+	err := walkForModules(s.Path, func(dir string) bool {
 		select {
 		case <-ctx.Done():
 			return false
@@ -76,9 +85,7 @@ func discoverModules(ctx context.Context, root string, l logger.Logger) ([]strin
 			if err == nil {
 				modules = append(modules, absPath)
 			} else {
-				if l != nil {
-					l.Debug("coverage scan: could not resolve absolute path", "dir", dir, "error", err.Error())
-				}
+				s.Logger.Debug("coverage scan: could not resolve absolute path", "dir", dir, "error", err.Error())
 				modules = append(modules, dir)
 			}
 			return false
@@ -106,18 +113,16 @@ func walkForModules(root string, visit func(dir string) bool) error {
 	})
 }
 
-func scanModule(ctx context.Context, modDir string, exclude *regexp.Regexp, timeout time.Duration, l logger.Logger) (ModuleCoverage, error) {
+func (s *Scanner) scanModule(ctx context.Context, modDir string) (ModuleCoverage, error) {
 	mc := ModuleCoverage{Dir: modDir}
 	modulePath, err := readModulePath(modDir)
 	if err != nil {
-		if l != nil {
-			l.Debug("coverage scan: read module path", "error", err.Error())
-		}
+		s.Logger.Debug("coverage scan: read module path", "error", err.Error())
 		modulePath = filepath.Base(modDir)
 	}
 
 	mc.ModulePath = modulePath
-	profile, err := runTests(ctx, modDir, exclude, timeout, l)
+	profile, err := s.runTests(ctx, modDir)
 	if err != nil {
 		mc.Error = fmt.Errorf("runTests: %w", err)
 		return mc, mc.Error
@@ -129,7 +134,7 @@ func scanModule(ctx context.Context, modDir string, exclude *regexp.Regexp, time
 		return mc, mc.Error
 	}
 
-	mc.Functions = filterByExclude(functions, exclude)
+	mc.Functions = s.filterByExclude(functions)
 	return mc, nil
 }
 
@@ -147,15 +152,13 @@ func readModulePath(dir string) (string, error) {
 	return "", fmt.Errorf("no module declaration in go.mod")
 }
 
-func runTests(ctx context.Context, modDir string, _ *regexp.Regexp, timeout time.Duration, l logger.Logger) (string, error) {
+func (s *Scanner) runTests(ctx context.Context, modDir string) (string, error) {
 	tmpfile, err := os.CreateTemp("", "coverage-*.out")
 	if err != nil {
 		return "", err
 	}
 	if err := tmpfile.Close(); err != nil {
-		if l != nil {
-			l.Debug("coverage scan: tmpfile close error", "error", err.Error())
-		}
+		s.Logger.Debug("coverage scan: tmpfile close error", "error", err.Error())
 	}
 	profile := tmpfile.Name()
 	// cmd := exec.CommandContext(ctx, "go", "test", "-coverpkg=./...", "-coverprofile="+profile, "./...")
@@ -168,9 +171,7 @@ func runTests(ctx context.Context, modDir string, _ *regexp.Regexp, timeout time
 	err = cmd.Run()
 	if err != nil {
 		if removeErr := os.Remove(profile); removeErr != nil {
-			if l != nil {
-				l.Debug("coverage scan: remove temp file error", "profile", profile, "error", removeErr.Error())
-			}
+			s.Logger.Debug("coverage scan: remove temp file error", "profile", profile, "error", removeErr.Error())
 		}
 		return "", fmt.Errorf("go test: %w\n%s", err, stderr.String())
 	}
@@ -178,13 +179,14 @@ func runTests(ctx context.Context, modDir string, _ *regexp.Regexp, timeout time
 	return profile, nil
 }
 
-func filterByExclude(functions []FunctionCoverage, ignore *regexp.Regexp) []FunctionCoverage {
-	if ignore == nil {
+func (s *Scanner) filterByExclude(functions []FunctionCoverage) []FunctionCoverage {
+	if s.Exclude == nil {
 		return functions
 	}
+
 	var kept []FunctionCoverage
 	for _, fn := range functions {
-		if !ignore.MatchString(fn.File) {
+		if !s.Exclude.MatchString(fn.File) {
 			kept = append(kept, fn)
 		}
 	}
