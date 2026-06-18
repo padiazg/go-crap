@@ -17,9 +17,9 @@ jobs:
       - run: go build -o go-crap .
 
       - name: Lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
-          version: v1.65.0
+          version: latest
 
   crap:
     runs-on: ubuntu-latest
