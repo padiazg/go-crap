@@ -400,6 +400,30 @@ func TestTableFormatter_Format_sort_equal_mutation_score_no_panic(t *testing.T) 
 	require.NoError(t, err)
 }
 
+func TestTableFormatter_Format_sort_effective_crap_tie_break_mutation_boundary(t *testing.T) {
+	// COND_BOUND :25 — effectiveI > effectiveJ flipped to >= survives when
+	// mutation scores are equal because both return false for equal mutations.
+	// Uses different mutation scores to force the > operator:
+	//   effective equal, mutation[0]=0.8 > mutation[1]=0.3 → i before j
+	// If mutant (>=) were active: 0.8 >= 0.8 → false, 0.3 >= 0.8 → false,
+	// comparator returns false,false for all pairs → sort may swap → order broken.
+	f := &TableFormatter{}
+	buf := &bytes.Buffer{}
+	entries := scan.Entries{List: []score.CRAPEntry{
+		{File: "/project/a.go", Package: "myapp", FuncName: "A", Line: 1, Complexity: 5, Coverage: 20, CRAP: 32.0, EffectiveCRAP: 32.0, MutationScore: 0.3},
+		{File: "/project/b.go", Package: "myapp", FuncName: "B", Line: 1, Complexity: 5, Coverage: 20, CRAP: 32.0, EffectiveCRAP: 32.0, MutationScore: 0.8},
+	}}
+	opts := FormatOptions{Threshold: 200, Writer: buf}
+	err := f.Format(&entries, opts)
+	require.NoError(t, err)
+	output := buf.String()
+	require.Contains(t, output, "B")
+	require.Contains(t, output, "A")
+	bIdx := strings.Index(output, "B")
+	aIdx := strings.Index(output, "A")
+	assert.Greater(t, bIdx, aIdx, "B (higher mutation) should appear before A (lower mutation)")
+}
+
 func Test_coverageBar_at_zero(t *testing.T) {
 	bar := coverageBar(0.0)
 	assert.Equal(t, "░░░░░░░░░░", bar)

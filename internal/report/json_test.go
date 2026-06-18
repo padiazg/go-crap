@@ -84,7 +84,7 @@ func TestJSONFormatter_DetailedMutationDetails(t *testing.T) {
 
 	goodEntry := gotReport.Entries[1]
 	assert.Equal(t, "GoodFunction", goodEntry.Function)
-	assert.Equal(t, 0, len(goodEntry.MutationDetails))
+	assert.Nil(t, goodEntry.MutationDetails)
 }
 
 type checkJSONFormatterFormatFn func(*testing.T, error)
@@ -419,4 +419,21 @@ func TestJSONFormatter_detailed_disabled_omits_mutations(t *testing.T) {
 	assert.NoError(t, err)
 	output := buf.String()
 	assert.NotContains(t, output, "mutation_details")
+}
+
+func TestJSONFormatter_convertToJSONEntry_emptyMutationDetails_Nil(t *testing.T) {
+	f := &JSONFormatter{}
+	entry := f.convertToJSONEntry(score.CRAPEntry{
+		File:              "/main.go",
+		Package:           "mypkg",
+		FuncName:          "Foo",
+		Complexity:        1,
+		Coverage:          100.0,
+		CRAP:              1.0,
+		EffectiveCRAP:     1.0,
+		MutationScore:     1.0,
+		CoverageUntrusted: false,
+		MutationDetails:   []score.MutationDetail{},
+	}, FormatOptions{Detailed: true})
+	assert.Nil(t, entry.MutationDetails, "empty MutationDetails should not be set when len==0")
 }

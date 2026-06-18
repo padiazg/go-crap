@@ -2,7 +2,6 @@ package report
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -18,14 +17,16 @@ func (f *TableFormatter) Format(entries *scan.Entries, opts FormatOptions) error
 		return fmt.Errorf("Format: entries list shouldn't be nil")
 	}
 
-	sort.Slice(entries.List, func(i, j int) bool {
-		effectiveI := entries.List[i].EffectiveScore()
-		effectiveJ := entries.List[j].EffectiveScore()
-		if effectiveI != effectiveJ {
-			return effectiveI > effectiveJ
-		}
-		return entries.List[i].MutationScore < entries.List[j].MutationScore
-	})
+	// sort.Slice(entries.List, func(i, j int) bool {
+	// 	effectiveI := entries.List[i].EffectiveScore()
+	// 	effectiveJ := entries.List[j].EffectiveScore()
+	// 	if effectiveI != effectiveJ {
+	// 		return effectiveI > effectiveJ
+	// 	}
+	// 	return entries.List[i].MutationScore < entries.List[j].MutationScore
+	// })
+
+	sorted := entries.ForTable()
 
 	t := table.NewWriter()
 	t.SetStyle(table.StyleLight)
@@ -34,9 +35,8 @@ func (f *TableFormatter) Format(entries *scan.Entries, opts FormatOptions) error
 	failed := 0
 	halfThreshold := opts.Threshold / 2.0
 
-	for _, e := range entries.List {
-		effectiveCRAP := e.EffectiveScore()
-		if effectiveCRAP > opts.Threshold {
+	for _, e := range sorted {
+		if e.EffectiveCRAP > opts.Threshold {
 			failed++
 		}
 		t.AppendRow(f.formatTableRow(e, opts, halfThreshold))
@@ -46,10 +46,11 @@ func (f *TableFormatter) Format(entries *scan.Entries, opts FormatOptions) error
 	fmt.Fprint(opts.Writer, t.Render())
 	fmt.Fprintf(opts.Writer, "\n")
 
-	total := len(entries.List)
+	total := len(sorted)
 	if total > 0 {
 		fmt.Fprintf(opts.Writer, "%d/%d function(s) exceed threshold CRAP %.0f.\n", failed, total, opts.Threshold)
 	}
+
 	return nil
 }
 
