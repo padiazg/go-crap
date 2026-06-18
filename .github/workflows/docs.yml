@@ -42,7 +42,7 @@ jobs:
           ANALYTICS_ID:  ${{ secrets.ANALYTICS_ID }}
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: 'doc/site'
 
