@@ -18,7 +18,7 @@ func Test_slogLevel(t *testing.T) {
 		{name: "info", l: logger.InfoLevel, want: slog.LevelInfo},
 		{name: "warn", l: logger.WarnLevel, want: slog.LevelWarn},
 		{name: "error", l: logger.ErrorLevel, want: slog.LevelError},
-		{name: "fatal_falls_back_to_info", l: logger.FatalLevel, want: slog.LevelInfo},
+		{name: "error_falls_back_to_info", l: logger.FatalLevel, want: slog.LevelInfo},
 		{name: "negative_falls_back_to_info", l: logger.Level(-1), want: slog.LevelInfo},
 	}
 	for _, tt := range tests {

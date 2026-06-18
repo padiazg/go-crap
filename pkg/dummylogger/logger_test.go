@@ -60,5 +60,4 @@ func TestLogger_NilPanic(t *testing.T) {
 	assert.NotPanics(t, func() { l.Info("msg") })
 	assert.NotPanics(t, func() { l.Warn("msg") })
 	assert.NotPanics(t, func() { l.Error("msg") })
-	assert.NotPanics(t, func() { l.Fatal("msg") })
 }

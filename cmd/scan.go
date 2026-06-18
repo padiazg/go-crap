@@ -102,7 +102,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 
 	if flagFailAbove && entries.ThresholdExceeded(flagThreshold) {
-		return fmt.Errorf("CRAP threshold exceeded")
+		return scan.ErrThresholdExceeded
 	}
 
 	return nil

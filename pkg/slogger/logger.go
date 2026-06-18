@@ -76,10 +76,9 @@ func (l Logger) Error(msg string, args ...any) {
 	}
 }
 
-// Fatal logs at error level then exits.
+// Fatal logs at error level.
 func (l Logger) Fatal(msg string, args ...any) {
 	l.slog.ErrorContext(context.Background(), msg, args...)
-	os.Exit(1)
 }
 
 // Slog returns the underlying *slog.Logger.

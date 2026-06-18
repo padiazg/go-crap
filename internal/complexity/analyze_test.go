@@ -383,7 +383,7 @@ func Test_newAnalyze(t *testing.T) {
 			),
 		},
 		{
-			name:   "TODO: success case",
+			name:   "success case",
 			checks: checknewAnalyze(),
 		},
 	}

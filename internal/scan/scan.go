@@ -2,6 +2,7 @@ package scan
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -13,6 +14,12 @@ import (
 	"github.com/padiazg/go-crap/internal/score"
 	"github.com/padiazg/go-crap/pkg/logger"
 	"github.com/padiazg/go-crap/pkg/utils"
+)
+
+// Sentinel errors.
+var (
+	ErrUnknownPolicy      = errors.New("unknown missing policy")
+	ErrThresholdExceeded  = errors.New("CRAP threshold exceeded")
 )
 
 type Options struct {
@@ -86,7 +93,7 @@ func parseMissingPolicy(s string) (score.MissingPolicy, error) {
 	case "skip":
 		return score.MissingSkip, nil
 	default:
-		return 0, fmt.Errorf("unknown missing policy: %s (use pessimistic, optimistic, or skip)", s)
+		return 0, fmt.Errorf("%w: %s (use pessimistic, optimistic, or skip)", ErrUnknownPolicy, s)
 	}
 }
 

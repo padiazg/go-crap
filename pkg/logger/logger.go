@@ -6,7 +6,6 @@ type Logger interface {
 	Info(format string, args ...any)
 	Warn(format string, args ...any)
 	Error(format string, args ...any)
-	Fatal(format string, args ...any)
 }
 
 // Config holds logger configuration.

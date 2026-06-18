@@ -29,6 +29,3 @@ func (l Logger) Warn(msg string, args ...any) {}
 
 // Error logs at error level.
 func (l Logger) Error(msg string, args ...any) {}
-
-// Fatal logs at error level then exits.
-func (l Logger) Fatal(msg string, args ...any) {}

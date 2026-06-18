@@ -91,12 +91,9 @@ release:
     ---
 
 # Homebrew configuration (GoReleaser v2 format)
-# To publish to Homebrew, create a tap repository at github.com/padiazg/homebrew-tap
-homebrew_casks:
+# To publish to Homebrew, create a tap repository at github.com/padiazg/homebrew-go-crap
+brews:
   - name: go-crap
-    binaries:
-      - go-crap
-
     repository:
       owner: padiazg
       name: homebrew-go-crap
@@ -109,4 +106,4 @@ homebrew_casks:
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com
-    commit_msg_template: "Cask update for {{ .ProjectName }} version {{ .Tag }}"
+    commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
