@@ -53,13 +53,6 @@ func Scan(options *Options) (*Entries, error) {
 		return nil, err
 	}
 
-	// entries := score.Score(merged, policy)
-	// // entries.ApplyMutationAnnotations(options.MutationReport, merged)
-
-	// entries = applyMutationAnnotations(options, entries, merged)
-
-	// entries = applyFilters(entries, options.Top, options.Min)
-
 	return NewEntries(options, merged, policy)
 }
 
@@ -73,25 +66,16 @@ func runCoverageAnalysis(ctx context.Context, options *Options, exclude *regexp.
 }
 
 func logCoverageErrors(l logger.Logger, coverages []coverage.ModuleCoverage) {
-	if l != nil {
-		for _, mc := range coverages {
-			if mc.Error != nil {
-				l.Debug("coverage scan error", "module", mc.Dir, "error", mc.Error.Error())
-			}
+	if l == nil {
+		return
+	}
+
+	for _, mc := range coverages {
+		if mc.Error != nil {
+			l.Debug("coverage scan error", "module", mc.Dir, "error", mc.Error.Error())
 		}
 	}
 }
-
-// func applyMutationAnnotations(options *Options, entries []score.CRAPEntry, merged []merge.MergedEntry) []score.CRAPEntry {
-// 	if options.MutationReport != "" {
-// 		mutReport, err := mutation.ParseReport(options.MutationReport)
-// 		if err != nil {
-// 			return nil
-// 		}
-// 		return mutation.Annotate(entries, mutReport, merged)
-// 	}
-// 	return entries
-// }
 
 func parseMissingPolicy(s string) (score.MissingPolicy, error) {
 	switch strings.ToLower(s) {
@@ -109,44 +93,3 @@ func parseMissingPolicy(s string) (score.MissingPolicy, error) {
 func effectiveCRAP(e score.CRAPEntry) float64 {
 	return e.EffectiveScore()
 }
-
-// func applyFilters(entries []score.CRAPEntry, top int, min float64) []score.CRAPEntry {
-// 	sort.Slice(entries, func(i, j int) bool {
-// 		return effectiveCRAP(entries[i]) > effectiveCRAP(entries[j])
-// 	})
-
-// 	if min > 0 {
-// 		entries = filterByMinCRAP(entries, min)
-// 	}
-
-// 	if top > 0 && top < len(entries) {
-// 		entries = filterByTop(entries, top)
-// 	}
-
-// 	return entries
-// }
-
-// func filterByMinCRAP(entries []score.CRAPEntry, min float64) []score.CRAPEntry {
-// 	var filtered []score.CRAPEntry
-// 	for _, e := range entries {
-// 		if e.CoverageUntrusted || effectiveCRAP(e) >= min {
-// 			filtered = append(filtered, e)
-// 		}
-// 	}
-// 	return filtered
-// }
-
-// func filterByTop(entries []score.CRAPEntry, top int) []score.CRAPEntry {
-// 	var result []score.CRAPEntry
-// 	for _, e := range entries {
-// 		if e.CoverageUntrusted {
-// 			result = append(result, e)
-// 		}
-// 	}
-// 	for _, e := range entries {
-// 		if !e.CoverageUntrusted && len(result) < top {
-// 			result = append(result, e)
-// 		}
-// 	}
-// 	return result
-// }
