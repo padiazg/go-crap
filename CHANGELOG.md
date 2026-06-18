@@ -5,6 +5,38 @@ All notable changes to go-crap will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.4.1 - 2026-06-18
+
+### Added
+
+- Issue templates (bug report + feature request)
+- Dependabot configuration
+- `.golangci.yml` with full linter configuration
+- `internal/scan/entries.go` with `EntryList` test helpers
+- Extensive test coverage across all packages
+- Mutation testing robustness improvements across all internal packages
+- `permissions: read-all` to GitHub Actions workflow
+
+### Changed
+
+- Refactored `cmd/scan.go` output pipeline to use config struct
+- Refactored `internal/scan/scan.go` with `Options` struct and helper extraction
+- DRY refactors across internal packages
+- Dead code removal
+- Doc comment cleanup across internal packages
+- Bumped golangci-lint config version to v1.65.0
+- Bumped golangci-lint-action from v6 to v9
+- Removed dead code in `pkg/slogger` and `pkg/dummylogger`
+
+### Fixed
+
+- `crappy[:25]` slice bounds panic when filtered entries < 25 items
+- Linting issues across codebase
+- Typo `ThresholdExeeded` → `ThresholdExceeded`
+- Typo in version command description ("TestGen" → "go-crap")
+- Logic bugs in merge, score, mutation, report, and scan packages
+- Typos and embarrassment fixes across codebase
+
 ## v0.4.0 - 2026-06-08
 
 ### Added
