@@ -5,10 +5,6 @@ import (
 	"strings"
 )
 
-type directives struct {
-	exclude bool
-}
-
 func parseDirectives(doc *ast.CommentGroup) bool {
 	if doc == nil {
 		return false

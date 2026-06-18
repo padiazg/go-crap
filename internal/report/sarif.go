@@ -124,9 +124,9 @@ func formatMutantDetails(detailed bool, details []score.MutationDetail) string {
 	var msg strings.Builder
 	msg.WriteString(" survived mutations:")
 	for _, md := range details {
-		msg.WriteString(fmt.Sprintf(" %s@L%d", md.MutantType, md.Line))
+		fmt.Fprintf(&msg, " %s@L%d", md.MutantType, md.Line)
 		if md.OriginalText != "" && md.ReplacementText != "" {
-			msg.WriteString(fmt.Sprintf(" (%q → %q)", md.OriginalText, md.ReplacementText))
+			fmt.Fprintf(&msg, " (%q → %q)", md.OriginalText, md.ReplacementText)
 		}
 	}
 	return msg.String()

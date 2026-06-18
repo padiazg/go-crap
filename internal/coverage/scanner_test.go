@@ -80,18 +80,6 @@ type checkScannerScanFn func(*testing.T, []ModuleCoverage, error)
 
 var checkScannerScan = func(fns ...checkScannerScanFn) []checkScannerScanFn { return fns }
 
-func checkScanError(want string) checkScannerScanFn {
-	return func(t *testing.T, _ []ModuleCoverage, err error) {
-		t.Helper()
-		if want == "" {
-			assert.NoErrorf(t, err, "checkScanError: expected no error, got %v", err)
-			return
-		}
-		if assert.Errorf(t, err, "checkScanError: expected error %q", want) {
-			assert.Containsf(t, err.Error(), want, "checkScanError mismatch")
-		}
-	}
-}
 func TestScanner_Scan(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -181,18 +169,6 @@ type checkScannerdiscoverModulesFn func(*testing.T, []string, error)
 
 var checkScannerdiscoverModules = func(fns ...checkScannerdiscoverModulesFn) []checkScannerdiscoverModulesFn { return fns }
 
-func checkdiscoverModulesError(want string) checkScannerdiscoverModulesFn {
-	return func(t *testing.T, _ []string, err error) {
-		t.Helper()
-		if want == "" {
-			assert.NoErrorf(t, err, "checkdiscoverModulesError: expected no error, got %v", err)
-			return
-		}
-		if assert.Errorf(t, err, "checkdiscoverModulesError: expected error %q", want) {
-			assert.Containsf(t, err.Error(), want, "checkdiscoverModulesError mismatch")
-		}
-	}
-}
 func TestScanner_discoverModules(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -322,10 +298,7 @@ func Test_walkForModules_visit_stops_walk(t *testing.T) {
 
 	err := walkForModules(tempDir, func(dir string) bool {
 		visited[dir] = true
-		if dir == tempDir {
-			return false
-		}
-		return true
+		return dir != tempDir
 	})
 	assert.NoError(t, err)
 	assert.True(t, visited[tempDir])
@@ -351,18 +324,6 @@ type checkScannerscanModuleFn func(*testing.T, ModuleCoverage, error)
 
 var checkScannerscanModule = func(fns ...checkScannerscanModuleFn) []checkScannerscanModuleFn { return fns }
 
-func checkscanModuleError(want string) checkScannerscanModuleFn {
-	return func(t *testing.T, _ ModuleCoverage, err error) {
-		t.Helper()
-		if want == "" {
-			assert.NoErrorf(t, err, "checkscanModuleError: expected no error, got %v", err)
-			return
-		}
-		if assert.Errorf(t, err, "checkscanModuleError: expected error %q", want) {
-			assert.Containsf(t, err.Error(), want, "checkscanModuleError mismatch")
-		}
-	}
-}
 func TestScanner_scanModule(t *testing.T) {
 	tests := []struct {
 		name   string
