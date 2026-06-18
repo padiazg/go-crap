@@ -25,6 +25,7 @@ type MutationDetail struct {
 
 // CRAPEntry holds the CRAP score and metadata for a single function.
 type CRAPEntry struct {
+	CoverageWarning   string
 	File              string
 	FuncName          string
 	Package           string
@@ -38,7 +39,6 @@ type CRAPEntry struct {
 	MutationScore     float64
 	CoverageUntrusted bool
 	Skipped           bool
-	CoverageWarning   string
 }
 
 // EffectiveScore returns EffectiveCRAP if set, otherwise CRAP.
@@ -70,17 +70,17 @@ func Score(entries []merge.MergedEntry, policy MissingPolicy) []CRAPEntry {
 				cov = 100.0
 			case MissingSkip:
 				result = append(result, CRAPEntry{
-					File:              e.File,
-					Package:           e.Package,
-					FuncName:          e.FuncName,
-					Receiver:          e.Receiver,
-					Line:              e.Line,
-					Complexity:        e.Complexity,
-					Coverage:          0,
-					CRAP:              float64(e.Complexity),
-					Skipped:           true,
-					EffectiveCRAP:     float64(e.Complexity),
-					CoverageWarning:   e.CoverageWarning,
+					File:            e.File,
+					Package:         e.Package,
+					FuncName:        e.FuncName,
+					Receiver:        e.Receiver,
+					Line:            e.Line,
+					Complexity:      e.Complexity,
+					Coverage:        0,
+					CRAP:            float64(e.Complexity),
+					Skipped:         true,
+					EffectiveCRAP:   float64(e.Complexity),
+					CoverageWarning: e.CoverageWarning,
 				})
 				continue
 			}
@@ -88,16 +88,16 @@ func Score(entries []merge.MergedEntry, policy MissingPolicy) []CRAPEntry {
 			cov = *e.Coverage
 		}
 		result = append(result, CRAPEntry{
-			File:              e.File,
-			Package:           e.Package,
-			FuncName:          e.FuncName,
-			Receiver:          e.Receiver,
-			Line:              e.Line,
-			Complexity:        e.Complexity,
-			Coverage:          cov,
-			CRAP:              CRAP(e.Complexity, cov),
-			EffectiveCRAP:     CRAP(e.Complexity, cov),
-			CoverageWarning:   e.CoverageWarning,
+			File:            e.File,
+			Package:         e.Package,
+			FuncName:        e.FuncName,
+			Receiver:        e.Receiver,
+			Line:            e.Line,
+			Complexity:      e.Complexity,
+			Coverage:        cov,
+			CRAP:            CRAP(e.Complexity, cov),
+			EffectiveCRAP:   CRAP(e.Complexity, cov),
+			CoverageWarning: e.CoverageWarning,
 		})
 	}
 

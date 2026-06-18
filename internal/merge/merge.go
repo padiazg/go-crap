@@ -10,15 +10,15 @@ import (
 
 // MergedEntry combines complexity analysis with coverage data for a single function.
 type MergedEntry struct {
-	Coverage          *float64
-	CoverageWarning   string
-	File              string
-	FuncName          string
-	Package           string
-	Receiver          string
-	Complexity        int
-	EndLine           int
-	Line              int
+	Coverage        *float64
+	CoverageWarning string
+	File            string
+	FuncName        string
+	Package         string
+	Receiver        string
+	Complexity      int
+	EndLine         int
+	Line            int
 }
 
 type pathIndex struct {
