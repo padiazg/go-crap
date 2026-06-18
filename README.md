@@ -81,6 +81,17 @@ go-crap scan --exclude '.*_test\.go' --exclude 'pb/.*\.go'
 | `sarif` | SARIF 2.1.0 compliant JSON for static analysis tools |
 | `pr-comment` | Markdown table formatted for pull request comments |
 
+### Coverage Unavailable Warning
+
+When a Go module fails to build or run tests, its coverage data is unavailable.
+go-crap detects this and reports it in all output formats:
+
+- `table` — coverage column shows `N/A ‼` with a footer listing unavailable modules
+- `json` — `coverage` is `null` and `coverage_warning` contains the error message
+- `github` — `::warning` annotation with the module error
+- `sarif` — result with `RuleID: "go-crap/coverage-unavailable"`
+- `pr-comment` — separate "Coverage Unavailable" section
+
 ### Example: SARIF output
 
 ```shell
@@ -132,7 +143,7 @@ go-crap scan
   ├── scan.Scan()           — unified pipeline, discovers modules, filters, and ranks
   │   ├── coverage.Scan()   — discover Go modules, run go test -cover
   │   ├── complexity.Analyze() — walk AST, compute cyclomatic complexity
-  │   ├── merge.Merge()     — join by (filepath, funcname) with receiver support
+  │   ├── merge.Merge()     — join by (filepath, funcname), propagate coverage warnings
   │   ├── score.Score()     — apply CRAP formula + missing policy
   │   ├── mutation.Annotate() — validate coverage with mutation testing (optional)
   │   └── report.Format()   — table / json / github / sarif / pr-comment
@@ -143,7 +154,7 @@ go-crap scan
 - **`internal/scan`** — unified pipeline orchestrating the full scan flow (coverage → complexity → merge → score → filter → output)
 - **`internal/complexity`** — AST walking to compute cyclomatic complexity (adapted from [gocyclo](https://github.com/fzipp/gocyclo), BSD-3-Clause)
 - **`internal/coverage`** — module discovery + `go test -cover` profiling (adapted from [test-finder](https://github.com/padiazg/test-finder), MIT)
-- **`internal/merge`** — double-index join of coverage and complexity data, with method receiver support
+- **`internal/merge`** — double-index join of coverage and complexity data, propagates coverage-unavailable warnings from errored modules
 - **`internal/score`** — CRAP formula + missing coverage policy + `EntryList` wrapper
 - **`internal/mutation`** — parses gremlins JSON mutation reports and annotates CRAP entries with coverage reliability
 - **`internal/report`** — output formatters (table, JSON, GitHub, SARIF, PR comment)
@@ -165,6 +176,7 @@ go-crap scan
 - `--output -o` writes results to a file instead of stdout
 - `--mutation-report` validates coverage reliability against mutation testing results
 - `--detailed` includes mutation failure details (code, line, type) in report output
+- Coverage-unavailable warnings are emitted for modules where `go test` fails
 
 ## Prior art and references
 

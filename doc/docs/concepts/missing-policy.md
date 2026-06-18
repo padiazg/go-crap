@@ -55,3 +55,12 @@ Functions without coverage appear in the output with `Skipped: true` and their C
 - **pessimistic** - CI checks, code reviews, finding the worst issues first
 - **optimistic** - rough estimation, best-case scenario analysis
 - **skip** - auditing covered code only, ignoring untested functions
+
+## Coverage Unavailable vs. Missing Coverage
+
+`--missing` policy handles functions that have no coverage data because they were not exercised by tests. This is different from **coverage unavailable**, which occurs when an entire module's `go test` run fails (build errors, test panics, etc.).
+
+When coverage is unavailable:
+- go-crap emits a `CoverageWarning` on affected entries
+- All formatters surface the error (see `scan --help` for per-format details)
+- The `--missing` policy still applies, but the warning indicates the root cause is a module-level failure, not simply untested functions

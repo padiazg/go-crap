@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Coverage unavailable warning — propagates `go test` failure messages through merge → score → formatters
+- `CoverageWarning` field on `MergedEntry` and `CRAPEntry` — set when coverage data is unavailable due to module-level test errors
+- `table` formatter: coverage column shows `N/A ‼` with deduplicated footer warning when coverage unavailable
+- `json` formatter: `coverage` is `null` and `coverage_warning` field populated when coverage unavailable
+- `github` formatter: emits `::warning` annotation when coverage is unavailable
+- `sarif` formatter: new result with `RuleID: "go-crap/coverage-unavailable"` when coverage unavailable
+- `pr-comment` formatter: "Coverage Unavailable" section listing affected functions
 - Issue templates (bug report + feature request)
 - Dependabot configuration
 - `.golangci.yml` with full linter configuration

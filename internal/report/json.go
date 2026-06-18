@@ -15,7 +15,7 @@ type Report struct {
 }
 
 type JSONEntry struct {
-	Coverage          *float64             `json:"coverage"`
+	Coverage          *float64             `json:"coverage,omitempty"`
 	File              string               `json:"file"`
 	Function          string               `json:"function"`
 	Package           string               `json:"package"`
@@ -27,6 +27,7 @@ type JSONEntry struct {
 	Line              int                  `json:"line"`
 	MutationScore     float64              `json:"mutation_score"`
 	CoverageUntrusted bool                 `json:"coverage_untrusted"`
+	CoverageWarning   string               `json:"coverage_warning,omitempty"`
 }
 
 type JSONMutationDetail struct {
@@ -93,6 +94,7 @@ func (f *JSONFormatter) convertToJSONEntry(e score.CRAPEntry, opts FormatOptions
 		EffectiveCRAP:     e.EffectiveCRAP,
 		MutationScore:     e.MutationScore,
 		CoverageUntrusted: e.CoverageUntrusted,
+		CoverageWarning:   e.CoverageWarning,
 	}
 
 	if opts.Detailed && len(e.MutationDetails) > 0 {
@@ -110,6 +112,8 @@ func (f *JSONFormatter) convertToJSONEntry(e score.CRAPEntry, opts FormatOptions
 		}
 	}
 
-	entry.Coverage = &e.Coverage
+	if e.CoverageWarning == "" {
+		entry.Coverage = &e.Coverage
+	}
 	return entry
 }

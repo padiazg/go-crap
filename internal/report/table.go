@@ -17,15 +17,6 @@ func (f *TableFormatter) Format(entries *scan.Entries, opts FormatOptions) error
 		return fmt.Errorf("Format: entries list shouldn't be nil")
 	}
 
-	// sort.Slice(entries.List, func(i, j int) bool {
-	// 	effectiveI := entries.List[i].EffectiveScore()
-	// 	effectiveJ := entries.List[j].EffectiveScore()
-	// 	if effectiveI != effectiveJ {
-	// 		return effectiveI > effectiveJ
-	// 	}
-	// 	return entries.List[i].MutationScore < entries.List[j].MutationScore
-	// })
-
 	sorted := entries.ForTable()
 
 	t := table.NewWriter()
@@ -34,12 +25,18 @@ func (f *TableFormatter) Format(entries *scan.Entries, opts FormatOptions) error
 
 	failed := 0
 	halfThreshold := opts.Threshold / 2.0
+	var warningSet map[string]bool
+	var warningSeen bool
 
 	for _, e := range sorted {
 		if e.EffectiveCRAP > opts.Threshold {
 			failed++
 		}
 		t.AppendRow(f.formatTableRow(e, opts, halfThreshold))
+		if e.CoverageWarning != "" && !warningSeen {
+			warningSet = make(map[string]bool)
+			warningSeen = true
+		}
 	}
 
 	fmt.Fprintf(opts.Writer, "\n")
@@ -49,6 +46,21 @@ func (f *TableFormatter) Format(entries *scan.Entries, opts FormatOptions) error
 	total := len(sorted)
 	if total > 0 {
 		fmt.Fprintf(opts.Writer, "%d/%d function(s) exceed threshold CRAP %.0f.\n", failed, total, opts.Threshold)
+	}
+
+	if warningSeen {
+		fmt.Fprintln(opts.Writer)
+		for _, e := range sorted {
+			warn := e.CoverageWarning
+			if warn == "" {
+				continue
+			}
+			if warningSet[warn] {
+				continue
+			}
+			warningSet[warn] = true
+			fmt.Fprintf(opts.Writer, "coverage unavailable for %s\n", warn)
+		}
 	}
 
 	return nil
@@ -82,6 +94,9 @@ func (f *TableFormatter) formatLocation(e score.CRAPEntry, baseDir string) strin
 }
 
 func (f *TableFormatter) formatCoverageString(e score.CRAPEntry) string {
+	if e.CoverageWarning != "" {
+		return "N/A \xe2\x9a\xa1"
+	}
 	covStr := fmt.Sprintf("%.1f%%", e.Coverage)
 	if e.CoverageUntrusted {
 		covStr += " \xe2\x9a\xa0"
