@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/padiazg/go-crap/internal/scan"
 	"github.com/padiazg/go-crap/internal/score"
 )
 
@@ -45,7 +46,7 @@ func checkoutputError(want string) outputCheckFn {
 	}
 }
 func Test_output(t *testing.T) {
-	entries := &score.EntryList{
+	entries := &scan.Entries{
 		List: []score.CRAPEntry{
 			{
 				File:       "internal/foo.go",
@@ -67,7 +68,7 @@ func Test_output(t *testing.T) {
 	tests := []struct {
 		name    string
 		config  outputConfig
-		entries *score.EntryList
+		entries *scan.Entries
 		checks  []outputCheckFn
 	}{
 		{

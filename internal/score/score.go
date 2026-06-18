@@ -40,27 +40,12 @@ type CRAPEntry struct {
 	Skipped           bool
 }
 
-// EntryList is a list of CRAP entries.
-type EntryList struct {
-	List []CRAPEntry
-}
-
 // EffectiveScore returns EffectiveCRAP if set, otherwise CRAP.
 func (e CRAPEntry) EffectiveScore() float64 {
 	if e.EffectiveCRAP != 0 {
 		return e.EffectiveCRAP
 	}
 	return e.CRAP
-}
-
-func (el *EntryList) ThresholdExceeded(threshold float64) bool {
-	for _, e := range el.List {
-		if e.EffectiveCRAP > threshold {
-			return true
-		}
-	}
-
-	return false
 }
 
 // CRAP computes the CRAP score for a function given its cyclomatic complexity and test coverage.
@@ -112,5 +97,6 @@ func Score(entries []merge.MergedEntry, policy MissingPolicy) []CRAPEntry {
 			EffectiveCRAP: CRAP(e.Complexity, cov),
 		})
 	}
+
 	return result
 }

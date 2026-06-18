@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/padiazg/go-crap/internal/scan"
 	"github.com/padiazg/go-crap/internal/score"
 )
 
@@ -35,13 +36,13 @@ func checkSarifOutputNotContains(want string) checkSARIFFormatterOutputFn {
 func TestSARIFFormatter_Format(t *testing.T) {
 	tests := []struct {
 		name    string
-		entries *score.EntryList
+		entries *scan.Entries
 		opts    FormatOptions
 		checks  []checkSARIFFormatterOutputFn
 	}{
 		{
 			name:    "success_empty_entries",
-			entries: &score.EntryList{List: []score.CRAPEntry{}},
+			entries: &scan.Entries{List: []score.CRAPEntry{}},
 			checks: checkSARIFFormatterOutput(
 				checkSarifOutputContains(`"$schema"`),
 				checkSarifOutputContains(`"version"`),
@@ -51,7 +52,7 @@ func TestSARIFFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_all_below_threshold",
-			entries: &score.EntryList{List: []score.CRAPEntry{
+			entries: &scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "Good", Line: 1, Complexity: 1, Coverage: 100, CRAP: 1},
 				{File: "/project/main.go", Package: "myapp", FuncName: "OK", Line: 10, Complexity: 2, Coverage: 80, CRAP: 5},
 			}},
@@ -62,7 +63,7 @@ func TestSARIFFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_above_threshold",
-			entries: &score.EntryList{List: []score.CRAPEntry{
+			entries: &scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "Bad", Line: 42, Complexity: 10, Coverage: 0, CRAP: 110},
 			}},
 			opts: FormatOptions{Threshold: 30, BaseDir: "/project"},
@@ -76,7 +77,7 @@ func TestSARIFFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_mixed_entries_filter",
-			entries: &score.EntryList{List: []score.CRAPEntry{
+			entries: &scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "Good", Line: 1, Complexity: 1, Coverage: 100, CRAP: 1},
 				{File: "/project/main.go", Package: "myapp", FuncName: "Bad", Line: 10, Complexity: 10, Coverage: 0, CRAP: 110},
 				{File: "/project/main.go", Package: "myapp", FuncName: "OK", Line: 20, Complexity: 3, Coverage: 50, CRAP: 13.5},
@@ -89,7 +90,7 @@ func TestSARIFFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_receiver_in_message",
-			entries: &score.EntryList{List: []score.CRAPEntry{
+			entries: &scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "Process", Receiver: "User", Line: 5, Complexity: 5, Coverage: 0, CRAP: 30},
 			}},
 			opts: FormatOptions{Threshold: 20},
@@ -99,7 +100,7 @@ func TestSARIFFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_path_normalization",
-			entries: &score.EntryList{List: []score.CRAPEntry{
+			entries: &scan.Entries{List: []score.CRAPEntry{
 				{File: "C:\\Users\\test\\main.go", Package: "myapp", FuncName: "WinFunc", Line: 1, Complexity: 1, Coverage: 0, CRAP: 2},
 			}},
 			opts: FormatOptions{Threshold: 0},
@@ -110,7 +111,7 @@ func TestSARIFFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_schema_and_version",
-			entries: &score.EntryList{List: []score.CRAPEntry{
+			entries: &scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "A", Line: 1, Complexity: 1, Coverage: 0, CRAP: 2},
 			}},
 			opts: FormatOptions{Threshold: 0},
@@ -121,7 +122,7 @@ func TestSARIFFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_base_dir_relativize",
-			entries: &score.EntryList{List: []score.CRAPEntry{
+			entries: &scan.Entries{List: []score.CRAPEntry{
 				{File: "/tmp/project/main.go", Package: "myapp", FuncName: "Process", Line: 5, Complexity: 1, Coverage: 0, CRAP: 1},
 			}},
 			opts: FormatOptions{Threshold: 0, BaseDir: "/tmp/project"},
@@ -131,7 +132,7 @@ func TestSARIFFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_tool_driver_name",
-			entries: &score.EntryList{List: []score.CRAPEntry{
+			entries: &scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "X", Line: 1, Complexity: 1, Coverage: 0, CRAP: 2},
 			}},
 			opts: FormatOptions{Threshold: 0},
@@ -142,7 +143,7 @@ func TestSARIFFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_single_rule_defined",
-			entries: &score.EntryList{List: []score.CRAPEntry{
+			entries: &scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "X", Line: 1, Complexity: 1, Coverage: 0, CRAP: 2},
 			}},
 			opts: FormatOptions{Threshold: 0},
@@ -175,7 +176,7 @@ func TestSARIFFormatter_Format_validates_json_output(t *testing.T) {
 	f := &SARIFFormatter{}
 	buf := &bytes.Buffer{}
 
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{File: "/project/main.go", Package: "myapp", FuncName: "Bad", Receiver: "User", Line: 42, Complexity: 10, Coverage: 0, CRAP: 110},
 		{File: "/project/main.go", Package: "myapp", FuncName: "OK", Line: 10, Complexity: 2, Coverage: 80, CRAP: 5},
 	}}
@@ -225,7 +226,7 @@ func TestSARIFFormatter_Format_empty_results_valid_sarif(t *testing.T) {
 	f := &SARIFFormatter{}
 	buf := &bytes.Buffer{}
 
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{File: "/project/main.go", Package: "myapp", FuncName: "Good", Line: 1, Complexity: 1, Coverage: 100, CRAP: 1},
 	}}
 
@@ -251,7 +252,7 @@ func TestSARIFFormatter_Format_path_to_slash_normalization(t *testing.T) {
 	f := &SARIFFormatter{}
 	buf := &bytes.Buffer{}
 
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{File: "C:\\Users\\test\\file.go", Package: "myapp", FuncName: "WinFunc", Line: 10, Complexity: 1, Coverage: 0, CRAP: 2},
 	}}
 
@@ -310,10 +311,10 @@ func TestRelativizePath(t *testing.T) {
 
 func TestFormatMessage(t *testing.T) {
 	tests := []struct {
-		name           string
-		entry          score.CRAPEntry
-		effectiveCRAP  float64
-		wantMsg        string
+		name          string
+		entry         score.CRAPEntry
+		effectiveCRAP float64
+		wantMsg       string
 	}{
 		{
 			name:          "simple_function",
@@ -346,10 +347,10 @@ func TestFormatMessage(t *testing.T) {
 
 func TestStatusSymbol(t *testing.T) {
 	tests := []struct {
-		name        string
-		crap        float64
-		threshold   float64
-		want        string
+		name      string
+		crap      float64
+		threshold float64
+		want      string
 	}{
 		{"below_half_threshold", 5, 20, "✓"},
 		{"at_half_threshold", 10, 20, "✓"},
@@ -379,7 +380,7 @@ func TestSARIFFormatter_Format_multiple_results_ordering(t *testing.T) {
 	f := &SARIFFormatter{}
 	buf := &bytes.Buffer{}
 
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{File: "/project/a.go", Package: "myapp", FuncName: "Low", Line: 1, Complexity: 3, Coverage: 0, CRAP: 12},
 		{File: "/project/b.go", Package: "myapp", FuncName: "High", Line: 2, Complexity: 10, Coverage: 0, CRAP: 110},
 		{File: "/project/c.go", Package: "myapp", FuncName: "Mid", Line: 3, Complexity: 5, Coverage: 10, CRAP: 45},
@@ -423,7 +424,7 @@ func TestSARIFFormatter_Format_schema_url(t *testing.T) {
 	f := &SARIFFormatter{}
 	buf := &bytes.Buffer{}
 
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{File: "/project/main.go", Package: "myapp", FuncName: "X", Line: 1, Complexity: 1, Coverage: 0, CRAP: 2},
 	}}
 
@@ -446,7 +447,7 @@ func TestSARIFFormatter_Format_rule_help_text(t *testing.T) {
 	f := &SARIFFormatter{}
 	buf := &bytes.Buffer{}
 
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{File: "/project/main.go", Package: "myapp", FuncName: "X", Line: 1, Complexity: 1, Coverage: 0, CRAP: 2},
 	}}
 
@@ -467,7 +468,7 @@ func TestSARIFFormatter_Format_detailed_mutations(t *testing.T) {
 	f := &SARIFFormatter{}
 	buf := &bytes.Buffer{}
 
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{
 			File:              "/project/main.go",
 			Package:           "myapp",
@@ -527,7 +528,7 @@ func TestSARIFFormatter_Format_detailed_mutations_no_details(t *testing.T) {
 	f := &SARIFFormatter{}
 	buf := &bytes.Buffer{}
 
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{
 			File:              "/project/main.go",
 			Package:           "myapp",
@@ -560,7 +561,7 @@ func TestSARIFFormatter_Format_detailed_disabled(t *testing.T) {
 	f := &SARIFFormatter{}
 	buf := &bytes.Buffer{}
 
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{
 			File:              "/project/main.go",
 			Package:           "myapp",
@@ -592,13 +593,12 @@ func TestSARIFFormatter_Format_detailed_disabled(t *testing.T) {
 	assert.NotContains(t, got, "\u003c")
 }
 
-
 func TestSARIFFormatter_Format_exact_threshold_no_high_score_result(t *testing.T) {
 	// COND_BOUND :23 — effectiveCRAP > opts.Threshold changed to >= would
 	// include entries at exact threshold. Must produce empty results.
 	f := &SARIFFormatter{}
 	buf := &bytes.Buffer{}
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{File: "/project/main.go", Package: "myapp", FuncName: "Exact",
 			Line: 1, Complexity: 5, Coverage: 100, CRAP: 30},
 	}}
@@ -616,7 +616,7 @@ func TestSARIFFormatter_Format_untrusted_exact_mutation_score(t *testing.T) {
 	// produce wrong percentage in untrusted warning message.
 	f := &SARIFFormatter{}
 	buf := &bytes.Buffer{}
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{
 			File: "/project/main.go", Package: "myapp",
 			FuncName:          "UnreliableFunc",
@@ -646,7 +646,7 @@ func TestSARIFFormatter_nil_entries(t *testing.T) {
 func TestSARIFFormatter_untrusted_only(t *testing.T) {
 	formatter := &SARIFFormatter{}
 	var buf strings.Builder
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{CRAP: 20.0, Coverage: 50.0, CoverageUntrusted: true, FuncName: "untrusted",
 			MutationScore: 0.5, File: "file.go", Line: 10},
 	}}
@@ -660,7 +660,7 @@ func TestSARIFFormatter_untrusted_only(t *testing.T) {
 func TestSARIFFormatter_high_score_only(t *testing.T) {
 	formatter := &SARIFFormatter{}
 	var buf strings.Builder
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{CRAP: 50.0, Coverage: 50.0, CoverageUntrusted: false, FuncName: "highScore", File: "file.go", Line: 10},
 	}}
 	err := formatter.Format(entries, FormatOptions{Writer: &buf, Threshold: 30.0})
@@ -673,7 +673,7 @@ func TestSARIFFormatter_high_score_only(t *testing.T) {
 func TestSARIFFormatter_high_score_and_untrusted(t *testing.T) {
 	formatter := &SARIFFormatter{}
 	var buf strings.Builder
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{CRAP: 50.0, Coverage: 50.0, CoverageUntrusted: true, FuncName: "both",
 			MutationScore: 0.5, File: "file.go", Line: 10},
 	}}

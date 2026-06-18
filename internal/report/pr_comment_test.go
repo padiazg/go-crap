@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/padiazg/go-crap/internal/scan"
 	"github.com/padiazg/go-crap/internal/score"
 )
 
@@ -35,13 +36,13 @@ func checkPRCommentOutputNotContains(want string) checkPRCommentFormatterOutputF
 func TestPRCommentFormatter_Format(t *testing.T) {
 	tests := []struct {
 		name    string
-		entries *score.EntryList
+		entries *scan.Entries
 		opts    FormatOptions
 		checks  []checkPRCommentFormatterOutputFn
 	}{
 		{
 			name:    "success_empty_entries",
-			entries: &score.EntryList{List: []score.CRAPEntry{}},
+			entries: &scan.Entries{List: []score.CRAPEntry{}},
 			checks: checkPRCommentFormatterOutput(
 				checkPRCommentOutputContains("<!-- go-crap-report -->"),
 				checkPRCommentOutputContains("## No crappy functions"),
@@ -50,7 +51,7 @@ func TestPRCommentFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_no_crappy_functions",
-			entries: &score.EntryList{List: []score.CRAPEntry{
+			entries: &scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "Good", Line: 1, Complexity: 1, Coverage: 100, CRAP: 1},
 				{File: "/project/main.go", Package: "myapp", FuncName: "OK", Line: 10, Complexity: 2, Coverage: 80, CRAP: 5},
 			}},
@@ -63,7 +64,7 @@ func TestPRCommentFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_with_crappy_functions",
-			entries: &score.EntryList{List: []score.CRAPEntry{
+			entries: &scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "Bad", Line: 42, Complexity: 10, Coverage: 0, CRAP: 110},
 				{File: "/project/main.go", Package: "myapp", FuncName: "Good", Line: 1, Complexity: 1, Coverage: 100, CRAP: 1},
 			}},
@@ -78,7 +79,7 @@ func TestPRCommentFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_sorted_by_crap_desc",
-			entries: &score.EntryList{List: []score.CRAPEntry{
+			entries: &scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/a.go", Package: "myapp", FuncName: "Low", Line: 1, Complexity: 3, Coverage: 0, CRAP: 12},
 				{File: "/project/b.go", Package: "myapp", FuncName: "High", Line: 2, Complexity: 10, Coverage: 0, CRAP: 110},
 				{File: "/project/c.go", Package: "myapp", FuncName: "Mid", Line: 3, Complexity: 5, Coverage: 10, CRAP: 45},
@@ -92,7 +93,7 @@ func TestPRCommentFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_threshold_boundary",
-			entries: &score.EntryList{List: []score.CRAPEntry{
+			entries: &scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "Exact", Line: 1, Complexity: 10, Coverage: 100, CRAP: 10},
 				{File: "/project/main.go", Package: "myapp", FuncName: "Over", Line: 2, Complexity: 11, Coverage: 100, CRAP: 11},
 			}},
@@ -127,12 +128,12 @@ func TestPRCommentFormatter_Format_truncation_at_25(t *testing.T) {
 	f := &PRCommentFormatter{}
 	buf := &bytes.Buffer{}
 
-	entries := &score.EntryList{List: make([]score.CRAPEntry, 30)}
+	entries := &scan.Entries{List: make([]score.CRAPEntry, 30)}
 	for i := range 30 {
 		entries.List[i] = score.CRAPEntry{
-			File:       "/project/main.go",
-			Package:    "myapp",
-			FuncName:   func(i int) string {
+			File:    "/project/main.go",
+			Package: "myapp",
+			FuncName: func(i int) string {
 				return "Func" + string(rune('A'+i))
 			}(i),
 			Line:       i + 1,
@@ -158,7 +159,7 @@ func TestPRCommentFormatter_Format_html_marker_present(t *testing.T) {
 	f := &PRCommentFormatter{}
 	buf := &bytes.Buffer{}
 
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{File: "/project/main.go", Package: "myapp", FuncName: "Bad", Line: 1, Complexity: 10, Coverage: 0, CRAP: 100},
 	}}
 
@@ -178,7 +179,7 @@ func TestPRCommentFormatter_Format_summary_line(t *testing.T) {
 	f := &PRCommentFormatter{}
 	buf := &bytes.Buffer{}
 
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{File: "/project/main.go", Package: "myapp", FuncName: "A", Line: 1, Complexity: 1, Coverage: 100, CRAP: 1},
 		{File: "/project/main.go", Package: "myapp", FuncName: "B", Line: 2, Complexity: 2, Coverage: 80, CRAP: 6.4},
 		{File: "/project/main.go", Package: "myapp", FuncName: "C", Line: 3, Complexity: 3, Coverage: 60, CRAP: 14.4},
@@ -201,7 +202,7 @@ func TestPRCommentFormatter_Format_status_icons(t *testing.T) {
 	f := &PRCommentFormatter{}
 	buf := &bytes.Buffer{}
 
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{File: "/project/main.go", Package: "myapp", FuncName: "Bad", Line: 10, Complexity: 10, Coverage: 0, CRAP: 110},
 	}}
 
@@ -221,7 +222,7 @@ func TestPRCommentFormatter_Format_base_dir_relativize(t *testing.T) {
 	f := &PRCommentFormatter{}
 	buf := &bytes.Buffer{}
 
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{File: "/tmp/project/main.go", Package: "myapp", FuncName: "Process", Line: 5, Complexity: 1, Coverage: 0, CRAP: 1},
 	}}
 
@@ -252,7 +253,7 @@ func TestPRCommentFormatter_Format_no_table_when_no_crappy(t *testing.T) {
 	f := &PRCommentFormatter{}
 	buf := &bytes.Buffer{}
 
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{File: "/project/main.go", Package: "myapp", FuncName: "Good", Line: 1, Complexity: 1, Coverage: 100, CRAP: 1},
 	}}
 
@@ -273,7 +274,7 @@ func TestPRCommentFormatter_Format_unreliable_coverage_without_threshold_violati
 	f := &PRCommentFormatter{}
 	buf := &bytes.Buffer{}
 
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{
 			File:              "/project/main.go",
 			Package:           "myapp",
@@ -317,7 +318,7 @@ func TestPRCommentFormatter_Format_unreliable_with_crappy_functions(t *testing.T
 	f := &PRCommentFormatter{}
 	buf := &bytes.Buffer{}
 
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{
 			File:              "/project/main.go",
 			Package:           "myapp",
@@ -362,7 +363,7 @@ func TestPRCommentFormatter_Format_detailed_mutations(t *testing.T) {
 	f := &PRCommentFormatter{}
 	buf := &bytes.Buffer{}
 
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{
 			File:              "/project/main.go",
 			Package:           "myapp",
@@ -417,7 +418,7 @@ func TestPRCommentFormatter_Format_no_detailed_by_default(t *testing.T) {
 	f := &PRCommentFormatter{}
 	buf := &bytes.Buffer{}
 
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{
 			File:              "/project/main.go",
 			Package:           "myapp",
@@ -454,7 +455,7 @@ func TestPRCommentFormatter_Format_sort_stability_with_equal_effective_crap(t *t
 	f := &PRCommentFormatter{}
 	buf := &bytes.Buffer{}
 
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{File: "/project/a.go", Package: "myapp", FuncName: "EqualA", Line: 1, Complexity: 5, Coverage: 0, CRAP: 40, EffectiveCRAP: 40},
 		{File: "/project/b.go", Package: "myapp", FuncName: "EqualB", Line: 2, Complexity: 5, Coverage: 0, CRAP: 30, EffectiveCRAP: 40},
 		{File: "/project/c.go", Package: "myapp", FuncName: "JustBelow", Line: 3, Complexity: 3, Coverage: 0, CRAP: 20, EffectiveCRAP: 20},
@@ -482,7 +483,7 @@ func TestPRCommentFormatter_Format_boundary_25_entries_exactly(t *testing.T) {
 	f := &PRCommentFormatter{}
 	buf := &bytes.Buffer{}
 
-	entries := &score.EntryList{List: make([]score.CRAPEntry, 25)}
+	entries := &scan.Entries{List: make([]score.CRAPEntry, 25)}
 	for i := range 25 {
 		entries.List[i] = score.CRAPEntry{
 			File:       "/project/main.go",
@@ -513,7 +514,7 @@ func TestPRCommentFormatter_Format_boundary_26_entries_truncated(t *testing.T) {
 	f := &PRCommentFormatter{}
 	buf := &bytes.Buffer{}
 
-	entries := &score.EntryList{List: make([]score.CRAPEntry, 26)}
+	entries := &scan.Entries{List: make([]score.CRAPEntry, 26)}
 	for i := range 26 {
 		entries.List[i] = score.CRAPEntry{
 			File:       "/project/main.go",
@@ -548,7 +549,7 @@ func TestPRCommentFormatter_Format_status_symbol_all_above_threshold(t *testing.
 	f := &PRCommentFormatter{}
 	buf := &bytes.Buffer{}
 
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{File: "/project/main.go", Package: "myapp", FuncName: "JustOver", Line: 1, Complexity: 6, Coverage: 0, CRAP: 21},
 		{File: "/project/main.go", Package: "myapp", FuncName: "FarOver", Line: 2, Complexity: 15, Coverage: 0, CRAP: 225},
 	}}
@@ -617,7 +618,7 @@ func TestPRCommentFormatter_Format_detailed_unreliable_with_mutation_details(t *
 	f := &PRCommentFormatter{}
 	buf := &bytes.Buffer{}
 
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{
 			File:              "/project/main.go",
 			Package:           "myapp",
@@ -655,7 +656,7 @@ func TestPRCommentFormatter_Format_25_total_no_truncation_message(t *testing.T) 
 	// message should appear. Mutant >= would print "…and 0 more".
 	f := &PRCommentFormatter{}
 	buf := &bytes.Buffer{}
-	entries := &score.EntryList{List: make([]score.CRAPEntry, 25)}
+	entries := &scan.Entries{List: make([]score.CRAPEntry, 25)}
 	for i := range 25 {
 		entries.List[i] = score.CRAPEntry{
 			File: "/project/main.go", Package: "myapp",
@@ -678,7 +679,7 @@ func TestPRCommentFormatter_Format_unreliable_non_detailed_exact_mutation_score(
 	// Mutant would change *100 to /100 or +100, producing wrong percentage.
 	f := &PRCommentFormatter{}
 	buf := &bytes.Buffer{}
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{
 			File: "/project/main.go", Package: "myapp",
 			FuncName:          "UnreliableFunc",
@@ -715,7 +716,7 @@ func TestPRCommentFormatter_Format_25_entries_few_crappy_no_panic(t *testing.T) 
 	// would try crappy[:25] with only 3 items → panic.
 	f := &PRCommentFormatter{}
 	buf := &bytes.Buffer{}
-	entries := &score.EntryList{List: make([]score.CRAPEntry, 25)}
+	entries := &scan.Entries{List: make([]score.CRAPEntry, 25)}
 	for i := range 25 {
 		crap := 5.0
 		if i < 3 {
@@ -742,7 +743,7 @@ func TestPRCommentFormatter_Format_sort_equal_crap_no_panic(t *testing.T) {
 	// EffectiveCRAP values. Go 1.22+ panics on broken comparators.
 	f := &PRCommentFormatter{}
 	buf := &bytes.Buffer{}
-	entries := &score.EntryList{List: make([]score.CRAPEntry, 20)}
+	entries := &scan.Entries{List: make([]score.CRAPEntry, 20)}
 	for i := range 20 {
 		entries.List[i] = score.CRAPEntry{
 			File: "/project/main.go", Package: "myapp",
@@ -762,7 +763,7 @@ func TestPRCommentFormatter_Format_detailed_unreliable_without_text_fields(t *te
 	f := &PRCommentFormatter{}
 	buf := &bytes.Buffer{}
 
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{
 			File:              "/project/main.go",
 			Package:           "myapp",
