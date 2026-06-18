@@ -107,7 +107,7 @@ func (f *PRCommentFormatter) Format(entries *scan.Entries, opts FormatOptions) e
 
 	f.writePRHeader(opts.Writer, sorted, crappy, opts.Threshold)
 
-	if len(entries.List) > maxPRCommentRows {
+	if len(crappy) > maxPRCommentRows {
 		crappy = crappy[:maxPRCommentRows]
 	}
 

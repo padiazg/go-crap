@@ -710,9 +710,32 @@ func Test_formatMutantsStr_no_leading_comma(t *testing.T) {
 	assert.Contains(t, got, ", `SECOND`")
 }
 
+func TestPRCommentFormatter_Format_many_total_few_crappy_no_panic(t *testing.T) {
+	f := &PRCommentFormatter{}
+	buf := &bytes.Buffer{}
+	entries := &scan.Entries{List: make([]score.CRAPEntry, 30)}
+	for i := range 30 {
+		crap := 5.0
+		if i < 3 {
+			crap = 100.0
+		}
+		entries.List[i] = score.CRAPEntry{
+			File: "/project/main.go", Package: "myapp",
+			FuncName:   fmt.Sprintf("Func%d", i),
+			Line:       i + 1,
+			Complexity: 10,
+			Coverage:   0,
+			CRAP:       crap,
+		}
+	}
+	opts := FormatOptions{Threshold: 30, Writer: buf}
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+	output := buf.String()
+	assert.Contains(t, output, "3 crappy function(s)")
+}
+
 func TestPRCommentFormatter_Format_25_entries_few_crappy_no_panic(t *testing.T) {
-	// COND_BOUND :122 — len(entries.List) > maxPRCommentRows changed to >=
-	// would try crappy[:25] with only 3 items → panic.
 	f := &PRCommentFormatter{}
 	buf := &bytes.Buffer{}
 	entries := &scan.Entries{List: make([]score.CRAPEntry, 25)}
