@@ -46,26 +46,22 @@ func TestNewScanner(t *testing.T) {
 			),
 		},
 		{
-			name: "path_param_ignored",
+			name: "path_propagated",
 			path: "/some/path",
 			checks: checkNewScanner(
 				func(t *testing.T, r *Scanner) {
 					t.Helper()
-					// NewScanner ignores the path param when non-empty;
-					// the path field stays at zero value.
-					assert.Equal(t, "", r.Path)
+					assert.Equal(t, "/some/path", r.Path)
 				},
 			),
 		},
 		{
-			name: "timeout_param_ignored",
+			name: "timeout_propagated",
 			timeout: 30 * time.Second,
 			checks: checkNewScanner(
 				func(t *testing.T, r *Scanner) {
 					t.Helper()
-					// NewScanner only sets 10m when timeout is 0;
-					// otherwise timeout stays at zero value.
-					assert.Equal(t, time.Duration(0), r.Timeout)
+					assert.Equal(t, 30*time.Second, r.Timeout)
 				},
 			),
 		},

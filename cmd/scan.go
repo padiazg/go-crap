@@ -108,23 +108,6 @@ func runScan(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func resolveFormatter(format string) (report.Formatter, error) {
-	switch strings.ToLower(format) {
-	case "table", "":
-		return &report.TableFormatter{}, nil
-	case "json":
-		return report.NewJSONFormatter(), nil
-	case "github":
-		return &report.GithubFormatter{}, nil
-	case "sarif":
-		return &report.SARIFFormatter{}, nil
-	case "pr-comment":
-		return &report.PRCommentFormatter{}, nil
-	default:
-		return nil, fmt.Errorf("unknown format: %s (use table, json, github, sarif, or pr-comment)", format)
-	}
-}
-
 type outputConfig struct {
 	path      string
 	writer    io.Writer
@@ -163,4 +146,21 @@ func output(entries *scan.Entries, config outputConfig) error {
 	}
 
 	return nil
+}
+
+func resolveFormatter(format string) (report.Formatter, error) {
+	switch strings.ToLower(format) {
+	case "table", "":
+		return &report.TableFormatter{}, nil
+	case "json":
+		return report.NewJSONFormatter(), nil
+	case "github":
+		return &report.GithubFormatter{}, nil
+	case "sarif":
+		return &report.SARIFFormatter{}, nil
+	case "pr-comment":
+		return &report.PRCommentFormatter{}, nil
+	default:
+		return nil, fmt.Errorf("unknown format: %s (use table, json, github, sarif, or pr-comment)", format)
+	}
 }

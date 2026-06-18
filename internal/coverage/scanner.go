@@ -23,21 +23,22 @@ type Scanner struct {
 }
 
 func NewScanner(path string, exclude *regexp.Regexp, logger logger.Logger, timeout time.Duration) *Scanner {
-	var opts Scanner
-
+	opts := &Scanner{
+		Path:    path,
+		Exclude: exclude,
+		Logger:  logger,
+		Timeout: timeout,
+	}
 	if timeout == 0 {
 		opts.Timeout = 10 * time.Minute
 	}
-
 	if path == "" {
 		opts.Path = "."
 	}
-
 	if logger == nil {
 		opts.Logger = dummylogger.New(nil)
 	}
-
-	return &opts
+	return opts
 }
 
 // Scan walks the filesystem for Go modules, runs tests with coverage, and returns coverage data for each module.
