@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/padiazg/go-crap/internal/scan"
 	"github.com/padiazg/go-crap/internal/score"
 )
 
@@ -49,7 +50,7 @@ func NewJSONFormatter() *JSONFormatter {
 	}
 }
 
-func (f *JSONFormatter) Format(entries *score.EntryList, opts FormatOptions) error {
+func (f *JSONFormatter) Format(entries *scan.Entries, opts FormatOptions) error {
 	if entries == nil {
 		return fmt.Errorf("Format: entries list shouldn't be nil")
 	}

@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/padiazg/go-crap/internal/scan"
 	"github.com/padiazg/go-crap/internal/score"
 )
 
 // SARIFFormatter outputs CRAP entries as SARIF JSON.
 type SARIFFormatter struct{}
 
-func (f *SARIFFormatter) Format(entries *score.EntryList, opts FormatOptions) error {
+func (f *SARIFFormatter) Format(entries *scan.Entries, opts FormatOptions) error {
 	if entries == nil {
 		return fmt.Errorf("Format: entries list shouldn't be nil")
 	}

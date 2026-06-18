@@ -4,12 +4,12 @@ import (
 	"io"
 	"path/filepath"
 
-	"github.com/padiazg/go-crap/internal/score"
+	"github.com/padiazg/go-crap/internal/scan"
 )
 
 // Formatter outputs CRAP entries in a specific format.
 type Formatter interface {
-	Format(entries *score.EntryList, opts FormatOptions) error
+	Format(entries *scan.Entries, opts FormatOptions) error
 }
 
 // FormatOptions configures report formatting behavior.

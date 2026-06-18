@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/padiazg/go-crap/internal/scan"
 	"github.com/padiazg/go-crap/internal/score"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,13 +43,13 @@ func checkFooterFailedCount(failed, total int) checkTableFormatterOutputFn {
 func TestTableFormatter_Format(t *testing.T) {
 	tests := []struct {
 		name    string
-		entries score.EntryList
+		entries scan.Entries
 		opts    FormatOptions
 		checks  []checkTableFormatterOutputFn
 	}{
 		{
 			name:    "success_empty_entries",
-			entries: score.EntryList{List: []score.CRAPEntry{}},
+			entries: scan.Entries{List: []score.CRAPEntry{}},
 			checks: checkTableFormatterOutput(
 				checkOutputContains("CRAP"),
 				checkOutputContains("CC"),
@@ -59,7 +60,7 @@ func TestTableFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_all_pass",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "FuncA", Line: 1, Complexity: 1, Coverage: 90, CRAP: 2},
 				{File: "/project/main.go", Package: "myapp", FuncName: "FuncB", Line: 10, Complexity: 2, Coverage: 80, CRAP: 6.4},
 			}},
@@ -71,7 +72,7 @@ func TestTableFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_all_fail",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "FuncA", Line: 1, Complexity: 10, Coverage: 0, CRAP: 100},
 				{File: "/project/main.go", Package: "myapp", FuncName: "FuncB", Line: 10, Complexity: 5, Coverage: 0, CRAP: 26},
 			}},
@@ -83,7 +84,7 @@ func TestTableFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_mixed_status",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "Good", Line: 1, Complexity: 1, Coverage: 100, CRAP: 1},
 				{File: "/project/main.go", Package: "myapp", FuncName: "Warning", Line: 5, Complexity: 4, Coverage: 60, CRAP: 14.4},
 				{File: "/project/main.go", Package: "myapp", FuncName: "Bad", Line: 10, Complexity: 10, Coverage: 0, CRAP: 110},
@@ -98,7 +99,7 @@ func TestTableFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_coverage_bar_at_100",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "FullCovered", Line: 1, Complexity: 1, Coverage: 100, CRAP: 2},
 			}},
 			opts: FormatOptions{Threshold: 200},
@@ -108,7 +109,7 @@ func TestTableFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_coverage_bar_at_0",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "NotCovered", Line: 1, Complexity: 1, Coverage: 0, CRAP: 1},
 			}},
 			opts: FormatOptions{Threshold: 200},
@@ -118,7 +119,7 @@ func TestTableFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_coverage_bar_at_50",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "HalfCovered", Line: 1, Complexity: 1, Coverage: 50, CRAP: 1},
 			}},
 			opts: FormatOptions{Threshold: 200},
@@ -129,7 +130,7 @@ func TestTableFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_base_dir_rewrites_path",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{File: "/tmp/project/main.go", Package: "myapp", FuncName: "Process", Line: 5, Complexity: 2, Coverage: 90, CRAP: 3.38},
 			}},
 			opts: FormatOptions{Threshold: 200, BaseDir: "/tmp/project"},
@@ -140,7 +141,7 @@ func TestTableFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_base_dir_no_rewrite_when_no_match",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{File: "/other/project/main.go", Package: "myapp", FuncName: "Process", Line: 5, Complexity: 2, Coverage: 90, CRAP: 3.38},
 			}},
 			opts: FormatOptions{Threshold: 200, BaseDir: "/tmp/project"},
@@ -150,7 +151,7 @@ func TestTableFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_sort_order_descending",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/a.go", Package: "myapp", FuncName: "Low", Line: 1, Complexity: 1, Coverage: 50, CRAP: 2.25},
 				{File: "/project/b.go", Package: "myapp", FuncName: "High", Line: 1, Complexity: 10, Coverage: 0, CRAP: 110},
 				{File: "/project/c.go", Package: "myapp", FuncName: "Mid", Line: 1, Complexity: 5, Coverage: 20, CRAP: 32},
@@ -162,7 +163,7 @@ func TestTableFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_sort_by_effective_crap_with_mutation",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/a.go", Package: "myapp", FuncName: "Good", Line: 1, Complexity: 1, Coverage: 100, CRAP: 1, EffectiveCRAP: 1},
 				{File: "/project/b.go", Package: "myapp", FuncName: "BadWithMutation", Line: 1, Complexity: 4, Coverage: 100, CRAP: 4, EffectiveCRAP: 16},
 				{File: "/project/c.go", Package: "myapp", FuncName: "Mid", Line: 1, Complexity: 5, Coverage: 20, CRAP: 32, EffectiveCRAP: 32},
@@ -174,7 +175,7 @@ func TestTableFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_sort_effective_crap_tie_break_by_mutation_score",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/a.go", Package: "myapp", FuncName: "SameCRAP_BetterMutation", Line: 1, Complexity: 5, Coverage: 20, CRAP: 32, EffectiveCRAP: 32, MutationScore: 0.8},
 				{File: "/project/b.go", Package: "myapp", FuncName: "SameCRAP_WorseMutation", Line: 1, Complexity: 5, Coverage: 20, CRAP: 32, EffectiveCRAP: 32, MutationScore: 0.3},
 			}},
@@ -185,7 +186,7 @@ func TestTableFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_output_format_structure",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "FooBar", Line: 42, Complexity: 3, Coverage: 75, CRAP: 8.44},
 			}},
 			opts: FormatOptions{Threshold: 200},
@@ -200,7 +201,7 @@ func TestTableFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_single_entry",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "Hello", Line: 10, Complexity: 1, Coverage: 100, CRAP: 1},
 			}},
 			opts: FormatOptions{Threshold: 200},
@@ -212,7 +213,7 @@ func TestTableFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_threshold_boundary_half",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "AtHalf", Line: 1, Complexity: 10, Coverage: 100, CRAP: 10},
 			}},
 			opts: FormatOptions{Threshold: 20},
@@ -223,7 +224,7 @@ func TestTableFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_threshold_boundary_warning",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "Warning", Line: 1, Complexity: 4, Coverage: 60, CRAP: 14.4},
 			}},
 			opts: FormatOptions{Threshold: 20},
@@ -235,7 +236,7 @@ func TestTableFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_threshold_boundary_at_threshold",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "Exact", Line: 1, Complexity: 20, Coverage: 100, CRAP: 20},
 			}},
 			opts: FormatOptions{Threshold: 20},
@@ -248,7 +249,7 @@ func TestTableFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_threshold_boundary_one_over",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "Over", Line: 1, Complexity: 21, Coverage: 100, CRAP: 21},
 			}},
 			opts: FormatOptions{Threshold: 20},
@@ -314,7 +315,7 @@ func TestStatusSymbol_zero_threshold(t *testing.T) {
 func Test_tableFormatter_coverage_untrusted_warning(t *testing.T) {
 	var buf strings.Builder
 	formatter := &TableFormatter{}
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{CRAP: 50.0, Coverage: 50.0, CoverageUntrusted: true, FuncName: "untrusted", Complexity: 5},
 	}}
 	err := formatter.Format(entries, FormatOptions{Writer: &buf, Threshold: 30.0})
@@ -326,7 +327,7 @@ func Test_tableFormatter_coverage_untrusted_warning(t *testing.T) {
 func Test_tableFormatter_coverage_bar_at_boundaries(t *testing.T) {
 	var buf strings.Builder
 	formatter := &TableFormatter{}
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{CRAP: 10.0, Coverage: 0.0, CoverageUntrusted: false, FuncName: "zero"},
 		{CRAP: 10.0, Coverage: 100.0, CoverageUntrusted: false, FuncName: "full"},
 	}}
@@ -340,7 +341,7 @@ func Test_tableFormatter_coverage_bar_at_boundaries(t *testing.T) {
 func Test_tableFormatter_single_entry(t *testing.T) {
 	var buf strings.Builder
 	formatter := &TableFormatter{}
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{CRAP: 50.0, Coverage: 50.0, CoverageUntrusted: false, FuncName: "single", Complexity: 5, Line: 10, File: "file.go"},
 	}}
 	err := formatter.Format(entries, FormatOptions{Writer: &buf, Threshold: 30.0})
@@ -352,7 +353,7 @@ func Test_tableFormatter_single_entry(t *testing.T) {
 func Test_tableFormatter_empty_threshold(t *testing.T) {
 	var buf strings.Builder
 	formatter := &TableFormatter{}
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{CRAP: 10.0, Coverage: 50.0, CoverageUntrusted: false, FuncName: "low"},
 	}}
 	err := formatter.Format(entries, FormatOptions{Writer: &buf, Threshold: 100.0})
@@ -366,7 +367,7 @@ func TestTableFormatter_Format_failed_count_positive(t *testing.T) {
 	// Contains "1/1" would match "-1/1", so we also check NotContains "-1".
 	f := &TableFormatter{}
 	buf := &bytes.Buffer{}
-	entries := score.EntryList{List: []score.CRAPEntry{
+	entries := scan.Entries{List: []score.CRAPEntry{
 		{File: "/project/a.go", Package: "myapp", FuncName: "Bad", Line: 1, Complexity: 10, Coverage: 0, CRAP: 100},
 	}}
 	opts := FormatOptions{Threshold: 10, Writer: buf}
@@ -382,7 +383,7 @@ func TestTableFormatter_Format_sort_equal_mutation_score_no_panic(t *testing.T) 
 	// when EffectiveScore and MutationScore are equal. Go 1.22+ panics.
 	f := &TableFormatter{}
 	buf := &bytes.Buffer{}
-	entries := score.EntryList{List: make([]score.CRAPEntry, 20)}
+	entries := scan.Entries{List: make([]score.CRAPEntry, 20)}
 	for i := range 20 {
 		entries.List[i] = score.CRAPEntry{
 			File: "/project/main.go", Package: "myapp",

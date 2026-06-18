@@ -5,6 +5,7 @@ import (
 	"io"
 	"sort"
 
+	"github.com/padiazg/go-crap/internal/scan"
 	"github.com/padiazg/go-crap/internal/score"
 )
 
@@ -100,7 +101,7 @@ const maxPRCommentRows = 25
 // PRCommentFormatter outputs CRAP entries as a GitHub PR comment.
 type PRCommentFormatter struct{}
 
-func (f *PRCommentFormatter) Format(entries *score.EntryList, opts FormatOptions) error {
+func (f *PRCommentFormatter) Format(entries *scan.Entries, opts FormatOptions) error {
 	if entries == nil {
 		return fmt.Errorf("Format: entries list shouldn't be nil")
 	}

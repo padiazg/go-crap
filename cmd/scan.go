@@ -8,7 +8,6 @@ import (
 
 	"github.com/padiazg/go-crap/internal/report"
 	"github.com/padiazg/go-crap/internal/scan"
-	"github.com/padiazg/go-crap/internal/score"
 	"github.com/padiazg/go-crap/pkg/logger"
 	"github.com/padiazg/go-crap/pkg/slogger"
 	"github.com/spf13/cobra"
@@ -135,7 +134,7 @@ type outputConfig struct {
 	detailed  bool
 }
 
-func output(entries *score.EntryList, config outputConfig) error {
+func output(entries *scan.Entries, config outputConfig) error {
 	if config.output != "" {
 		f, err := os.Create(config.output)
 		if err != nil {

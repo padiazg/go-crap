@@ -6,13 +6,14 @@ import (
 	"strings"
 
 	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/padiazg/go-crap/internal/scan"
 	"github.com/padiazg/go-crap/internal/score"
 )
 
 // TableFormatter outputs CRAP entries as a human-readable table.
 type TableFormatter struct{}
 
-func (f *TableFormatter) Format(entries *score.EntryList, opts FormatOptions) error {
+func (f *TableFormatter) Format(entries *scan.Entries, opts FormatOptions) error {
 	if entries == nil {
 		return fmt.Errorf("Format: entries list shouldn't be nil")
 	}

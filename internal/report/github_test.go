@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/padiazg/go-crap/internal/scan"
 	"github.com/padiazg/go-crap/internal/score"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -53,13 +54,13 @@ func checkOutputEmpty() checkGithubFormatterOutputFn {
 func TestGithubFormatter_Format(t *testing.T) {
 	tests := []struct {
 		name    string
-		entries score.EntryList
+		entries scan.Entries
 		opts    FormatOptions
 		checks  []checkGithubFormatterOutputFn
 	}{
 		{
 			name:    "success_empty_entries",
-			entries: score.EntryList{List: []score.CRAPEntry{}},
+			entries: scan.Entries{List: []score.CRAPEntry{}},
 			opts:    FormatOptions{Threshold: 200},
 			checks: checkGithubFormatterOutput(
 				checkOutputEmpty(),
@@ -67,7 +68,7 @@ func TestGithubFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_exceeds_threshold",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "BadFunc", Line: 10, Complexity: 10, Coverage: 0, CRAP: 100},
 			}},
 			opts: FormatOptions{Threshold: 50},
@@ -84,7 +85,7 @@ func TestGithubFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_below_threshold",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "GoodFunc", Line: 1, Complexity: 1, Coverage: 100, CRAP: 1},
 			}},
 			opts: FormatOptions{Threshold: 50},
@@ -95,7 +96,7 @@ func TestGithubFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_method_with_receiver",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "*MyType.Process", Line: 20, Complexity: 8, Coverage: 0, CRAP: 72},
 			}},
 			opts: FormatOptions{Threshold: 50},
@@ -107,7 +108,7 @@ func TestGithubFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_mixed_entries",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "GoodFunc", Line: 1, Complexity: 1, Coverage: 100, CRAP: 1},
 				{File: "/project/main.go", Package: "myapp", FuncName: "BadFunc", Line: 10, Complexity: 10, Coverage: 0, CRAP: 100},
 				{File: "/project/utils.go", Package: "myapp", FuncName: "UglyFunc", Line: 5, Complexity: 8, Coverage: 10, CRAP: 57.76},
@@ -125,7 +126,7 @@ func TestGithubFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_base_dir_rewrites_path",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{File: "/tmp/project/main.go", Package: "myapp", FuncName: "Process", Line: 5, Complexity: 10, Coverage: 0, CRAP: 100},
 			}},
 			opts: FormatOptions{Threshold: 50, BaseDir: "/tmp/project"},
@@ -138,7 +139,7 @@ func TestGithubFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_base_dir_no_rewrite_when_no_match",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{File: "/other/project/main.go", Package: "myapp", FuncName: "Process", Line: 5, Complexity: 10, Coverage: 0, CRAP: 100},
 			}},
 			opts: FormatOptions{Threshold: 50, BaseDir: "/tmp/project"},
@@ -150,7 +151,7 @@ func TestGithubFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_threshold_boundary_exactly_at_threshold",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "Exact", Line: 1, Complexity: 10, Coverage: 100, CRAP: 10},
 			}},
 			opts: FormatOptions{Threshold: 10},
@@ -161,7 +162,7 @@ func TestGithubFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_threshold_boundary_one_over",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "Over", Line: 1, Complexity: 2, Coverage: 100, CRAP: 11},
 			}},
 			opts: FormatOptions{Threshold: 10},
@@ -219,7 +220,7 @@ func TestGithubFormatter_Format_relative_path_conversion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f := &GithubFormatter{}
 			buf := &bytes.Buffer{}
-			entries := &score.EntryList{List: []score.CRAPEntry{
+			entries := &scan.Entries{List: []score.CRAPEntry{
 				{File: tt.entryFile, Package: "myapp", FuncName: "Foo", Line: 1, Complexity: 10, Coverage: 0, CRAP: 100},
 			}}
 			opts := FormatOptions{
@@ -241,7 +242,7 @@ func TestGithubFormatter_Format_relative_path_conversion(t *testing.T) {
 func TestGithubFormatter_Format_output_format_details(t *testing.T) {
 	f := &GithubFormatter{}
 	buf := &bytes.Buffer{}
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{File: "/project/main.go", Package: "myapp", FuncName: "Complex", Line: 42, Complexity: 7, Coverage: 30, CRAP: 123.46},
 	}}
 	opts := FormatOptions{
@@ -268,7 +269,7 @@ func TestGithubFormatter_Format_output_format_details(t *testing.T) {
 func TestGithubFormatter_Format_returns_nil_error(t *testing.T) {
 	f := &GithubFormatter{}
 	buf := &bytes.Buffer{}
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{File: "/project/main.go", Package: "myapp", FuncName: "Foo", Line: 1, Complexity: 10, Coverage: 0, CRAP: 100},
 	}}
 	opts := FormatOptions{
@@ -282,14 +283,14 @@ func TestGithubFormatter_Format_returns_nil_error(t *testing.T) {
 	err = f.Format(nil, opts)
 	assert.Error(t, err)
 
-	err = f.Format(&score.EntryList{List: []score.CRAPEntry{}}, opts)
+	err = f.Format(&scan.Entries{List: []score.CRAPEntry{}}, opts)
 	assert.NoError(t, err)
 }
 
 func TestGithubFormatter_Format_coverage_untrusted_below_threshold(t *testing.T) {
 	f := &GithubFormatter{}
 	buf := &bytes.Buffer{}
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{
 			File:              "/project/main.go",
 			Package:           "myapp",
@@ -319,7 +320,7 @@ func TestGithubFormatter_Format_coverage_untrusted_below_threshold(t *testing.T)
 func TestGithubFormatter_Format_coverage_untrusted_above_threshold(t *testing.T) {
 	f := &GithubFormatter{}
 	buf := &bytes.Buffer{}
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{
 			File:              "/project/main.go",
 			Package:           "myapp",
@@ -349,7 +350,7 @@ func TestGithubFormatter_Format_coverage_untrusted_above_threshold(t *testing.T)
 func TestGithubFormatter_Format_multiple_unreliable_below_threshold(t *testing.T) {
 	f := &GithubFormatter{}
 	buf := &bytes.Buffer{}
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{
 			File:              "/project/a.go",
 			Package:           "myapp",
@@ -386,13 +387,12 @@ func TestGithubFormatter_Format_multiple_unreliable_below_threshold(t *testing.T
 	assert.Contains(t, got, "coverage not reliable")
 }
 
-
 func TestGithubFormatter_Format_crap_warning_exact_mutation_score(t *testing.T) {
 	// ARITH :53 — e.MutationScore*100 in formatGithubCRAPWarning appended text.
 	// Mutant changes *100, producing wrong percentage on the CRAP warning line.
 	f := &GithubFormatter{}
 	buf := &bytes.Buffer{}
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{
 			File: "/project/main.go", Package: "myapp",
 			FuncName:          "BadFunc",
@@ -426,7 +426,7 @@ func TestGithubFormatter_nil_entries(t *testing.T) {
 func TestGithubFormatter_untrusted_below_threshold(t *testing.T) {
 	formatter := &GithubFormatter{}
 	var buf strings.Builder
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{CRAP: 20.0, Coverage: 50.0, CoverageUntrusted: true, FuncName: "untrusted",
 			MutationScore: 0.5, File: "file.go", Line: 10},
 	}}
@@ -440,7 +440,7 @@ func TestGithubFormatter_untrusted_below_threshold(t *testing.T) {
 func TestGithubFormatter_untrusted_above_threshold(t *testing.T) {
 	formatter := &GithubFormatter{}
 	var buf strings.Builder
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{CRAP: 50.0, Coverage: 50.0, CoverageUntrusted: true, FuncName: "untrusted",
 			MutationScore: 0.5, File: "file.go", Line: 10},
 	}}
@@ -454,7 +454,7 @@ func TestGithubFormatter_untrusted_above_threshold(t *testing.T) {
 func TestGithubFormatter_threshold_exactly_met(t *testing.T) {
 	formatter := &GithubFormatter{}
 	var buf strings.Builder
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{CRAP: 30.0, Coverage: 50.0, CoverageUntrusted: false, FuncName: "exact", File: "f.go", Line: 1},
 	}}
 	err := formatter.Format(entries, FormatOptions{Writer: &buf, Threshold: 30.0})
@@ -465,7 +465,7 @@ func TestGithubFormatter_threshold_exactly_met(t *testing.T) {
 func TestGithubFormatter_one_above_threshold(t *testing.T) {
 	formatter := &GithubFormatter{}
 	var buf strings.Builder
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{CRAP: 30.01, Coverage: 50.0, CoverageUntrusted: false, FuncName: "above", File: "f.go", Line: 1},
 	}}
 	err := formatter.Format(entries, FormatOptions{Writer: &buf, Threshold: 30.0})

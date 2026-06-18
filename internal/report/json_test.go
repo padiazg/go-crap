@@ -7,12 +7,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/padiazg/go-crap/internal/scan"
 	"github.com/padiazg/go-crap/internal/score"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestJSONFormatter_DetailedMutationDetails(t *testing.T) {
-	entries := score.EntryList{List: []score.CRAPEntry{
+	entries := scan.Entries{List: []score.CRAPEntry{
 		{
 			File:              "/home/user/project/main.go",
 			Package:           "myapp",
@@ -192,7 +193,7 @@ func checkFormatError(want string) checkJSONFormatterFormatFn {
 func TestJSONFormatter_Format(t *testing.T) {
 	tests := []struct {
 		name        string
-		entries     score.EntryList
+		entries     scan.Entries
 		opts        FormatOptions
 		checks      []checkJSONFormatterFormatFn
 		reportCheck []checkJSONFormatterFormatReportFn
@@ -208,7 +209,7 @@ func TestJSONFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_single_entry",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{
 					File:       "/home/user/project/main.go",
 					Package:    "myapp",
@@ -237,7 +238,7 @@ func TestJSONFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_receiver_omitempty",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{
 					File:       "/home/user/project/main.go",
 					Package:    "myapp",
@@ -258,7 +259,7 @@ func TestJSONFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_coverage_zero_included",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{
 					File:       "/home/user/project/main.go",
 					Package:    "myapp",
@@ -280,7 +281,7 @@ func TestJSONFormatter_Format(t *testing.T) {
 		},
 		{
 			name: "success_base_dir_rewrites_path",
-			entries: score.EntryList{List: []score.CRAPEntry{
+			entries: scan.Entries{List: []score.CRAPEntry{
 				{
 					File:       "/tmp/project/main.go",
 					Package:    "myapp",
@@ -358,7 +359,6 @@ func TestJSONFormatter_Format(t *testing.T) {
 	}
 }
 
-
 func TestJSONFormatter_nil_entries(t *testing.T) {
 	formatter := NewJSONFormatter()
 	var buf strings.Builder
@@ -370,7 +370,7 @@ func TestJSONFormatter_nil_entries(t *testing.T) {
 func TestJSONFormatter_coverage_zero_in_output(t *testing.T) {
 	formatter := NewJSONFormatter()
 	var buf strings.Builder
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{CRAP: 10.0, Coverage: 0.0, CoverageUntrusted: false, FuncName: "zeroCover"},
 	}}
 	err := formatter.Format(entries, FormatOptions{Writer: &buf})
@@ -383,7 +383,7 @@ func TestJSONFormatter_coverage_zero_in_output(t *testing.T) {
 func TestJSONFormatter_coverage_value_precision(t *testing.T) {
 	formatter := NewJSONFormatter()
 	var buf strings.Builder
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{CRAP: 10.0, Coverage: 50.5, CoverageUntrusted: false, FuncName: "hasCov"},
 	}}
 	err := formatter.Format(entries, FormatOptions{Writer: &buf})
@@ -396,7 +396,7 @@ func TestJSONFormatter_coverage_value_precision(t *testing.T) {
 func TestJSONFormatter_entry_with_receiver(t *testing.T) {
 	formatter := NewJSONFormatter()
 	var buf strings.Builder
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{CRAP: 20.0, Coverage: 50.0, CoverageUntrusted: false, FuncName: "Method", Receiver: "MyType"},
 	}}
 	err := formatter.Format(entries, FormatOptions{Writer: &buf})
@@ -409,7 +409,7 @@ func TestJSONFormatter_entry_with_receiver(t *testing.T) {
 func TestJSONFormatter_detailed_disabled_omits_mutations(t *testing.T) {
 	formatter := NewJSONFormatter()
 	var buf strings.Builder
-	entries := &score.EntryList{List: []score.CRAPEntry{
+	entries := &scan.Entries{List: []score.CRAPEntry{
 		{CRAP: 50.0, Coverage: 50.0, CoverageUntrusted: true, FuncName: "untrusted",
 			MutationScore: 0.5, MutationDetails: []score.MutationDetail{
 				{MutantType: "CONDITIONALS_BOUNDARY", Line: 10, Status: "lived"},
