@@ -111,3 +111,36 @@ func (entries *Entries) filterByTop() {
 
 	entries.List = result
 }
+
+func (entries *Entries) ForPRComment() []score.CRAPEntry {
+	sorted := make([]score.CRAPEntry, len(entries.List))
+	copy(sorted, entries.List)
+	for i := range sorted {
+		sorted[i].EffectiveCRAP = sorted[i].EffectiveScore()
+	}
+
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].EffectiveCRAP > sorted[j].EffectiveCRAP
+	})
+
+	return sorted
+}
+
+func (entries *Entries) ForTable() []score.CRAPEntry {
+	sorted := make([]score.CRAPEntry, len(entries.List))
+	copy(sorted, entries.List)
+
+	for i := range sorted {
+		sorted[i].EffectiveCRAP = sorted[i].EffectiveScore()
+	}
+
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].EffectiveCRAP != sorted[j].EffectiveCRAP {
+			return sorted[i].EffectiveCRAP > sorted[j].EffectiveCRAP
+		}
+
+		return sorted[i].MutationScore < sorted[j].MutationScore
+	})
+
+	return sorted
+}

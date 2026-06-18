@@ -3,7 +3,7 @@ package report
 import (
 	"fmt"
 	"io"
-	"sort"
+	"strings"
 
 	"github.com/padiazg/go-crap/internal/scan"
 	"github.com/padiazg/go-crap/internal/score"
@@ -22,11 +22,7 @@ func (f *PRCommentFormatter) writePRHeader(w io.Writer, sorted []score.CRAPEntry
 	fmt.Fprintf(w, "\n%d function(s) analyzed · threshold %.0f\n\n", len(sorted), threshold)
 }
 
-func (f *PRCommentFormatter) writeCrappyTable(w io.Writer, crappy []score.CRAPEntry, total int, threshold, halfThreshold float64, baseDir string) {
-	if len(crappy) > maxPRCommentRows {
-		crappy = crappy[:maxPRCommentRows]
-	}
-
+func (f *PRCommentFormatter) writeCrappyTable(w io.Writer, crappy []score.CRAPEntry, total int, baseDir string) {
 	if len(crappy) == 0 {
 		return
 	}
@@ -35,14 +31,13 @@ func (f *PRCommentFormatter) writeCrappyTable(w io.Writer, crappy []score.CRAPEn
 	fmt.Fprintln(w, "|---|---:|---:|---:|---|---|")
 
 	for _, e := range crappy {
-		status := StatusSymbol(e.EffectiveCRAP, threshold, halfThreshold)
 		loc := formatPRLocation(e, baseDir)
 		covStr := fmt.Sprintf("%.1f%%", e.Coverage)
 		if e.CoverageUntrusted {
 			covStr += " \xe2\x9a\xa0"
 		}
-		fmt.Fprintf(w, "| %s | %.2f | %d | %s | `%s` | %s |\n",
-			status, e.EffectiveCRAP, e.Complexity, covStr, e.FuncName, loc)
+		fmt.Fprintf(w, "| ✗ | %.2f | %d | %s | `%s` | %s |\n",
+			e.EffectiveCRAP, e.Complexity, covStr, e.FuncName, loc)
 	}
 
 	if total > maxPRCommentRows {
@@ -83,17 +78,17 @@ func formatMutantsStr(details []score.MutationDetail) string {
 	if len(details) == 0 {
 		return ""
 	}
-	var mutantsStr string
+	var mutantsStr strings.Builder
 	for i, md := range details {
 		if i > 0 {
-			mutantsStr += ", "
+			mutantsStr.WriteString(", ")
 		}
-		mutantsStr += fmt.Sprintf("`%s`@L%d", md.MutantType, md.Line)
+		fmt.Fprintf(&mutantsStr, "`%s`@L%d", md.MutantType, md.Line)
 		if md.OriginalText != "" && md.ReplacementText != "" {
-			mutantsStr += fmt.Sprintf("\n    `%s` → `%s`", md.OriginalText, md.ReplacementText)
+			fmt.Fprintf(&mutantsStr, "\n    `%s` → `%s`", md.OriginalText, md.ReplacementText)
 		}
 	}
-	return mutantsStr
+	return mutantsStr.String()
 }
 
 const maxPRCommentRows = 25
@@ -106,16 +101,8 @@ func (f *PRCommentFormatter) Format(entries *scan.Entries, opts FormatOptions) e
 		return fmt.Errorf("Format: entries list shouldn't be nil")
 	}
 
-	sorted := make([]score.CRAPEntry, len(entries.List))
-	copy(sorted, entries.List)
-	for i := range sorted {
-		sorted[i].EffectiveCRAP = sorted[i].EffectiveScore()
-	}
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].EffectiveCRAP > sorted[j].EffectiveCRAP
-	})
+	sorted := entries.ForPRComment()
 
-	halfThreshold := opts.Threshold / 2.0
 	crappy := filterAboveThreshold(sorted, opts.Threshold)
 
 	f.writePRHeader(opts.Writer, sorted, crappy, opts.Threshold)
@@ -124,7 +111,7 @@ func (f *PRCommentFormatter) Format(entries *scan.Entries, opts FormatOptions) e
 		crappy = crappy[:maxPRCommentRows]
 	}
 
-	f.writeCrappyTable(opts.Writer, crappy, len(entries.List), opts.Threshold, halfThreshold, opts.BaseDir)
+	f.writeCrappyTable(opts.Writer, crappy, len(entries.List), opts.BaseDir)
 
 	unreliable := filterUnreliableCoverage(sorted)
 	f.writeUnreliableSection(opts.Writer, unreliable, opts.Detailed)
