@@ -1,7 +1,6 @@
 package coverage
 
 import (
-	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -82,7 +81,6 @@ func Test_extractRecvName(t *testing.T) {
 		name     string
 		recv     *ast.FieldList
 		want     string
-		wantStr  string
 		hasField bool
 	}{
 		{
@@ -101,42 +99,36 @@ func Test_extractRecvName(t *testing.T) {
 			name:     "value_receiver_ident",
 			recv:     &ast.FieldList{List: []*ast.Field{{Type: &ast.Ident{Name: "User"}}}},
 			want:     "User",
-			wantStr:  "User",
 			hasField: true,
 		},
 		{
 			name:     "pointer_receiver_star_ident",
 			recv:     &ast.FieldList{List: []*ast.Field{{Type: &ast.StarExpr{X: &ast.Ident{Name: "User"}}}}},
 			want:     "*User",
-			wantStr:  "*User",
 			hasField: true,
 		},
 		{
 			name:     "selector_expr_receiver",
 			recv:     &ast.FieldList{List: []*ast.Field{{Type: &ast.SelectorExpr{X: &ast.Ident{Name: "pkg"}}}}},
 			want:     "pkg",
-			wantStr:  "pkg",
 			hasField: true,
 		},
 		{
 			name:     "pointer_to_selector_expr_receiver",
 			recv:     &ast.FieldList{List: []*ast.Field{{Type: &ast.StarExpr{X: &ast.SelectorExpr{X: &ast.Ident{Name: "pkg"}}}}}},
 			want:     "*pkg",
-			wantStr:  "*pkg",
 			hasField: true,
 		},
 		{
 			name:     "star_expr_non_ident_X",
 			recv:     &ast.FieldList{List: []*ast.Field{{Type: &ast.StarExpr{X: &ast.SelectorExpr{X: &ast.SelectorExpr{X: &ast.Ident{Name: "x"}}}}}}},
 			want:     "",
-			wantStr:  "",
 			hasField: true,
 		},
 		{
 			name:     "selector_expr_non_ident_X",
 			recv:     &ast.FieldList{List: []*ast.Field{{Type: &ast.SelectorExpr{X: &ast.SelectorExpr{X: &ast.Ident{Name: "x"}}}}}},
 			want:     "",
-			wantStr:  "",
 			hasField: true,
 		},
 	}
@@ -144,7 +136,6 @@ func Test_extractRecvName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := extractRecvName(tt.recv)
 			assert.Equal(t, tt.want, r)
-			assert.Equal(t, tt.wantStr, fmt.Sprintf("%s", r))
 			hasField := tt.recv != nil && len(tt.recv.List) > 0
 			assert.Equal(t, tt.hasField, hasField)
 		})

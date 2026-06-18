@@ -90,14 +90,6 @@ func checkEntryEffectiveCRAP(fn string, idx int, want float64) checkEntryFn {
 	}
 }
 
-func checkEntryEffectiveScore(fn string, idx int, want float64) checkEntryFn {
-	return func(t *testing.T, e *Entries) {
-		t.Helper()
-		item := e.List[idx]
-		assert.Equalf(t, want, item.EffectiveScore, "checkEntry%s: %d, expected %d", fn, item.EffectiveScore, want)
-	}
-}
-
 func TestNewEntries(t *testing.T) {
 	const fn = "NewEntries"
 	tests := []struct {
@@ -777,9 +769,6 @@ func TestEntries_filterByTop(t *testing.T) {
 
 // ponytail: minimal helper to avoid polluting package scope with multiple
 // helper functions. All test helpers live below this comment.
-
-//go:fix inline
-func ptrF64(v float64) *float64 { return new(v) }
 
 func funcNames(entries []score.CRAPEntry) []string {
 	names := make([]string, len(entries))

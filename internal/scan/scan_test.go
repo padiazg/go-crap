@@ -397,10 +397,11 @@ func (captureLogger) Debug(msg string, args ...any) {
 	}
 	fmt.Fprintln(os.Stdout)
 }
-func (captureLogger) Info(msg string, args ...any)   {}
-func (captureLogger) Warn(msg string, args ...any)   {}
-func (captureLogger) Error(msg string, args ...any)  {}
-func (captureLogger) Fatal(msg string, args ...any)  {}
+
+func (captureLogger) Info(msg string, args ...any)  {}
+func (captureLogger) Warn(msg string, args ...any)  {}
+func (captureLogger) Error(msg string, args ...any) {}
+func (captureLogger) Fatal(msg string, args ...any) {}
 
 func Test_logCoverageErrors(t *testing.T) {
 	tests := []struct {
@@ -410,8 +411,8 @@ func Test_logCoverageErrors(t *testing.T) {
 		checks    []logCoverageErrorsCheckFn
 	}{
 		{
-			name:   "nil_logger_no_output",
-			l:      nil,
+			name: "nil_logger_no_output",
+			l:    nil,
 			coverages: []coverage.ModuleCoverage{
 				{Dir: "/mod", Error: errors.New("fail")},
 			},
