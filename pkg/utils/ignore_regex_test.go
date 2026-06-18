@@ -124,7 +124,6 @@ func TestMatchExclude(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			got := MatchExclude(tt.ignore, tt.filePath)
 			assert.Equalf(t, tt.want, got, "MatchExclude(%v, %q)", tt.ignore, tt.filePath)
@@ -223,7 +222,6 @@ func TestMatchExclude_endToEnd(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			re, err := BuildExcludeRegex(tt.exclude)
 			if err != nil {
@@ -268,7 +266,6 @@ func TestBuildExcludeRegex(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := BuildExcludeRegex(tt.exclude)
 			if err != nil {
@@ -330,7 +327,6 @@ func TestBuildExcludeRegex_endToEnd(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			re, err := BuildExcludeRegex(tt.exclude)
 			if err != nil {

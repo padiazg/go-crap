@@ -79,8 +79,8 @@ func (idx *pathIndex) lookup(absPath string) ([]coverage.FunctionCoverage, bool)
 
 func normalizeFuncName(name string) string {
 	// (*Type).Method → Method
-	if idx := strings.Index(name, ")."); idx != -1 {
-		return name[idx+2:]
+	if _, after, ok := strings.Cut(name, ")."); ok {
+		return after
 	}
 	// Type.Method or *Type.Method → Method
 	if _, after, ok := strings.Cut(name, "."); ok {

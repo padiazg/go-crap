@@ -100,7 +100,6 @@ func TestParseReport(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			path := tt.setup(t)
 			got, err := ParseReport(path)
@@ -279,7 +278,6 @@ func TestAnnotate(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			result := Annotate(tt.entries, tt.report, tt.merged)
 			assert.Equal(t, len(tt.expected), len(result))
@@ -314,7 +312,6 @@ func Test_mergeKey(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			got := mergeKey(tt.file, tt.funcName, tt.receiver)
 			assert.Equal(t, tt.want, got)
@@ -352,7 +349,6 @@ func Test_buildMutantFileSuffix(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			got := buildMutantFileSuffix(tt.path)
 			assert.Equal(t, tt.want, got)
@@ -762,7 +758,6 @@ func Test_annotateEntry(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			annotateEntry(tt.e, tt.killed, tt.lived, tt.livedMutants)
 			for _, c := range tt.checks {

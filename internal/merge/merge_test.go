@@ -341,7 +341,6 @@ func TestMerge(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			r := Merge(tt.coverages, tt.stats)
 			for _, c := range tt.checks {
@@ -562,7 +561,6 @@ func Test_buildSuffix(t *testing.T) {
 		{"leading and trailing slash", "/a/b/c/", "a/b/c"},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			r := buildSuffix(tt.path)
 			assert.Equal(t, tt.want, r)

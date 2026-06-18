@@ -20,7 +20,6 @@ func TestLevel_String(t *testing.T) {
 		{name: "InvalidLevel", level: -1, want: "info"},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.want, tt.level.String())
 		})
@@ -43,7 +42,6 @@ func Test_parseLevel(t *testing.T) {
 		{name: "uppercase_falls_back_to_info", level: "DEBUG", want: InfoLevel},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.want, ParseLevel(tt.level))
 		})

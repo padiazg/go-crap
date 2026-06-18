@@ -107,7 +107,6 @@ func TestPRCommentFormatter_Format(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			f := &PRCommentFormatter{}
 			buf := &bytes.Buffer{}
@@ -563,8 +562,8 @@ func TestPRCommentFormatter_Format_status_symbol_all_above_threshold(t *testing.
 	require.NoError(t, err)
 
 	output := buf.String()
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(output, "\n")
+	for line := range lines {
 		if strings.Contains(line, "JustOver") || strings.Contains(line, "FarOver") {
 			assert.Contains(t, line, "✗", "Entries above threshold should show ✗")
 			assert.NotContains(t, line, "▲", "Entries above threshold should NOT show ▲")

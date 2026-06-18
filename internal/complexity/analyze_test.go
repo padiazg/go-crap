@@ -364,10 +364,10 @@ func Test_newAnalyze(t *testing.T) {
 		checks  []newAnalyzeFn
 	}{
 		{
-			name:   "nil logger substitutes dummylogger to avoid panic",
-			paths:  []string{"test_trailing\\"},
+			name:    "nil logger substitutes dummylogger to avoid panic",
+			paths:   []string{"test_trailing\\"},
 			exclude: nil,
-			l:      nil,
+			l:       nil,
 			checks: checknewAnalyze(
 				func(t *testing.T, a *analyzeData) {
 					t.Helper()
@@ -388,7 +388,6 @@ func Test_newAnalyze(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			r := newAnalyze(tt.paths, tt.exclude, tt.l)
 			for _, c := range tt.checks {

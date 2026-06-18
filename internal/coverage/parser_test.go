@@ -227,7 +227,6 @@ func standalone() {}
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			r := lookupFuncName(tt.modDir, tt.profilePath)
 			assert.Equal(t, tt.want, r)
@@ -824,7 +823,6 @@ func Test_parseCoord(t *testing.T) {
 		{name: "not_present", s: "abc", wantLine: 0, wantCol: 0},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			l, c := parseCoord(tt.s)
 			assert.Equalf(t, tt.wantLine, l, "line: %d, want %d", l, tt.wantLine)
