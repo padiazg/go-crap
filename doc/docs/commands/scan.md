@@ -32,6 +32,18 @@ go-crap scan [path] [flags]
 
 > `CoverageUntrusted` has meaning only if `--mutation-report` was used.
 
+## Coverage Unavailable Warning
+
+When a Go module fails to build or run tests (`go test ./...` errors), coverage data is lost for all functions in that module. go-crap detects this and surfaces the error in all output formats:
+
+- **table** — coverage column shows `N/A ‼`, footer lists unavailable modules with error messages
+- **json** — `coverage` is `null`, `coverage_warning` contains the error
+- **github** — `::warning` annotation with module error
+- **sarif** — result with `RuleID: "go-crap/coverage-unavailable"`
+- **pr-comment** — "Coverage Unavailable" section
+
+This is distinct from the `--missing` policy, which handles functions that have no coverage data because they were not exercised by tests. Coverage unavailable means the entire module's test run failed.
+
 ## Examples
 
 ### Scan all packages
