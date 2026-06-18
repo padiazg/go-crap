@@ -1,481 +1,497 @@
 package scan
 
 import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"log"
+	"os"
+	"regexp"
+	"sync"
 	"testing"
 
+	"github.com/padiazg/go-crap/internal/coverage"
 	"github.com/padiazg/go-crap/internal/score"
+	"github.com/padiazg/go-crap/pkg/logger"
+	"github.com/stretchr/testify/assert"
 )
 
-type applyFiltersFn func(*testing.T, []score.CRAPEntry)
+// helpers
 
-var (
-	checkapplyFilters = func(fns ...applyFiltersFn) []applyFiltersFn { return fns }
-	dataset           = &Entries{
-		List: []score.CRAPEntry{
-			{CRAP: 20.00, Coverage: 4, FuncName: "walkForModules", Package: "internal/coverage", File: "scanner.go", Line: 74},
-			{CRAP: 56.00, Coverage: 7, FuncName: "Scan", Package: "internal/coverage", File: "scanner.go", Line: 21},
-			{CRAP: 110.00, Coverage: 10, FuncName: "runScan", Package: "cmd", File: "scan.go", Line: 55},
-			{CRAP: 42.00, Coverage: 6, FuncName: "applyFilters", Package: "cmd", File: "scan.go", Line: 135},
-			{CRAP: 30.00, Coverage: 5, FuncName: "Merge", Package: "internal/merge", File: "merge.go", Line: 65},
-			{CRAP: 30.00, Coverage: 5, FuncName: "scanModule", Package: "internal/coverage", File: "scanner.go", Line: 89},
-			{CRAP: 20.00, Coverage: 4, FuncName: "filterByExclude", Package: "internal/coverage", File: "scanner.go", Line: 157},
-			{CRAP: 20.00, Coverage: 4, FuncName: "parseMissingPolicy", Package: "cmd", File: "scan.go", Line: 122},
-			{CRAP: 20.00, Coverage: 4, FuncName: "resolveFormatter", Package: "cmd", File: "scan.go", Line: 154},
-			{CRAP: 20.00, Coverage: 4, FuncName: "readModulePath", Package: "internal/coverage", File: "scanner.go", Line: 121},
+func checkScanError(want string) func(*testing.T, *Entries, error) {
+	return func(t *testing.T, _ *Entries, err error) {
+		t.Helper()
+		if want == "" {
+			assert.NoErrorf(t, err, "checkScanError: expected no error, got %v", err)
+			return
+		}
+		if assert.Errorf(t, err, "checkScanError: expected error %q", want) {
+			assert.Containsf(t, err.Error(), want, "checkScanError mismatch")
+		}
+	}
+}
+
+func checkLen(count int) func(*testing.T, *Entries, error) {
+	return func(t *testing.T, r *Entries, err error) {
+		t.Helper()
+		assert.Len(t, r.List, count)
+	}
+}
+
+func checkValue(pos int, crap float64, name string) func(*testing.T, *Entries, error) {
+	return func(t *testing.T, r *Entries, err error) {
+		t.Helper()
+		if assert.Less(t, pos, len(r.List), "index %d out of bounds for list length %d", pos, len(r.List)) {
+			assert.Equal(t, name, r.List[pos].FuncName, "func at index %d", pos)
+			assert.Equal(t, crap, r.List[pos].CRAP, "crap at index %d", pos)
+		}
+	}
+}
+
+func checkSortedDesc() func(*testing.T, *Entries, error) {
+	return func(t *testing.T, r *Entries, err error) {
+		t.Helper()
+		for i := 1; i < len(r.List); i++ {
+			assert.GreaterOrEqual(t, r.List[i-1].EffectiveCRAP, r.List[i].EffectiveCRAP,
+				"entries not sorted descending: [%d]=%.2f < [%d]=%.2f",
+				i-1, r.List[i-1].EffectiveCRAP, i, r.List[i].EffectiveCRAP)
+		}
+	}
+}
+
+// TestScan — integration tests exercising the full Scan pipeline against
+// internal/testdata (real go test + complexity parsing + merge).
+func TestScan(t *testing.T) {
+	tests := []struct {
+		name    string
+		options *Options
+		checks  []func(*testing.T, *Entries, error)
+	}{
+		{
+			name: "default_scan_excludes_test_files",
+			options: &Options{
+				Path:    "../testdata",
+				Exclude: []string{".*_test.go"},
+			},
+			checks: []func(*testing.T, *Entries, error){
+				checkScanError(""),
+				checkLen(5),
+				checkValue(0, 90.00, "veryComplex"),
+				checkValue(4, 1.00, "simple"),
+				checkSortedDesc(),
+			},
+		},
+		{
+			name: "non_existent_path_returns_error",
+			options: &Options{
+				Path: "/no/such/dir/that/does/not/exist",
+			},
+			checks: []func(*testing.T, *Entries, error){
+				checkScanError("coverage scan"),
+			},
+		},
+		{
+			name: "min_50_filters_low_scores",
+			options: &Options{
+				Path: "../testdata",
+				Min:  50,
+			},
+			checks: []func(*testing.T, *Entries, error){
+				checkScanError(""),
+				checkLen(1),
+				checkValue(0, 90.00, "veryComplex"),
+			},
+		},
+		{
+			name: "min_higher_than_all_returns_empty",
+			options: &Options{
+				Path: "../testdata",
+				Min:  100,
+			},
+			checks: []func(*testing.T, *Entries, error){
+				checkScanError(""),
+				checkLen(0),
+			},
+		},
+		{
+			name: "top_2_limits_results",
+			options: &Options{
+				Path: "../testdata",
+				Top:  2,
+			},
+			checks: []func(*testing.T, *Entries, error){
+				checkScanError(""),
+				checkLen(2),
+				checkValue(0, 90.00, "veryComplex"),
+				checkSortedDesc(),
+			},
+		},
+		{
+			name: "top_larger_than_result_set_is_no_op",
+			options: &Options{
+				Path: "../testdata",
+				Top:  100,
+			},
+			checks: []func(*testing.T, *Entries, error){
+				checkScanError(""),
+				checkLen(6),
+			},
+		},
+		{
+			name: "invalid_missing_policy_returns_error",
+			options: &Options{
+				Path:    "../testdata",
+				Missing: "invalid",
+			},
+			checks: []func(*testing.T, *Entries, error){
+				checkScanError("unknown missing policy"),
+			},
+		},
+		{
+			name: "exclude_function_name_reduces_count",
+			options: &Options{
+				Path:    "../testdata",
+				Exclude: []string{"veryComplex"},
+			},
+			checks: []func(*testing.T, *Entries, error){
+				checkScanError(""),
+				checkLen(5),
+				checkSortedDesc(),
+			},
+		},
+		{
+			name: "missing_optimistic_assumes_100_percent_coverage",
+			options: &Options{
+				Path:    "../testdata",
+				Missing: "optimistic",
+			},
+			checks: []func(*testing.T, *Entries, error){
+				checkScanError(""),
+				checkLen(6),
+			},
+		},
+		{
+			name: "missing_pessimistic_default_policy",
+			options: &Options{
+				Path:    "../testdata",
+				Missing: "pessimistic",
+			},
+			checks: []func(*testing.T, *Entries, error){
+				checkScanError(""),
+				checkLen(6),
+			},
 		},
 	}
-)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			r, err := Scan(tt.options)
+			for _, c := range tt.checks {
+				c(t, r, err)
+			}
+		})
+	}
+}
 
-// func Test_applyFilters(t *testing.T) {
-// 	checkLen := func(count int) applyFiltersFn {
-// 		return func(t *testing.T, c []score.CRAPEntry) {
-// 			t.Helper()
-// 			assert.Equal(t, count, len(c))
-// 		}
-// 	}
+// Test_runCoverageAnalysis exercises the coverage scanner pipeline.
+func Test_runCoverageAnalysis(t *testing.T) {
+	tests := []struct {
+		name    string
+		options *Options
+		exclude *regexp.Regexp
+		checks  []func(*testing.T, []coverage.ModuleCoverage, error)
+	}{
+		{
+			name: "valid_path_returns_coverage_data",
+			options: &Options{
+				Path: "../testdata",
+			},
+			exclude: nil,
+			checks: []func(*testing.T, []coverage.ModuleCoverage, error){
+				func(t *testing.T, r []coverage.ModuleCoverage, err error) {
+					t.Helper()
+					assert.NoError(t, err)
+					assert.NotEmpty(t, r)
+					for _, mc := range r {
+						if mc.Error != nil {
+							t.Errorf("module %s had error: %v", mc.Dir, mc.Error)
+						}
+					}
+				},
+			},
+		},
+		{
+			name: "non_existent_path_returns_error",
+			options: &Options{
+				Path: "/no/such/dir/that/does/not/exist",
+			},
+			exclude: nil,
+			checks: []func(*testing.T, []coverage.ModuleCoverage, error){
+				func(t *testing.T, _ []coverage.ModuleCoverage, err error) {
+					t.Helper()
+					assert.Error(t, err)
+					assert.Contains(t, err.Error(), "coverage scan")
+				},
+			},
+		},
+		{
+			name: "exclude_pattern_filters_coverage_functions",
+			options: &Options{
+				Path: "../testdata",
+			},
+			exclude: regexp.MustCompile(".*_test.go"),
+			checks: []func(*testing.T, []coverage.ModuleCoverage, error){
+				func(t *testing.T, r []coverage.ModuleCoverage, err error) {
+					t.Helper()
+					assert.NoError(t, err)
+					assert.NotEmpty(t, r)
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			r, err := runCoverageAnalysis(context.Background(), tt.options, tt.exclude)
+			for _, c := range tt.checks {
+				c(t, r, err)
+			}
+		})
+	}
+}
 
-// 	checkValue := func(pos int, crap float64, name string) applyFiltersFn {
-// 		return func(t *testing.T, c []score.CRAPEntry) {
-// 			t.Helper()
-// 			assert.Equal(t, crap, c[pos].CRAP)
-// 			assert.Equal(t, name, c[pos].FuncName)
+func Test_parseMissingPolicy(t *testing.T) {
+	tests := []struct {
+		name    string
+		s       string
+		want    score.MissingPolicy
+		wantErr string
+	}{
+		{name: "pessimistic", s: "pessimistic", want: score.MissingPessimistic},
+		{name: "optimistic", s: "optimistic", want: score.MissingOptimistic},
+		{name: "skip", s: "skip", want: score.MissingSkip},
+		{name: "empty_defaults_to_pessimistic", s: "", want: score.MissingPessimistic},
+		{name: "case_insensitive_PESSIMISTIC", s: "PESSIMISTIC", want: score.MissingPessimistic},
+		{name: "case_insensitive_Optimistic", s: "Optimistic", want: score.MissingOptimistic},
+		{name: "invalid", s: "invalid", wantErr: "unknown missing policy"},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			r, err := parseMissingPolicy(tt.s)
+			assert.Equal(t, tt.want, r)
+			if tt.wantErr != "" {
+				if assert.Error(t, err) {
+					assert.Contains(t, err.Error(), tt.wantErr)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
 
-// 		}
-// 	}
+func Test_effectiveCRAP(t *testing.T) {
+	tests := []struct {
+		name string
+		e    score.CRAPEntry
+		want float64
+	}{
+		{name: "effective_crap_returns_effective", e: score.CRAPEntry{EffectiveCRAP: 50, CRAP: 30}, want: 50},
+		{name: "zero_effective_falls_back_to_crap", e: score.CRAPEntry{EffectiveCRAP: 0, CRAP: 30}, want: 30},
+		{name: "both_zero", e: score.CRAPEntry{EffectiveCRAP: 0, CRAP: 0}, want: 0},
+		{name: "negative_effective", e: score.CRAPEntry{EffectiveCRAP: -10, CRAP: 100}, want: -10},
+		{name: "zero_crap_with_effective", e: score.CRAPEntry{EffectiveCRAP: 75, CRAP: 0}, want: 75},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			r := effectiveCRAP(tt.e)
+			assert.Equal(t, tt.want, r)
+		})
+	}
+}
 
-// 	checkUntrusted := func(pos int) applyFiltersFn {
-// 		return func(t *testing.T, c []score.CRAPEntry) {
-// 			t.Helper()
-// 			assert.Truef(t, c[pos].CoverageUntrusted, "entry %d should be CoverageUntrusted", pos)
-// 		}
-// 	}
+// from https://rednafi.com/go/capture_console_output/
+func captureStdOut(f func()) string {
+	// Create a pipe to capture stdout
+	custReader, custWriter, err := os.Pipe()
+	if err != nil {
+		panic(err)
+	}
 
-// 	tests := []struct {
-// 		name    string
-// 		entries *Entries
-// 		top     int
-// 		min     float64
-// 		checks  []applyFiltersFn
-// 	}{
-// 		{
-// 			name:    "full-list",
-// 			entries: dataset,
-// 			checks: checkapplyFilters(
-// 				checkLen(10),
-// 				checkValue(0, 110.00, "runScan"),
-// 				checkValue(9, 20.00, "readModulePath"),
-// 			),
-// 		},
-// 		{
-// 			name:    "min-30",
-// 			entries: dataset,
-// 			min:     30.00,
-// 			checks: checkapplyFilters(
-// 				checkLen(5),
-// 				checkValue(0, 110.00, "runScan"),
-// 				checkValue(4, 30.00, "scanModule"),
-// 			),
-// 		},
-// 		{
-// 			name:    "top-3",
-// 			entries: dataset,
-// 			top:     3,
-// 			checks: checkapplyFilters(
-// 				checkLen(3),
-// 				checkValue(0, 110.00, "runScan"),
-// 				checkValue(2, 42.00, "applyFilters"),
-// 			),
-// 		},
-// 		{
-// 			name: "effectiveCRAP wins over CRAP for sorting",
-// 			entries: &Entries{list: []score.CRAPEntry{
-// 				{CRAP: 10.00, EffectiveCRAP: 20.00, FuncName: "LowestBoth", File: "c.go", Line: 3},
-// 				{CRAP: 50.00, EffectiveCRAP: 0, FuncName: "HighCrapLowEff", File: "a.go", Line: 1},
-// 				{CRAP: 30.00, EffectiveCRAP: 40.00, FuncName: "LowCrapHighEff", File: "b.go", Line: 2},
-// 			}},
-// 			top: 2,
-// 			checks: checkapplyFilters(
-// 				checkLen(2),
-// 				checkValue(0, 50.00, "HighCrapLowEff"),
-// 				checkValue(1, 30.00, "LowCrapHighEff"),
-// 			),
-// 		},
-// 		{
-// 			name: "effectiveCRAP wins over CRAP for min filter",
-// 			entries: &Entries{list: []score.CRAPEntry{
-// 				{CRAP: 5.00, EffectiveCRAP: 25.00, FuncName: "BelowMin", File: "c.go", Line: 3},
-// 				{CRAP: 10.00, EffectiveCRAP: 35.00, FuncName: "LowCrapHighEff", File: "a.go", Line: 1},
-// 				{CRAP: 30.00, EffectiveCRAP: 0, FuncName: "HighCrapLowEff", File: "b.go", Line: 2},
-// 			}},
-// 			min: 30.00,
-// 			checks: checkapplyFilters(
-// 				checkLen(2),
-// 				checkValue(0, 10.00, "LowCrapHighEff"),
-// 				checkValue(1, 30.00, "HighCrapLowEff"),
-// 			),
-// 		},
-// 		{
-// 			name: "effectiveCRAP zero falls back to CRAP",
-// 			entries: &Entries{list: []score.CRAPEntry{
-// 				{CRAP: 50.00, EffectiveCRAP: 0, FuncName: "ZeroEff", File: "a.go", Line: 1},
-// 				{CRAP: 30.00, EffectiveCRAP: 0, FuncName: "AlsoZero", File: "b.go", Line: 2},
-// 			}},
-// 			top: 1,
-// 			checks: checkapplyFilters(
-// 				checkLen(1),
-// 				checkValue(0, 50.00, "ZeroEff"),
-// 			),
-// 		},
-// 		{
-// 			name: "CoverageUntrusted survives top truncation",
-// 			entries: &Entries{list: []score.CRAPEntry{
-// 				{CRAP: 100.00, Coverage: 0, CoverageUntrusted: true, FuncName: "UnreliableHigh", File: "a.go", Line: 1},
-// 				{CRAP: 80.00, Coverage: 10, CoverageUntrusted: true, FuncName: "UnreliableMid", File: "b.go", Line: 2},
-// 				{CRAP: 50.00, Coverage: 20, CoverageUntrusted: true, FuncName: "UnreliableLow", File: "c.go", Line: 3},
-// 				{CRAP: 40.00, Coverage: 30, FuncName: "Trusted1", File: "d.go", Line: 4},
-// 				{CRAP: 30.00, Coverage: 40, FuncName: "Trusted2", File: "e.go", Line: 5},
-// 				{CRAP: 20.00, Coverage: 50, FuncName: "Trusted3", File: "f.go", Line: 6},
-// 				{CRAP: 10.00, Coverage: 60, FuncName: "Trusted4", File: "g.go", Line: 7},
-// 			}},
-// 			top: 3,
-// 			checks: checkapplyFilters(
-// 				checkLen(3),
-// 				checkValue(0, 100.00, "UnreliableHigh"),
-// 				checkUntrusted(0),
-// 				checkValue(1, 80.00, "UnreliableMid"),
-// 				checkUntrusted(1),
-// 				checkValue(2, 50.00, "UnreliableLow"),
-// 				checkUntrusted(2),
-// 			),
-// 		},
-// 		{
-// 			name: "CoverageUntrusted survives top with all slots taken by trusted",
-// 			entries: &Entries{list: []score.CRAPEntry{
-// 				{CRAP: 100.00, Coverage: 0, CoverageUntrusted: true, FuncName: "Unreliable", File: "a.go", Line: 1},
-// 				{CRAP: 90.00, Coverage: 10, FuncName: "Trusted1", File: "b.go", Line: 2},
-// 				{CRAP: 80.00, Coverage: 20, FuncName: "Trusted2", File: "c.go", Line: 3},
-// 				{CRAP: 70.00, Coverage: 30, FuncName: "Trusted3", File: "d.go", Line: 4},
-// 			}},
-// 			top: 2,
-// 			checks: checkapplyFilters(
-// 				checkLen(2),
-// 				checkValue(0, 100.00, "Unreliable"),
-// 				checkUntrusted(0),
-// 				checkValue(1, 90.00, "Trusted1"),
-// 			),
-// 		},
-// 		{
-// 			name: "CoverageUntrusted survives min filter below threshold",
-// 			entries: &Entries{list: []score.CRAPEntry{
-// 				{CRAP: 15.00, EffectiveCRAP: 35.00, CoverageUntrusted: true, FuncName: "UnreliableLow", File: "a.go", Line: 1},
-// 				{CRAP: 40.00, EffectiveCRAP: 0, FuncName: "HighCrap", File: "b.go", Line: 2},
-// 				{CRAP: 20.00, EffectiveCRAP: 25.00, FuncName: "BelowMin", File: "c.go", Line: 3},
-// 			}},
-// 			min: 30.00,
-// 			checks: checkapplyFilters(
-// 				checkLen(2),
-// 				checkValue(0, 40.00, "HighCrap"),
-// 				checkValue(1, 15.00, "UnreliableLow"),
-// 				checkUntrusted(1),
-// 			),
-// 		},
-// 	}
-// 	for _, tt := range tests {
-// 		tt := tt
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			r := applyFilters(tt.entries.list, tt.top, tt.min)
-// 			for _, c := range tt.checks {
-// 				c(t, r)
-// 			}
-// 		})
-// 	}
-// }
+	// Save the original stdout and stderr to restore later
+	origStdout := os.Stdout
+	origStderr := os.Stderr
 
-// type ScanFn func(*testing.T, *score.EntryList, error)
+	// Restore stdout and stderr when done
+	defer func() {
+		os.Stdout = origStdout
+		os.Stderr = origStderr
+	}()
 
-// var checkScan = func(fns ...ScanFn) []ScanFn { return fns }
+	// Set the stdout and stderr to the pipe
+	os.Stdout, os.Stderr = custWriter, custWriter
+	log.SetOutput(custWriter)
 
-// func checkScanError(want string) ScanFn {
-// 	return func(t *testing.T, _ *score.EntryList, err error) {
-// 		t.Helper()
-// 		if want == "" {
-// 			assert.NoErrorf(t, err, "checkScanError: expected no error, got %v", err)
-// 			return
-// 		}
-// 		if assert.Errorf(t, err, "checkScanError: expected error %q", want) {
-// 			assert.Containsf(t, err.Error(), want, "checkScanError mismatch")
-// 		}
-// 	}
-// }
+	// Create a channel to read the output from the pipe
 
-// func TestScan(t *testing.T) {
-// 	checkLen := func(count int) ScanFn {
-// 		return func(t *testing.T, c *score.EntryList, e error) {
-// 			t.Helper()
-// 			if assert.NotNil(t, c) {
-// 				assert.Equal(t, count, len(c.List))
-// 			}
-// 		}
-// 	}
+	out := make(chan string)
 
-// 	checkValue := func(pos int, crap float64, name string) ScanFn {
-// 		return func(t *testing.T, c *score.EntryList, e error) {
-// 			t.Helper()
-// 			if assert.NotNil(t, c) {
-// 				assert.Equal(t, crap, c.List[pos].CRAP)
-// 				assert.Equal(t, name, c.List[pos].FuncName)
-// 			}
-// 		}
-// 	}
+	// Use a goroutine to read from the pipe and send the output to the channel
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		wg.Done()
+		var buff bytes.Buffer
+		io.Copy(&buff, custReader)
+		out <- buff.String()
+	}()
+	wg.Wait()
 
-// 	checkSkipped := func(pos int, skipped bool) ScanFn {
-// 		return func(t *testing.T, c *score.EntryList, e error) {
-// 			t.Helper()
-// 			if assert.NotNil(t, c) {
-// 				assert.Equal(t, skipped, c.List[pos].Skipped)
-// 			}
-// 		}
-// 	}
+	// Call the function that writes to stdout
+	f()
 
-// 	tests := []struct {
-// 		name    string
-// 		options *Options
-// 		checks  []ScanFn
-// 	}{
-// 		{
-// 			name: "default scan",
-// 			options: &Options{
-// 				Path:    "../testdata",
-// 				Exclude: []string{".*_test.go"},
-// 			},
-// 			checks: checkScan(
-// 				checkScanError(""),
-// 				checkLen(5),
-// 				checkValue(0, 90.00, "veryComplex"),
-// 				checkValue(4, 1.00, "simple"),
-// 			),
-// 		},
-// 		{
-// 			name: "missing skip marks all as skipped",
-// 			options: &Options{
-// 				Path:    "../testdata",
-// 				Missing: "skip",
-// 				Exclude: []string{".*_test.go"},
-// 			},
-// 			checks: checkScan(
-// 				checkScanError(""),
-// 				checkLen(5),
-// 				// All functions have coverage data (even if 0%),
-// 				// so none are "missing" and none should be skipped.
-// 				checkSkipped(0, false),
-// 				checkSkipped(3, false),
-// 				checkSkipped(4, false),
-// 			),
-// 		},
-// 		{
-// 			name: "missing optimistic assumes 100% coverage",
-// 			options: &Options{
-// 				Path:    "../testdata",
-// 				Missing: "optimistic",
-// 			},
-// 			checks: checkScan(
-// 				checkScanError(""),
-// 				checkLen(6),
-// 			),
-// 		},
-// 		{
-// 			name: "missing pessimistic default policy",
-// 			options: &Options{
-// 				Path:    "../testdata",
-// 				Missing: "pessimistic",
-// 			},
-// 			checks: checkScan(
-// 				checkScanError(""),
-// 				checkLen(6),
-// 			),
-// 		},
-// 		{
-// 			name: "invalid missing policy returns error",
-// 			options: &Options{
-// 				Path:    "../testdata",
-// 				Missing: "invalid",
-// 			},
-// 			checks: checkScan(
-// 				checkScanError("unknown missing policy"),
-// 			),
-// 		},
-// 		{
-// 			name: "non-existent path returns error",
-// 			options: &Options{
-// 				Path: "/no/such/dir/that/does/not/exist",
-// 			},
-// 			checks: checkScan(
-// 				checkScanError("coverage scan"),
-// 			),
-// 		},
-// 		{
-// 			name: "exclude function name reduces count",
-// 			options: &Options{
-// 				Path:    "../testdata",
-// 				Exclude: []string{"veryComplex"},
-// 			},
-// 			checks: checkScan(
-// 				checkScanError(""),
-// 				checkLen(5),
-// 				checkValue(0, 20.00, "withSwitch"),
-// 			),
-// 		},
-// 		{
-// 			name: "top 2 limits results",
-// 			options: &Options{
-// 				Path: "../testdata",
-// 				Top:  2,
-// 			},
-// 			checks: checkScan(
-// 				checkScanError(""),
-// 				checkLen(2),
-// 				checkValue(0, 90.00, "veryComplex"),
-// 				checkValue(1, 20.00, "withSwitch"),
-// 			),
-// 		},
-// 		{
-// 			name: "min 50 filters low scores",
-// 			options: &Options{
-// 				Path: "../testdata",
-// 				Min:  50,
-// 			},
-// 			checks: checkScan(
-// 				checkScanError(""),
-// 				checkLen(1),
-// 				checkValue(0, 90.00, "veryComplex"),
-// 			),
-// 		},
-// 		{
-// 			name: "min higher than all scores returns empty",
-// 			options: &Options{
-// 				Path: "../testdata",
-// 				Min:  100,
-// 			},
-// 			checks: checkScan(
-// 				checkScanError(""),
-// 				checkLen(0),
-// 			),
-// 		},
-// 		{
-// 			name: "top larger than result set is no-op",
-// 			options: &Options{
-// 				Path: "../testdata",
-// 				Top:  100,
-// 			},
-// 			checks: checkScan(
-// 				checkScanError(""),
-// 				checkLen(6),
-// 			),
-// 		},
-// 	}
-// 	for _, tt := range tests {
-// 		tt := tt
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			r, err := Scan(tt.options)
-// 			for _, c := range tt.checks {
-// 				c(t, r, err)
-// 			}
-// 		})
-// 	}
-// }
+	// Close the writer to signal that we're done
+	_ = custWriter.Close()
 
-// func Test_parseMissingPolicy_valid_values(t *testing.T) {
-// 	policy, err := parseMissingPolicy("pessimistic")
-// 	assert.NoError(t, err)
-// 	assert.Equal(t, score.MissingPessimistic, policy)
+	// Wait for the goroutine to finish reading from the pipe
+	return <-out
+}
 
-// 	policy, err = parseMissingPolicy("optimistic")
-// 	assert.NoError(t, err)
-// 	assert.Equal(t, score.MissingOptimistic, policy)
+type logCoverageErrorsCheckFn func(*testing.T, string)
 
-// 	policy, err = parseMissingPolicy("skip")
-// 	assert.NoError(t, err)
-// 	assert.Equal(t, score.MissingSkip, policy)
-// }
+var checklogCoverageErrors = func(fns ...logCoverageErrorsCheckFn) []logCoverageErrorsCheckFn { return fns }
 
-// func Test_parseMissingPolicy_empty_default(t *testing.T) {
-// 	policy, err := parseMissingPolicy("")
-// 	assert.NoError(t, err)
-// 	assert.Equal(t, score.MissingPessimistic, policy)
-// }
+var checkContains = func(want string) logCoverageErrorsCheckFn {
+	return func(t *testing.T, s string) {
+		t.Helper()
+		assert.Containsf(t, s, want, "output should contain %q", want)
+	}
+}
 
-// func Test_parseMissingPolicy_case_insensitive(t *testing.T) {
-// 	policy, err := parseMissingPolicy("PESSIMISTIC")
-// 	assert.NoError(t, err)
-// 	assert.Equal(t, score.MissingPessimistic, policy)
+var checkNotContains = func(want string) logCoverageErrorsCheckFn {
+	return func(t *testing.T, s string) {
+		t.Helper()
+		assert.NotContainsf(t, s, want, "output should not contain %q", want)
+	}
+}
 
-// 	policy, err = parseMissingPolicy("Optimistic")
-// 	assert.NoError(t, err)
-// 	assert.Equal(t, score.MissingOptimistic, policy)
-// }
+var checkEmpty = func() logCoverageErrorsCheckFn {
+	return func(t *testing.T, s string) {
+		t.Helper()
+		assert.Emptyf(t, s, "output should be empty")
+	}
+}
 
-// func Test_parseMissingPolicy_invalid(t *testing.T) {
-// 	_, err := parseMissingPolicy("invalid")
-// 	assert.Error(t, err)
-// 	assert.Contains(t, err.Error(), "unknown missing policy")
-// }
+type captureLogger struct{}
 
-// func Test_applyFilters_min_zero(t *testing.T) {
-// 	entries := []score.CRAPEntry{
-// 		{CRAP: 10.0, Coverage: 5, CoverageUntrusted: true, FuncName: "untrusted"},
-// 	}
-// 	result := applyFilters(entries, 0, 0)
-// 	assert.Len(t, result, 1)
-// 	assert.Equal(t, "untrusted", result[0].FuncName)
-// }
+func (captureLogger) Debug(msg string, args ...any) {
+	fmt.Fprint(os.Stdout, msg, " ")
+	for i := 0; i < len(args); i += 2 {
+		if i+1 < len(args) {
+			fmt.Fprintf(os.Stdout, "%s=%v ", args[i], args[i+1])
+		}
+	}
+	fmt.Fprintln(os.Stdout)
+}
+func (captureLogger) Info(msg string, args ...any)   {}
+func (captureLogger) Warn(msg string, args ...any)   {}
+func (captureLogger) Error(msg string, args ...any)  {}
+func (captureLogger) Fatal(msg string, args ...any)  {}
 
-// func Test_applyFilters_top_boundary_one(t *testing.T) {
-// 	entries := []score.CRAPEntry{
-// 		{CRAP: 50.0, Coverage: 8, CoverageUntrusted: true, FuncName: "top1"},
-// 		{CRAP: 30.0, Coverage: 6, CoverageUntrusted: false, FuncName: "top2"},
-// 		{CRAP: 20.0, Coverage: 4, CoverageUntrusted: false, FuncName: "top3"},
-// 	}
-// 	result := applyFilters(entries, 1, 0)
-// 	assert.Len(t, result, 1)
-// 	assert.Equal(t, "top1", result[0].FuncName)
-// }
+func Test_logCoverageErrors(t *testing.T) {
+	tests := []struct {
+		name      string
+		l         logger.Logger
+		coverages []coverage.ModuleCoverage
+		checks    []logCoverageErrorsCheckFn
+	}{
+		{
+			name:   "nil_logger_no_output",
+			l:      nil,
+			coverages: []coverage.ModuleCoverage{
+				{Dir: "/mod", Error: errors.New("fail")},
+			},
+			checks: checklogCoverageErrors(checkEmpty()),
+		},
+		{
+			name:      "empty_coverages",
+			l:         captureLogger{},
+			coverages: []coverage.ModuleCoverage{},
+			checks:    checklogCoverageErrors(checkEmpty()),
+		},
+		{
+			name: "all_ok_no_errors",
+			l:    captureLogger{},
+			coverages: []coverage.ModuleCoverage{
+				{Dir: "/mod", Error: nil},
+			},
+			checks: checklogCoverageErrors(checkEmpty()),
+		},
+		{
+			name: "single_error_logged",
+			l:    captureLogger{},
+			coverages: []coverage.ModuleCoverage{
+				{Dir: "/mod", Error: errors.New("boom")},
+			},
+			checks: checklogCoverageErrors(
+				checkContains("coverage scan error"),
+				checkContains("/mod"),
+				checkContains("boom"),
+			),
+		},
+		{
+			name: "multiple_errors_logged",
+			l:    captureLogger{},
+			coverages: []coverage.ModuleCoverage{
+				{Dir: "/a", Error: errors.New("err1")},
+				{Dir: "/b", Error: errors.New("err2")},
+			},
+			checks: checklogCoverageErrors(
+				checkContains("err1"),
+				checkContains("err2"),
+				checkContains("/a"),
+				checkContains("/b"),
+			),
+		},
+		{
+			name: "mixed_errors_and_successes",
+			l:    captureLogger{},
+			coverages: []coverage.ModuleCoverage{
+				{Dir: "/ok", Error: nil},
+				{Dir: "/fail", Error: errors.New("fail")},
+			},
+			checks: checklogCoverageErrors(
+				checkContains("/fail"),
+				checkContains("fail"),
+				checkNotContains("/ok"),
+			),
+		},
+		{
+			name: "empty_error_string_still_logged",
+			l:    captureLogger{},
+			coverages: []coverage.ModuleCoverage{
+				{Dir: "/m", Error: errors.New("")},
+			},
+			checks: checklogCoverageErrors(
+				checkContains("coverage scan error"),
+				checkContains("/m"),
+			),
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			got := captureStdOut(func() {
+				logCoverageErrors(tt.l, tt.coverages)
+			})
 
-// func Test_applyFilters_min_boundary_exactly_met(t *testing.T) {
-// 	entries := []score.CRAPEntry{
-// 		{CRAP: 20.0, Coverage: 5, CoverageUntrusted: false, FuncName: "exact"},
-// 		{CRAP: 10.0, Coverage: 3, CoverageUntrusted: false, FuncName: "below"},
-// 	}
-// 	result := applyFilters(entries, 0, 20.0)
-// 	assert.Len(t, result, 1)
-// 	assert.Equal(t, "exact", result[0].FuncName)
-// }
-
-// func Test_applyFilters_min_boundary_not_met(t *testing.T) {
-// 	entries := []score.CRAPEntry{
-// 		{CRAP: 19.99, Coverage: 5, CoverageUntrusted: false, FuncName: "below"},
-// 		{CRAP: 10.0, Coverage: 3, CoverageUntrusted: false, FuncName: "below2"},
-// 	}
-// 	result := applyFilters(entries, 0, 20.0)
-// 	assert.Empty(t, result)
-// }
-
-// func Test_applyFilters_untrusted_survives_min(t *testing.T) {
-// 	entries := []score.CRAPEntry{
-// 		{CRAP: 50.0, Coverage: 8, CoverageUntrusted: true, FuncName: "untrusted"},
-// 		{CRAP: 10.0, Coverage: 3, CoverageUntrusted: false, FuncName: "belowMin"},
-// 	}
-// 	result := applyFilters(entries, 0, 20.0)
-// 	assert.Len(t, result, 1)
-// 	assert.Equal(t, "untrusted", result[0].FuncName)
-// }
-
-// func Test_applyMutationAnnotations_empty_report(t *testing.T) {
-// 	entries := []score.CRAPEntry{
-// 		{File: "a.go", FuncName: "Foo", Line: 1, Complexity: 5, Coverage: 80, CRAP: 30},
-// 	}
-// 	merged := []merge.MergedEntry{}
-
-// 	opts := &Options{MutationReport: ""}
-// 	result := applyMutationAnnotations(opts, entries, merged)
-// 	assert.Equal(t, entries, result)
-// }
+			for _, c := range tt.checks {
+				c(t, got)
+			}
+		})
+	}
+}
