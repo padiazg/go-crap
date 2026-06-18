@@ -176,7 +176,6 @@ func TestGithubFormatter_Format(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			f := &GithubFormatter{}
 			buf := &bytes.Buffer{}
@@ -216,7 +215,6 @@ func TestGithubFormatter_Format_relative_path_conversion(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			f := &GithubFormatter{}
 			buf := &bytes.Buffer{}

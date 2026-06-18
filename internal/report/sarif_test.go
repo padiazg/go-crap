@@ -155,7 +155,6 @@ func TestSARIFFormatter_Format(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			f := &SARIFFormatter{}
 			buf := &bytes.Buffer{}
@@ -190,35 +189,35 @@ func TestSARIFFormatter_Format_validates_json_output(t *testing.T) {
 	err := f.Format(entries, opts)
 	require.NoError(t, err)
 
-	var parsed map[string]interface{}
+	var parsed map[string]any
 	err = json.Unmarshal(buf.Bytes(), &parsed)
 	require.NoError(t, err)
 
 	assert.Equal(t, "2.1.0", parsed["version"])
 
-	runs := parsed["runs"].([]interface{})
+	runs := parsed["runs"].([]any)
 	require.Len(t, runs, 1)
 
-	run := runs[0].(map[string]interface{})
-	tool := run["tool"].(map[string]interface{})
-	driver := tool["driver"].(map[string]interface{})
+	run := runs[0].(map[string]any)
+	tool := run["tool"].(map[string]any)
+	driver := tool["driver"].(map[string]any)
 	assert.Equal(t, "go-crap", driver["name"])
 
-	results := run["results"].([]interface{})
+	results := run["results"].([]any)
 	require.Len(t, results, 1)
 
-	result := results[0].(map[string]interface{})
+	result := results[0].(map[string]any)
 	assert.Equal(t, "crap/high-score", result["ruleId"])
 	assert.Equal(t, "warning", result["level"])
 
-	locs := result["locations"].([]interface{})
+	locs := result["locations"].([]any)
 	require.Len(t, locs, 1)
-	loc := locs[0].(map[string]interface{})
-	physLoc := loc["physicalLocation"].(map[string]interface{})
-	artLoc := physLoc["artifactLocation"].(map[string]interface{})
+	loc := locs[0].(map[string]any)
+	physLoc := loc["physicalLocation"].(map[string]any)
+	artLoc := physLoc["artifactLocation"].(map[string]any)
 	assert.Equal(t, "main.go", artLoc["uri"])
 
-	region := physLoc["region"].(map[string]interface{})
+	region := physLoc["region"].(map[string]any)
 	assert.Equal(t, float64(42), region["startLine"])
 }
 
@@ -238,13 +237,13 @@ func TestSARIFFormatter_Format_empty_results_valid_sarif(t *testing.T) {
 	err := f.Format(entries, opts)
 	require.NoError(t, err)
 
-	var parsed map[string]interface{}
+	var parsed map[string]any
 	err = json.Unmarshal(buf.Bytes(), &parsed)
 	require.NoError(t, err)
 
-	runs := parsed["runs"].([]interface{})
-	run := runs[0].(map[string]interface{})
-	results := run["results"].([]interface{})
+	runs := parsed["runs"].([]any)
+	run := runs[0].(map[string]any)
+	results := run["results"].([]any)
 	assert.Len(t, results, 0)
 }
 
@@ -337,7 +336,6 @@ func TestFormatMessage(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			got := formatMessage(tt.entry, tt.effectiveCRAP, false)
 			assert.Equal(t, tt.wantMsg, got)
@@ -394,24 +392,24 @@ func TestSARIFFormatter_Format_multiple_results_ordering(t *testing.T) {
 	err := f.Format(entries, opts)
 	require.NoError(t, err)
 
-	var parsed map[string]interface{}
+	var parsed map[string]any
 	err = json.Unmarshal(buf.Bytes(), &parsed)
 	require.NoError(t, err)
 
-	runs := parsed["runs"].([]interface{})
-	run := runs[0].(map[string]interface{})
-	results := run["results"].([]interface{})
+	runs := parsed["runs"].([]any)
+	run := runs[0].(map[string]any)
+	results := run["results"].([]any)
 
 	require.Len(t, results, 3)
 
 	// SARIF doesn't require ordering, but we verify all are present
 	found := make(map[int]bool)
 	for _, r := range results {
-		result := r.(map[string]interface{})
-		locs := result["locations"].([]interface{})
-		loc := locs[0].(map[string]interface{})
-		region := loc["physicalLocation"].(map[string]interface{})
-		regionMap := region["region"].(map[string]interface{})
+		result := r.(map[string]any)
+		locs := result["locations"].([]any)
+		loc := locs[0].(map[string]any)
+		region := loc["physicalLocation"].(map[string]any)
+		regionMap := region["region"].(map[string]any)
 		line := int(regionMap["startLine"].(float64))
 		found[line] = true
 	}
@@ -436,7 +434,7 @@ func TestSARIFFormatter_Format_schema_url(t *testing.T) {
 	err := f.Format(entries, opts)
 	require.NoError(t, err)
 
-	var parsed map[string]interface{}
+	var parsed map[string]any
 	err = json.Unmarshal(buf.Bytes(), &parsed)
 	require.NoError(t, err)
 

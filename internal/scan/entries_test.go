@@ -235,7 +235,7 @@ func TestNewEntries(t *testing.T) {
 					FuncName:   "LowCRAP",
 					Package:    "example",
 					Complexity: 2,
-					Coverage:   ptrF64(90.0),
+					Coverage:   new(90.0),
 					Line:       10,
 					Receiver:   "Foo",
 				},
@@ -244,7 +244,7 @@ func TestNewEntries(t *testing.T) {
 					FuncName:   "HighCRAP",
 					Package:    "example",
 					Complexity: 10,
-					Coverage:   ptrF64(5.0),
+					Coverage:   new(5.0),
 					Line:       20,
 					Receiver:   "Foo",
 				},
@@ -268,7 +268,6 @@ func TestNewEntries(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			r, err := NewEntries(tt.options, tt.merged, tt.policy)
 			for _, c := range tt.checks {
@@ -337,7 +336,6 @@ func TestEntries_ThresholdExceeded(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			r := tt.entries.ThresholdExceeded(tt.threshold)
 			assert.Equal(t, tt.want, r, "%s: %s", fn, tt.name)
@@ -419,7 +417,6 @@ func TestEntries_applyMutationAnnotations(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.before != nil {
 				tt.before(tt.entries)
@@ -548,7 +545,6 @@ func TestEntries_applyFilters(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.before != nil {
 				tt.before(tt.entries)
@@ -661,7 +657,6 @@ func TestEntries_filterByMinCRAP(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.before != nil {
 				tt.before(tt.entries)
@@ -768,7 +763,6 @@ func TestEntries_filterByTop(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.before != nil {
 				tt.before(tt.entries)
@@ -784,7 +778,8 @@ func TestEntries_filterByTop(t *testing.T) {
 // ponytail: minimal helper to avoid polluting package scope with multiple
 // helper functions. All test helpers live below this comment.
 
-func ptrF64(v float64) *float64 { return &v }
+//go:fix inline
+func ptrF64(v float64) *float64 { return new(v) }
 
 func funcNames(entries []score.CRAPEntry) []string {
 	names := make([]string, len(entries))
@@ -831,7 +826,7 @@ func TestEntries_sort(t *testing.T) {
 			),
 		},
 		{
-			name:    "already_sorted",
+			name: "already_sorted",
 			entries: &Entries{List: []score.CRAPEntry{
 				{FuncName: "high", EffectiveCRAP: 200},
 				{FuncName: "mid", EffectiveCRAP: 100},
@@ -847,7 +842,7 @@ func TestEntries_sort(t *testing.T) {
 			),
 		},
 		{
-			name:    "reverse_sorted",
+			name: "reverse_sorted",
 			entries: &Entries{List: []score.CRAPEntry{
 				{FuncName: "low", EffectiveCRAP: 50},
 				{FuncName: "mid", EffectiveCRAP: 100},
@@ -863,7 +858,7 @@ func TestEntries_sort(t *testing.T) {
 			),
 		},
 		{
-			name:    "random_order",
+			name: "random_order",
 			entries: &Entries{List: []score.CRAPEntry{
 				{FuncName: "mid", EffectiveCRAP: 100},
 				{FuncName: "high", EffectiveCRAP: 200},
@@ -881,7 +876,7 @@ func TestEntries_sort(t *testing.T) {
 			),
 		},
 		{
-			name:    "equal_values_stable",
+			name: "equal_values_stable",
 			entries: &Entries{List: []score.CRAPEntry{
 				{FuncName: "same_a", EffectiveCRAP: 100},
 				{FuncName: "same_b", EffectiveCRAP: 100},
@@ -897,7 +892,7 @@ func TestEntries_sort(t *testing.T) {
 			),
 		},
 		{
-			name:    "mix_of_equal_and_different",
+			name: "mix_of_equal_and_different",
 			entries: &Entries{List: []score.CRAPEntry{
 				{FuncName: "low", EffectiveCRAP: 10},
 				{FuncName: "mid_a", EffectiveCRAP: 100},
@@ -917,7 +912,7 @@ func TestEntries_sort(t *testing.T) {
 			),
 		},
 		{
-			name:    "zero_values",
+			name: "zero_values",
 			entries: &Entries{List: []score.CRAPEntry{
 				{FuncName: "zero_b", EffectiveCRAP: 0},
 				{FuncName: "zero_a", EffectiveCRAP: 0},
@@ -933,7 +928,7 @@ func TestEntries_sort(t *testing.T) {
 			),
 		},
 		{
-			name:    "negative_effective_crap",
+			name: "negative_effective_crap",
 			entries: &Entries{List: []score.CRAPEntry{
 				{FuncName: "zero", EffectiveCRAP: 0},
 				{FuncName: "negative", EffectiveCRAP: -50},
@@ -949,7 +944,7 @@ func TestEntries_sort(t *testing.T) {
 			),
 		},
 		{
-			name:    "large_list",
+			name: "large_list",
 			entries: &Entries{List: []score.CRAPEntry{
 				{FuncName: "f1", EffectiveCRAP: 50},
 				{FuncName: "f2", EffectiveCRAP: 300},
@@ -979,7 +974,7 @@ func TestEntries_sort(t *testing.T) {
 			),
 		},
 		{
-			name:    "two_elements",
+			name: "two_elements",
 			entries: &Entries{List: []score.CRAPEntry{
 				{FuncName: "b", EffectiveCRAP: 10},
 				{FuncName: "a", EffectiveCRAP: 100},
@@ -993,7 +988,7 @@ func TestEntries_sort(t *testing.T) {
 			),
 		},
 		{
-			name:    "two_elements_same_value",
+			name: "two_elements_same_value",
 			entries: &Entries{List: []score.CRAPEntry{
 				{FuncName: "x", EffectiveCRAP: 50},
 				{FuncName: "y", EffectiveCRAP: 50},
@@ -1008,7 +1003,6 @@ func TestEntries_sort(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.before != nil {
 				tt.before(tt.entries)
@@ -1044,7 +1038,6 @@ func TestEntries_shouldApplyMinFilter(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			e := &Entries{options: &Options{Min: tt.min}}
 			got := e.shouldApplyMinFilter()
@@ -1092,7 +1085,6 @@ func TestEntries_shouldApplyTopFilter(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			e := &Entries{
 				options: &Options{Top: tt.top},

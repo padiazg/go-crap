@@ -40,7 +40,6 @@ func Test_parseDirectives(t *testing.T) {
 		}}, want: false},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			r := parseDirectives(tt.doc)
 			assert.Equal(t, tt.want, r)

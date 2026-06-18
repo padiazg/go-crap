@@ -139,7 +139,6 @@ func Test_output(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			err := output(tt.entries, tt.config)
 			for _, c := range tt.checks {
@@ -236,8 +235,8 @@ func Test_runScan(t *testing.T) {
 			),
 		},
 		{
-			name:  "output to file",
-			args:  []string{"../internal/testdata"},
+			name: "output to file",
+			args: []string{"../internal/testdata"},
 			setup: func() {
 				resetFlags()
 				f, err := os.CreateTemp("", "crap-output-*.json")
@@ -252,7 +251,6 @@ func Test_runScan(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			cmd, mw := makeCommand()
 			if tt.setup != nil {

@@ -21,7 +21,7 @@ func TestNewScanner(t *testing.T) {
 		name    string
 		path    string
 		exclude *regexp.Regexp
-		logger  interface{}
+		logger  any
 		timeout time.Duration
 		checks  []NewScannerFn
 	}{
@@ -56,7 +56,7 @@ func TestNewScanner(t *testing.T) {
 			),
 		},
 		{
-			name: "timeout_propagated",
+			name:    "timeout_propagated",
 			timeout: 30 * time.Second,
 			checks: checkNewScanner(
 				func(t *testing.T, r *Scanner) {
@@ -67,7 +67,6 @@ func TestNewScanner(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			r := NewScanner(tt.path, tt.exclude, nil, tt.timeout)
 			for _, c := range tt.checks {
@@ -161,7 +160,6 @@ func TestScanner_Scan(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			s := NewScanner(tt.name, nil, nil, 0)
 			if tt.before != nil {
@@ -261,7 +259,6 @@ func TestScanner_discoverModules(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			s := NewScanner("value", nil, nil, 0)
 			if tt.before != nil {
@@ -305,7 +302,6 @@ func Test_walkForModules(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			err := walkForModules(tt.root, tt.visit)
 			if tt.wantErr != "" {
@@ -458,7 +454,6 @@ func Something() {}
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			s := NewScanner("value", nil, nil, 0)
 			if tt.before != nil {
@@ -521,12 +516,11 @@ func Test_readModulePath(t *testing.T) {
 			wantErr: "no such file or directory",
 		},
 		{
-			name: "missing_module_line",
+			name:    "missing_module_line",
 			wantErr: "no module declaration in go.mod",
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			dir := tt.dir
 			if tt.name == "missing_module_line" {
@@ -587,7 +581,6 @@ func Something() {}
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			s := NewScanner("value", nil, nil, 0)
 			if tt.before != nil {
@@ -693,7 +686,6 @@ func TestScanner_filterByExclude(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			s := NewScanner("value", nil, nil, 0)
 			if tt.before != nil {

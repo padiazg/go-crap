@@ -22,7 +22,6 @@ func Test_slogLevel(t *testing.T) {
 		{name: "negative_falls_back_to_info", l: logger.Level(-1), want: slog.LevelInfo},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.want, slogLevel(tt.l))
 		})
