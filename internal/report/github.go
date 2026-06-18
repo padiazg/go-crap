@@ -19,6 +19,10 @@ func (f *GithubFormatter) Format(entries *scan.Entries, opts FormatOptions) erro
 		effectiveCRAP := e.EffectiveScore()
 		file := resolveGithubFile(e, opts.BaseDir)
 
+		if e.CoverageWarning != "" {
+			fmt.Fprintf(opts.Writer, "::warning file=%s,line=%d::%s\n", file, e.Line, e.CoverageWarning)
+		}
+
 		if e.CoverageUntrusted {
 			msg := formatGithubUntrustedWarning(file, e)
 			fmt.Fprintf(opts.Writer, "::warning file=%s,line=%d::%s\n", file, e.Line, msg)

@@ -1,6 +1,7 @@
 package merge
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/padiazg/go-crap/internal/complexity"
@@ -9,14 +10,15 @@ import (
 
 // MergedEntry combines complexity analysis with coverage data for a single function.
 type MergedEntry struct {
-	Coverage   *float64
-	File       string
-	FuncName   string
-	Package    string
-	Receiver   string
-	Complexity int
-	EndLine    int
-	Line       int
+	Coverage          *float64
+	CoverageWarning   string
+	File              string
+	FuncName          string
+	Package           string
+	Receiver          string
+	Complexity        int
+	EndLine           int
+	Line              int
 }
 
 type pathIndex struct {
@@ -92,15 +94,31 @@ func normalizeFuncName(name string) string {
 // Merge combines complexity statistics and coverage data into unified entries.
 func Merge(coverages []coverage.ModuleCoverage, stats []complexity.Stat) []MergedEntry {
 	idx := buildIndex(coverages)
+	erroredModules := make(map[string]string, len(coverages))
+	for _, mc := range coverages {
+		if mc.Error != nil {
+			erroredModules[mc.Dir] = mc.Error.Error()
+		}
+	}
+
 	var entries []MergedEntry
 	for _, stat := range stats {
 		fnName := normalizeFuncName(stat.FuncName)
 		var coverage *float64
+		var covWarn string
 		if fns, ok := idx.lookup(stat.Pos.Filename); ok {
 			for _, fn := range fns {
 				if normalizeFuncName(fn.Name) == fnName {
 					cov := fn.Coverage
 					coverage = &cov
+					break
+				}
+			}
+		}
+		if coverage == nil {
+			for modDir, errMsg := range erroredModules {
+				if strings.HasPrefix(stat.Pos.Filename, modDir) {
+					covWarn = fmt.Sprintf("coverage unavailable for %s: %s", modDir, errMsg)
 					break
 				}
 			}
@@ -111,14 +129,15 @@ func Merge(coverages []coverage.ModuleCoverage, stats []complexity.Stat) []Merge
 			name = stat.Receiver + "." + name
 		}
 		entries = append(entries, MergedEntry{
-			File:       stat.Pos.Filename,
-			EndLine:    stat.EndLine,
-			Package:    stat.PkgName,
-			FuncName:   name,
-			Receiver:   stat.Receiver,
-			Line:       stat.Pos.Line,
-			Complexity: stat.Complexity,
-			Coverage:   coverage,
+			CoverageWarning: covWarn,
+			File:            stat.Pos.Filename,
+			EndLine:         stat.EndLine,
+			Package:         stat.PkgName,
+			FuncName:        name,
+			Receiver:        stat.Receiver,
+			Line:            stat.Pos.Line,
+			Complexity:      stat.Complexity,
+			Coverage:        coverage,
 		})
 	}
 	return entries

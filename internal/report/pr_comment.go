@@ -116,6 +116,9 @@ func (f *PRCommentFormatter) Format(entries *scan.Entries, opts FormatOptions) e
 	unreliable := filterUnreliableCoverage(sorted)
 	f.writeUnreliableSection(opts.Writer, unreliable, opts.Detailed)
 
+	unavailable := filterUnavailableCoverage(sorted)
+	f.writeUnavailableSection(opts.Writer, unavailable)
+
 	return nil
 }
 
@@ -137,6 +140,33 @@ func filterUnreliableCoverage(entries []score.CRAPEntry) []score.CRAPEntry {
 		}
 	}
 	return result
+}
+
+func filterUnavailableCoverage(entries []score.CRAPEntry) []score.CRAPEntry {
+	result := make([]score.CRAPEntry, 0)
+	for _, e := range entries {
+		if e.CoverageWarning != "" {
+			result = append(result, e)
+		}
+	}
+	return result
+}
+
+func (f *PRCommentFormatter) writeUnavailableSection(w io.Writer, unavailable []score.CRAPEntry) {
+	if len(unavailable) == 0 {
+		return
+	}
+
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "## \u26a0\ufe0f Coverage Unavailable")
+	fmt.Fprintln(w)
+
+	fmt.Fprintln(w, "| Function | Location | Reason |")
+	fmt.Fprintln(w, "|---|---|---|")
+	for _, e := range unavailable {
+		loc := formatPRLocation(e, "")
+		fmt.Fprintf(w, "| `%s` | %s | %s |\n", e.FuncName, loc, e.CoverageWarning)
+	}
 }
 
 func formatPRLocation(e score.CRAPEntry, baseDir string) string {

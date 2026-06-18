@@ -21,6 +21,28 @@ func (f *SARIFFormatter) Format(entries *scan.Entries, opts FormatOptions) error
 	for _, e := range entries.List {
 		effectiveCRAP := e.EffectiveScore()
 
+		if e.CoverageWarning != "" {
+			results = append(results, sarifResult{
+				RuleID: "go-crap/coverage-unavailable",
+				Level:  "warning",
+				Message: sarifMessage{
+					Text: e.CoverageWarning,
+				},
+				Locations: []sarifLocation{
+					{
+						PhysicalLocation: sarifPhysicalLocation{
+							ArtifactLocation: sarifArtifactLocation{
+								URI: relativizePath(e.File, opts.BaseDir),
+							},
+							Region: sarifRegion{
+								StartLine: e.Line,
+							},
+						},
+					},
+				},
+			})
+		}
+
 		if effectiveCRAP > opts.Threshold {
 			results = append(results, sarifResult{
 				RuleID: "crap/high-score",

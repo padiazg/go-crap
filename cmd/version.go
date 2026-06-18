@@ -12,17 +12,20 @@ var (
 	versionCmd = &cobra.Command{
 		Use:   "version",
 		Short: "Shows go-crap version",
-		Run: func(cmd *cobra.Command, args []string) {
-			simple, _ := cmd.Flags().GetBool("simple")
-			if simple {
-				fmt.Printf("%s", version.CurrentVersion().Version)
-				return
-			}
-
-			version.Splash()
-		},
+		Run:   runVersion,
 	}
 )
+
+func runVersion(cmd *cobra.Command, args []string) {
+	simple, _ := cmd.Flags().GetBool("simple")
+	if simple {
+		fmt.Printf("%s", version.CurrentVersion().Version)
+		return
+	}
+
+	version.Splash()
+
+}
 
 func init() {
 	rootCmd.AddCommand(versionCmd)
