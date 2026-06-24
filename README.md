@@ -3,6 +3,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/padiazg/go-crap.svg)](https://pkg.go.dev/github.com/padiazg/go-crap)
 [![Go Report Card](https://goreportcard.com/badge/github.com/padiazg/go-crap)](https://goreportcard.com/report/github.com/padiazg/go-crap)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![CRAP analysis](https://github.com/padiazg/go-crap/actions/workflows/crap.yml/badge.svg?branch=master)](https://github.com/padiazg/go-crap/actions/workflows/crap.yml)
 
 CRAP score calculator for Go projects. Calculates the CRAP score (cyclomatic complexity × coverage) for every function in a Go module. Inspired by [cargo-crap](https://github.com/Boehs/cargo-crap) for Rust.
 
@@ -177,6 +178,16 @@ go-crap scan
 - `--mutation-report` validates coverage reliability against mutation testing results
 - `--detailed` includes mutation failure details (code, line, type) in report output
 - Coverage-unavailable warnings are emitted for modules where `go test` fails
+
+### Badge
+
+Add a status badge to your `README.md` to show the latest master analysis:
+
+```markdown
+[![CRAP analysis](https://github.com/YOUR_ORG/YOUR_REPO/actions/workflows/crap.yml/badge.svg?branch=master)](https://github.com/YOUR_ORG/YOUR_REPO/actions/workflows/crap.yml)
+```
+
+Requires the workflow to trigger on `push: branches: [master]` (not `branches-ignore`).
 
 ## Prior art and references
 
