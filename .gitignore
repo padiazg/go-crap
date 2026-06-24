@@ -16,6 +16,7 @@ go-crap
 
 # Build info
 *.tar.gz
+mutation*.json
 
 # Test cache
 coverage.out
@@ -49,6 +50,9 @@ dist/
 !CLAUDE.md
 !AGENTS.md
 !CHANGELOG.md
+!CODE_OF_CONDUCT.md
+!CONTRIBUTING.md
+!SECURITY.md
 !.github/**/*.md
 mutation.json
 
