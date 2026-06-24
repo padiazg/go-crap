@@ -18,8 +18,8 @@ import (
 
 // Sentinel errors.
 var (
-	ErrUnknownPolicy      = errors.New("unknown missing policy")
-	ErrThresholdExceeded  = errors.New("CRAP threshold exceeded")
+	ErrUnknownPolicy     = errors.New("unknown missing policy")
+	ErrThresholdExceeded = errors.New("CRAP threshold exceeded")
 )
 
 type Options struct {
