@@ -1,5 +1,21 @@
 # GitHub Actions
 
+## Badge
+
+Show the latest master status in your `README.md`:
+
+```markdown
+[![CRAP analysis](https://github.com/YOUR_ORG/YOUR_REPO/actions/workflows/crap.yml/badge.svg?branch=master)](https://github.com/YOUR_ORG/YOUR_REPO/actions/workflows/crap.yml)
+```
+
+The badge reflects the workflow result on `master`. Make sure the workflow triggers on that branch:
+
+```yaml
+on:
+  push:
+    branches: [master]
+```
+
 ## Fail on high CRAP scores
 
 ```yaml
