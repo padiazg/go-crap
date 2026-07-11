@@ -29,6 +29,7 @@ go-crap scan [path] [flags]
 | `--output` | `-o` | Output file path (default: stdout) | stdout |
 | `--mutation-report` | | Path to gremlins JSON mutation report to validate coverage reliability | `""` (disabled) |
 | `--detailed` | | Include mutation failure details (original/replacement code, line, type) in report output | `false` |
+| `--timeout` | | Timeout for the full scan (e.g. `30s`, `5m`, `1h30m`) | `10m0s` |
 
 > `CoverageUntrusted` has meaning only if `--mutation-report` was used.
 
@@ -43,6 +44,8 @@ When a Go module fails to build or run tests (`go test ./...` errors), coverage 
 - **pr-comment** — "Coverage Unavailable" section
 
 This is distinct from the `--missing` policy, which handles functions that have no coverage data because they were not exercised by tests. Coverage unavailable means the entire module's test run failed.
+
+If the test run was killed because it exceeded `--timeout`, the error message says so explicitly (`go test: timed out (increase --timeout to allow more time)`) instead of the generic `signal: killed`.
 
 ## Examples
 

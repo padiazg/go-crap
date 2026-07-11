@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/padiazg/go-crap/internal/coverage"
 	"github.com/padiazg/go-crap/internal/score"
@@ -188,6 +189,16 @@ func TestScan(t *testing.T) {
 				checkLen(6),
 			},
 		},
+		{
+			name: "zero_timeout_uses_default",
+			options: &Options{
+				Path: "../testdata",
+			},
+			checks: []func(*testing.T, *Entries, error){
+				checkScanError(""),
+				checkLen(6),
+			},
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -196,6 +207,23 @@ func TestScan(t *testing.T) {
 			for _, c := range tt.checks {
 				c(t, r, err)
 			}
+		})
+	}
+}
+
+func Test_resolveTimeout(t *testing.T) {
+	tests := []struct {
+		name string
+		in   time.Duration
+		want time.Duration
+	}{
+		{name: "zero_uses_default", in: 0, want: DefaultTimeout},
+		{name: "explicit_timeout_is_preserved", in: 5 * time.Second, want: 5 * time.Second},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, resolveTimeout(tt.in))
 		})
 	}
 }
@@ -259,7 +287,7 @@ func Test_runCoverageAnalysis(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			r, err := runCoverageAnalysis(context.Background(), tt.options, tt.exclude)
+			r, err := runCoverageAnalysis(context.Background(), tt.options, tt.exclude, 0)
 			for _, c := range tt.checks {
 				c(t, r, err)
 			}

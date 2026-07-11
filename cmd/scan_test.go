@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -184,6 +185,14 @@ func resetFlags() {
 	flagOutput = ""
 	flagMutation = ""
 	flagDetailed = false
+	flagTimeout = 10 * time.Minute
+}
+
+func Test_timeoutFlag_registered(t *testing.T) {
+	f := scanCmd.Flags().Lookup("timeout")
+	if assert.NotNil(t, f, "expected --timeout flag to be registered") {
+		assert.Equal(t, "10m0s", f.DefValue)
+	}
 }
 
 func Test_runScan(t *testing.T) {
@@ -245,6 +254,14 @@ func Test_runScan(t *testing.T) {
 				}
 				flagOutput = f.Name()
 			},
+			checks: checkrunScan(
+				checkrunScanError(""),
+			),
+		},
+		{
+			name:  "custom timeout succeeds",
+			args:  []string{"../internal/testdata"},
+			setup: func() { resetFlags(); flagTimeout = 2 * time.Minute },
 			checks: checkrunScan(
 				checkrunScanError(""),
 			),
