@@ -26,8 +26,8 @@ var (
 	flagOutput    string
 	flagMutation  string
 	flagDetailed  bool
-	flagCoverProf string
 	flagTimeout   time.Duration
+	flagCoverProf string
 
 	scanCmd = &cobra.Command{
 		Use:   "scan [path]",
@@ -64,6 +64,8 @@ func init() {
 		`Use an existing coverage profile (as produced by "go test -coverprofile") instead of running go test`)
 	scanCmd.Flags().DurationVar(&flagTimeout, "timeout", 10*time.Minute,
 		"Timeout for the full scan (e.g. 30s, 5m, 1h30m)")
+	scanCmd.Flags().StringVar(&flagCoverProf, "coverage-profile", "",
+		`Use an existing coverage profile (as produced by "go test -coverprofile") instead of running go test`)
 	rootCmd.AddCommand(scanCmd)
 }
 
@@ -91,8 +93,8 @@ func runScan(cmd *cobra.Command, args []string) error {
 		Min:             flagMin,
 		Logger:          lp,
 		MutationReport:  flagMutation,
-		CoverageProfile: flagCoverProf,
 		Timeout:         flagTimeout,
+		CoverageProfile: flagCoverProf,
 	})
 	if err != nil {
 		return err
