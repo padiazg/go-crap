@@ -174,6 +174,11 @@ func (s *Scanner) scanModule(ctx context.Context, modDir string) (ModuleCoverage
 			return mc, mc.Error
 		}
 	}
+	defer func() {
+		if removeErr := os.Remove(profile); removeErr != nil {
+			s.Logger.Debug("coverage scan: remove temp file error", "profile", profile, "error", removeErr.Error())
+		}
+	}()
 
 	functions, err := parseCoverProfile(profile, modDir, modulePath)
 	if err != nil {
