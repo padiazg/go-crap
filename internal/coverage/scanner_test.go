@@ -353,6 +353,28 @@ func TestScanner_scanModule(t *testing.T) {
 			},
 		},
 		{
+			name: "module_with_tests_removes_temp_profile",
+			checks: checkScannerscanModule(
+				func(t *testing.T, r ModuleCoverage, err error) {
+					t.Helper()
+					assert.NoError(t, err)
+					leaked, globErr := filepath.Glob(filepath.Join(os.TempDir(), "coverage-*.out"))
+					require.NoError(t, globErr)
+					assert.Empty(t, leaked, "coverage profile temp file(s) not cleaned up: %v", leaked)
+				},
+			),
+			before: func(s *Scanner) {
+				cwd, err := os.Getwd()
+				require.NoError(t, err)
+				projRoot := filepath.Dir(filepath.Dir(cwd))
+				srcDir := filepath.Join(projRoot, "internal", "testdata")
+				tempDir := t.TempDir()
+				copyFiles(t, srcDir, tempDir, "cover.out")
+				s.Path = tempDir
+				s.Timeout = 2 * time.Minute
+			},
+		},
+		{
 			name: "module_with_failed_tests",
 			checks: checkScannerscanModule(
 				func(t *testing.T, r ModuleCoverage, err error) {
