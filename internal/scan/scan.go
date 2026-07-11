@@ -23,14 +23,15 @@ var (
 )
 
 type Options struct {
-	Logger         logger.Logger
-	Timeout        time.Duration
-	Missing        string
-	MutationReport string
-	Path           string
-	Exclude        []string
-	Min            float64
-	Top            int
+	Logger          logger.Logger
+	Timeout         time.Duration
+	Missing         string
+	MutationReport  string
+	Path            string
+	CoverageProfile string
+	Exclude         []string
+	Min             float64
+	Top             int
 }
 
 func Scan(options *Options) (*Entries, error) {
@@ -65,6 +66,7 @@ func Scan(options *Options) (*Entries, error) {
 
 func runCoverageAnalysis(ctx context.Context, options *Options, exclude *regexp.Regexp) ([]coverage.ModuleCoverage, error) {
 	scanner := coverage.NewScanner(options.Path, exclude, options.Logger, 0)
+	scanner.Profile = options.CoverageProfile
 	coverages, err := scanner.Scan(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("coverage scan: %w", err)

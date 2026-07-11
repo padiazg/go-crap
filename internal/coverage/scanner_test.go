@@ -146,6 +146,60 @@ func TestScanner_Scan(t *testing.T) {
 				return context.Background()
 			},
 		},
+		{
+			// A supplied profile that does not exist is a hard, fail-fast
+			// error rather than a silently degraded empty report.
+			name: "missing_supplied_profile",
+			checks: checkScannerScan(
+				func(t *testing.T, r []ModuleCoverage, err error) {
+					t.Helper()
+					require.Error(t, err)
+					assert.Contains(t, err.Error(), "coverage profile")
+					assert.Empty(t, r)
+				},
+			),
+			before: func(s *Scanner) {
+				s.Path = t.TempDir()
+				s.Profile = filepath.Join(t.TempDir(), "does-not-exist.out")
+			},
+		},
+		{
+			// A supplied profile applied to a package subdirectory that has
+			// no go.mod of its own resolves against the enclosing module.
+			name: "supplied_profile_on_package_subdir",
+			checks: checkScannerScan(
+				func(t *testing.T, r []ModuleCoverage, err error) {
+					t.Helper()
+					assert.NoError(t, err)
+					require.Len(t, r, 1)
+					require.Len(t, r[0].Functions, 1)
+					assert.Equal(t, "Covered", r[0].Functions[0].Name)
+					assert.Equal(t, 100.0, r[0].Functions[0].Coverage)
+				},
+			),
+			before: func(s *Scanner) {
+				modDir := t.TempDir()
+				goMod := `module submod
+
+go 1.21
+`
+				os.WriteFile(filepath.Join(modDir, "go.mod"), []byte(goMod), 0644)
+				pkgDir := filepath.Join(modDir, "internal", "pkg")
+				os.MkdirAll(pkgDir, 0755)
+				src := `package pkg
+
+func Covered() int {
+	return 42
+}
+`
+				os.WriteFile(filepath.Join(pkgDir, "pkg.go"), []byte(src), 0644)
+				profPath := filepath.Join(modDir, "cover.out")
+				os.WriteFile(profPath, []byte("mode: set\n"+
+					"submod/internal/pkg/pkg.go:3.20,5.2 1 1\n"), 0644)
+				s.Path = pkgDir
+				s.Profile = profPath
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -411,6 +465,50 @@ func Something() {}
 `
 				os.WriteFile(filepath.Join(tempDir, "pkg.go"), []byte(src), 0644)
 				s.Path = tempDir
+			},
+		},
+		{
+			// A supplied profile side-steps "go test": the module's test
+			// always fails, yet scanModule succeeds and reports coverage
+			// parsed straight from the profile.
+			name: "module_with_supplied_profile",
+			checks: checkScannerscanModule(
+				func(t *testing.T, r ModuleCoverage, err error) {
+					t.Helper()
+					assert.NoError(t, err)
+					require.Len(t, r.Functions, 1)
+					assert.Equal(t, "Covered", r.Functions[0].Name)
+					assert.Equal(t, 100.0, r.Functions[0].Coverage)
+				},
+			),
+			before: func(s *Scanner) {
+				tempDir := t.TempDir()
+				goMod := `module profmodule
+
+go 1.21
+`
+				os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte(goMod), 0644)
+				src := `package profmodule
+
+func Covered() int {
+	return 42
+}
+`
+				os.WriteFile(filepath.Join(tempDir, "pkg.go"), []byte(src), 0644)
+				test := `package profmodule
+
+import "testing"
+
+func TestCovered(t *testing.T) {
+	t.Fatal("this always fails")
+}
+`
+				os.WriteFile(filepath.Join(tempDir, "pkg_test.go"), []byte(test), 0644)
+				profPath := filepath.Join(tempDir, "cover.out")
+				os.WriteFile(profPath, []byte("mode: set\n"+
+					"profmodule/pkg.go:3.20,5.2 1 1\n"), 0644)
+				s.Path = tempDir
+				s.Profile = profPath
 			},
 		},
 	}

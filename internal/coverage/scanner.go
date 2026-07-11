@@ -20,6 +20,10 @@ type Scanner struct {
 	Logger  logger.Logger
 	Timeout time.Duration
 	Path    string
+	// Profile, when set, is used as the coverage profile instead of running
+	// "go test". The same profile is applied to every discovered module;
+	// entries whose paths do not belong to a module are skipped.
+	Profile string
 }
 
 func NewScanner(path string, exclude *regexp.Regexp, logger logger.Logger, timeout time.Duration) *Scanner {
@@ -43,9 +47,25 @@ func NewScanner(path string, exclude *regexp.Regexp, logger logger.Logger, timeo
 
 // Scan walks the filesystem for Go modules, runs tests with coverage, and returns coverage data for each module.
 func (s *Scanner) Scan(ctx context.Context) ([]ModuleCoverage, error) {
+	if s.Profile != "" {
+		if _, err := os.Stat(s.Profile); err != nil {
+			return nil, fmt.Errorf("coverage profile: %w", err)
+		}
+	}
+
 	modules, err := s.discoverModules(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("discover modules: %w", err)
+	}
+
+	// A supplied profile needs the enclosing module only for path
+	// resolution, so honor package subdirectories that contain no go.mod of
+	// their own by walking up to the nearest module root. This does not
+	// apply to the "go test" path, which must run from an actual module.
+	if s.Profile != "" && len(modules) == 0 {
+		if modDir := findEnclosingModule(s.Path); modDir != "" {
+			modules = []string{modDir}
+		}
 	}
 
 	var results []ModuleCoverage
@@ -99,6 +119,28 @@ func (s *Scanner) discoverModules(ctx context.Context) ([]string, error) {
 	return modules, nil
 }
 
+// findEnclosingModule walks up from path to the nearest ancestor directory
+// that contains a go.mod, returning its absolute path, or "" if none exists.
+func findEnclosingModule(path string) string {
+	dir, err := filepath.Abs(path)
+	if err != nil {
+		return ""
+	}
+	if info, err := os.Stat(dir); err == nil && !info.IsDir() {
+		dir = filepath.Dir(dir)
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
+}
+
 func walkForModules(root string, visit func(dir string) bool) error {
 	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -123,10 +165,13 @@ func (s *Scanner) scanModule(ctx context.Context, modDir string) (ModuleCoverage
 	}
 
 	mc.ModulePath = modulePath
-	profile, err := s.runTests(ctx, modDir)
-	if err != nil {
-		mc.Error = fmt.Errorf("runTests: %w", err)
-		return mc, mc.Error
+	profile := s.Profile
+	if profile == "" {
+		profile, err = s.runTests(ctx, modDir)
+		if err != nil {
+			mc.Error = fmt.Errorf("runTests: %w", err)
+			return mc, mc.Error
+		}
 	}
 
 	functions, err := parseCoverProfile(profile, modDir, modulePath)

@@ -25,6 +25,7 @@ var (
 	flagOutput    string
 	flagMutation  string
 	flagDetailed  bool
+	flagCoverProf string
 
 	scanCmd = &cobra.Command{
 		Use:   "scan [path]",
@@ -57,6 +58,8 @@ func init() {
 		"Path to gremlins JSON mutation report to validate coverage reliability")
 	scanCmd.Flags().BoolVar(&flagDetailed, "detailed", false,
 		"Include mutation failure details in report output")
+	scanCmd.Flags().StringVar(&flagCoverProf, "coverage-profile", "",
+		`Use an existing coverage profile (as produced by "go test -coverprofile") instead of running go test`)
 	rootCmd.AddCommand(scanCmd)
 }
 
@@ -77,13 +80,14 @@ func runScan(cmd *cobra.Command, args []string) error {
 	lp := &l
 
 	entries, err := scan.Scan(&scan.Options{
-		Exclude:        flagExclude,
-		Path:           path,
-		Missing:        flagMissing,
-		Top:            flagTop,
-		Min:            flagMin,
-		Logger:         lp,
-		MutationReport: flagMutation,
+		Exclude:         flagExclude,
+		Path:            path,
+		Missing:         flagMissing,
+		Top:             flagTop,
+		Min:             flagMin,
+		Logger:          lp,
+		MutationReport:  flagMutation,
+		CoverageProfile: flagCoverProf,
 	})
 	if err != nil {
 		return err
