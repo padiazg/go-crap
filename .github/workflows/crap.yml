@@ -42,7 +42,8 @@ jobs:
         run: ./go-crap version
 
       - name: score
-        env: GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+        env: 
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
         run: ./go-crap scan --format github --fail-above --threshold 30 --exclude ".*_test.go" --verbose
       
       - name: generate pr comment
