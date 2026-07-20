@@ -65,7 +65,6 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v9
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const { execFileSync } = require('child_process');
             const comment = execFileSync('cat', ['pr-comment.md']).toString();
