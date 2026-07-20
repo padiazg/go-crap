@@ -34,10 +34,21 @@ type Options struct {
 	Top             int
 }
 
+// DefaultTimeout is used when Options.Timeout is unset (zero).
+const DefaultTimeout = 10 * time.Minute
+
+// resolveTimeout returns t, or DefaultTimeout when t is zero.
+func resolveTimeout(t time.Duration) time.Duration {
+	if t == 0 {
+		return DefaultTimeout
+	}
+	return t
+}
+
 func Scan(options *Options) (*Entries, error) {
-	// TODO: make timeout configurable
 	// TODO: use goroutine to catch timeout signal
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	timeout := resolveTimeout(options.Timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	exclude, err := utils.BuildExcludeRegex(options.Exclude)
@@ -45,7 +56,7 @@ func Scan(options *Options) (*Entries, error) {
 		return nil, fmt.Errorf("coverage scan: %w", err)
 	}
 
-	coverages, err := runCoverageAnalysis(ctx, options, exclude)
+	coverages, err := runCoverageAnalysis(ctx, options, exclude, timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -64,8 +75,8 @@ func Scan(options *Options) (*Entries, error) {
 	return NewEntries(options, merged, policy)
 }
 
-func runCoverageAnalysis(ctx context.Context, options *Options, exclude *regexp.Regexp) ([]coverage.ModuleCoverage, error) {
-	scanner := coverage.NewScanner(options.Path, exclude, options.Logger, 0)
+func runCoverageAnalysis(ctx context.Context, options *Options, exclude *regexp.Regexp, timeout time.Duration) ([]coverage.ModuleCoverage, error) {
+	scanner := coverage.NewScanner(options.Path, exclude, options.Logger, timeout)
 	scanner.Profile = options.CoverageProfile
 	coverages, err := scanner.Scan(ctx)
 	if err != nil {

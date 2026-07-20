@@ -3,6 +3,7 @@ package coverage
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -218,6 +219,9 @@ func (s *Scanner) runTests(ctx context.Context, modDir string) (string, error) {
 	if err != nil {
 		if removeErr := os.Remove(profile); removeErr != nil {
 			s.Logger.Debug("coverage scan: remove temp file error", "profile", profile, "error", removeErr.Error())
+		}
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return "", fmt.Errorf("go test: timed out (increase --timeout to allow more time): %w", err)
 		}
 		return "", fmt.Errorf("go test: %w\n%s", err, stderr.String())
 	}

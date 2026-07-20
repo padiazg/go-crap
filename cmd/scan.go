@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/padiazg/go-crap/internal/report"
 	"github.com/padiazg/go-crap/internal/scan"
@@ -26,6 +27,7 @@ var (
 	flagMutation  string
 	flagDetailed  bool
 	flagCoverProf string
+	flagTimeout   time.Duration
 
 	scanCmd = &cobra.Command{
 		Use:   "scan [path]",
@@ -60,6 +62,8 @@ func init() {
 		"Include mutation failure details in report output")
 	scanCmd.Flags().StringVar(&flagCoverProf, "coverage-profile", "",
 		`Use an existing coverage profile (as produced by "go test -coverprofile") instead of running go test`)
+	scanCmd.Flags().DurationVar(&flagTimeout, "timeout", 10*time.Minute,
+		"Timeout for the full scan (e.g. 30s, 5m, 1h30m)")
 	rootCmd.AddCommand(scanCmd)
 }
 
@@ -88,6 +92,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 		Logger:          lp,
 		MutationReport:  flagMutation,
 		CoverageProfile: flagCoverProf,
+		Timeout:         flagTimeout,
 	})
 	if err != nil {
 		return err
