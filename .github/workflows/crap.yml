@@ -3,14 +3,9 @@ on:
   push:
     branches: [master]
   pull_request:
-  pull_request_target:
 
 permissions:
   contents: read
-  issues: write
-  pull-requests: write
-  checks: write
-  repository-projects: write
 
 jobs:
   test:
@@ -44,14 +39,13 @@ jobs:
         run: ./go-crap version
 
       - name: score
-        env: 
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
         run: ./go-crap scan --format github --fail-above --threshold 30 --exclude ".*_test.go" --verbose
-      
+
       - name: generate pr comment
         run: ./go-crap scan --format pr-comment --threshold 30 --exclude ".*_test.go" --output pr-comment.md
 
       - name: save pr number
+        if: github.event_name == 'pull_request'
         run: echo "${{ github.event.pull_request.number }}" > pr-number.txt
 
       - name: upload pr comment artifacts
@@ -62,18 +56,3 @@ jobs:
             pr-comment.md
             pr-number.txt
           if-no-files-found: ignore
-
-      - name: Generate PR comment
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v9
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const { execFileSync } = require('child_process');
-            const comment = execFileSync('cat', ['pr-comment.md']).toString();
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: comment
-            });
