@@ -587,6 +587,43 @@ func Nothing() {}
 	assert.Error(t, err)
 }
 
+func TestScanner_runTests_deadline_exceeded_message(t *testing.T) {
+	tempDir := t.TempDir()
+	goMod := `module slowtest
+
+go 1.21
+`
+	os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte(goMod), 0644)
+	src := `package slowtest
+
+func Something() int { return 1 }
+`
+	os.WriteFile(filepath.Join(tempDir, "pkg.go"), []byte(src), 0644)
+	test := `package slowtest
+
+import (
+	"testing"
+	"time"
+)
+
+func TestSlow(t *testing.T) {
+	time.Sleep(5 * time.Second)
+}
+`
+	os.WriteFile(filepath.Join(tempDir, "pkg_test.go"), []byte(test), 0644)
+
+	s := NewScanner("value", nil, nil, 0)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	_, err := s.runTests(ctx, tempDir)
+	if assert.Error(t, err) {
+		assert.Contains(t, err.Error(), "timed out")
+		assert.Contains(t, err.Error(), "--timeout")
+	}
+}
+
 type checkScannerfilterByExcludeFn func(*testing.T, []FunctionCoverage)
 
 var checkScannerfilterByExclude = func(fns ...checkScannerfilterByExcludeFn) []checkScannerfilterByExcludeFn { return fns }

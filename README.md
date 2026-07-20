@@ -70,6 +70,7 @@ go-crap scan --exclude '.*_test\.go' --exclude 'pb/.*\.go'
 | `--output` | `-o` | Output file path (default: stdout) | stdout |
 | `--mutation-report` | | Path to gremlins JSON mutation report to validate coverage reliability | `""` |
 | `--detailed` | | Include mutation failure details (original code, replacement, line) in report output | `false` |
+| `--timeout` | | Timeout for the full scan (e.g. `30s`, `5m`, `1h30m`) | `10m0s` |
 | `--help` | `-h` | Help for scan | — |
 
 ### Output Formats
