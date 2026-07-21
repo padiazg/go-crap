@@ -412,9 +412,8 @@ func TestScanner_scanModule(t *testing.T) {
 				func(t *testing.T, r ModuleCoverage, err error) {
 					t.Helper()
 					assert.NoError(t, err)
-					leaked, globErr := filepath.Glob(filepath.Join(os.TempDir(), "coverage-*.out"))
-					require.NoError(t, globErr)
-					assert.Empty(t, leaked, "coverage profile temp file(s) not cleaned up: %v", leaked)
+					_, err = os.Stat(r.Profile)
+					assert.ErrorIs(t, err, os.ErrNotExist, "coverage profile temp file(s) not cleaned up: %s", r.Profile)
 				},
 			),
 			before: func(s *Scanner) {
@@ -673,6 +672,11 @@ func Something() {}
 			}
 			ctx := context.Background()
 			r, err := s.runTests(ctx, modDir)
+			defer func() {
+				if removeErr := os.Remove(r); removeErr != nil {
+					assert.NoError(t, removeErr)
+				}
+			}()
 			if tt.wantErr != "" {
 				if assert.Error(t, err) {
 					assert.Contains(t, err.Error(), tt.wantErr)

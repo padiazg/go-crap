@@ -28,6 +28,7 @@ type ModuleCoverage struct {
 	Error      error
 	Dir        string
 	ModulePath string
+	Profile    string
 	Functions  []FunctionCoverage
 }
 
