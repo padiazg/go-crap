@@ -123,18 +123,18 @@ func (s *Scanner) scanModule(ctx context.Context, modDir string) (ModuleCoverage
 	}
 
 	mc.ModulePath = modulePath
-	profile, err := s.runTests(ctx, modDir)
+	mc.Profile, err = s.runTests(ctx, modDir)
 	if err != nil {
 		mc.Error = fmt.Errorf("runTests: %w", err)
 		return mc, mc.Error
 	}
 	defer func() {
-		if removeErr := os.Remove(profile); removeErr != nil {
-			s.Logger.Debug("coverage scan: remove temp file error", "profile", profile, "error", removeErr.Error())
+		if removeErr := os.Remove(mc.Profile); removeErr != nil {
+			s.Logger.Debug("coverage scan: remove temp file error", "profile", mc.Profile, "error", removeErr.Error())
 		}
 	}()
 
-	functions, err := parseCoverProfile(profile, modDir, modulePath)
+	functions, err := parseCoverProfile(mc.Profile, modDir, modulePath)
 	if err != nil {
 		mc.Error = fmt.Errorf("parseCoverProfile: %w", err)
 		return mc, mc.Error
