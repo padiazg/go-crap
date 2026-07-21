@@ -45,6 +45,17 @@ func resolveTimeout(t time.Duration) time.Duration {
 	return t
 }
 
+// DefaultTimeout is used when Options.Timeout is unset (zero).
+const DefaultTimeout = 10 * time.Minute
+
+// resolveTimeout returns t, or DefaultTimeout when t is zero.
+func resolveTimeout(t time.Duration) time.Duration {
+	if t == 0 {
+		return DefaultTimeout
+	}
+	return t
+}
+
 func Scan(options *Options) (*Entries, error) {
 	// TODO: use goroutine to catch timeout signal
 	timeout := resolveTimeout(options.Timeout)

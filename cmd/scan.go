@@ -60,8 +60,6 @@ func init() {
 		"Path to gremlins JSON mutation report to validate coverage reliability")
 	scanCmd.Flags().BoolVar(&flagDetailed, "detailed", false,
 		"Include mutation failure details in report output")
-	scanCmd.Flags().StringVar(&flagCoverProf, "coverage-profile", "",
-		`Use an existing coverage profile (as produced by "go test -coverprofile") instead of running go test`)
 	scanCmd.Flags().DurationVar(&flagTimeout, "timeout", 10*time.Minute,
 		"Timeout for the full scan (e.g. 30s, 5m, 1h30m)")
 	scanCmd.Flags().StringVar(&flagCoverProf, "coverage-profile", "",
