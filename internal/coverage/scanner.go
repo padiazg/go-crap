@@ -173,12 +173,13 @@ func (s *Scanner) scanModule(ctx context.Context, modDir string) (ModuleCoverage
 			mc.Error = fmt.Errorf("runTests: %w", err)
 			return mc, mc.Error
 		}
+
+		defer func() {
+			if removeErr := os.Remove(mc.Profile); removeErr != nil {
+				s.Logger.Debug("coverage scan: remove temp file error", "profile", mc.Profile, "error", removeErr.Error())
+			}
+		}()
 	}
-	defer func() {
-		if removeErr := os.Remove(mc.Profile); removeErr != nil {
-			s.Logger.Debug("coverage scan: remove temp file error", "profile", mc.Profile, "error", removeErr.Error())
-		}
-	}()
 
 	functions, err := parseCoverProfile(mc.Profile, modDir, modulePath)
 	if err != nil {

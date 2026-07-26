@@ -24,6 +24,9 @@ clean:
 fmt:
 	gofmt -s -w .
 
+crap:
+	go run main.go scan --exclude ".*_test.go" --fail-above --threshold 30 --verbose --top 10 
+
 mod-tidy:
 	go mod tidy
 
@@ -35,9 +38,9 @@ coverage:
 	go tool cover -func=coverage.out
 
 fieldalignment:
-	fieldalignment ./...	
+	fieldalignment -test=false ./...	
 
-preflight: fmt lint test fieldalignment
+preflight: fmt lint test fieldalignment crap
 
 help:
 	@echo "build     - compile binary"
