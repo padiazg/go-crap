@@ -85,8 +85,10 @@ go-crap scan --exclude '.*_test\.go' --exclude 'pb/.*\.go'
 
 ### Coverage Unavailable Warning
 
-When a Go module fails to build or run tests, its coverage data is unavailable.
-go-crap detects this and reports it in all output formats:
+When a Go module fails to build or run tests, go-crap still parses the coverage
+profile from any passing tests. The error is reported in all output formats;
+functions exercised by passing tests appear with their real coverage, while
+functions with no coverage data get a warning.
 
 - `table` — coverage column shows `N/A ‼` with a footer listing unavailable modules
 - `json` — `coverage` is `null` and `coverage_warning` contains the error message

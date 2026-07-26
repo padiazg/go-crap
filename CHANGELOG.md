@@ -5,6 +5,19 @@ All notable changes to go-crap will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.5.0 - UNRELEASED
+
+### Added
+
+- Partial coverage preserved on test failure — when `go test` fails in a module, go-crap still parses the coverage profile from any passing tests instead of discarding all coverage data
+- `extractFailedTests` helper parses `--- FAIL: TestName` lines from stderr and logs failed test names at Warn level (use `--verbose` to see them)
+
+### Changed
+
+- `runTests` no longer deletes the temp coverage profile on error; the profile is kept for `parseCoverProfile` and cleaned up after parsing
+- `scanModule` no longer returns early on `runTests` failure; coverage is always parsed and partial data is returned alongside the error
+- `Scan` preserves the full `ModuleCoverage` struct from `scanModule`, retaining `Functions` alongside the wrapped error
+
 ## v0.4.1 - 2026-06-18
 
 ### Added
