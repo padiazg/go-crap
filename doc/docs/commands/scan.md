@@ -60,7 +60,10 @@ Notes:
 
 ## Coverage Unavailable Warning
 
-When a Go module fails to build or run tests (`go test ./...` errors), coverage data is lost for all functions in that module. go-crap detects this and surfaces the error in all output formats:
+When a Go module fails to build or run tests, go-crap still parses the coverage
+profile from any passing tests. The error is reported in all output formats;
+functions exercised by passing tests appear with their real coverage, while
+functions with no coverage data get a warning.
 
 - **table** — coverage column shows `N/A ‼`, footer lists unavailable modules with error messages
 - **json** — `coverage` is `null`, `coverage_warning` contains the error
