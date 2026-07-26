@@ -77,13 +77,11 @@ func (s *Scanner) Scan(ctx context.Context) ([]ModuleCoverage, error) {
 		default:
 		}
 
-		mc, err := s.scanModule(ctx, modDir)
-		if err != nil {
+		mc := s.scanModule(ctx, modDir)
+		if mc.Error != nil {
 			s.Logger.Debug("coverage scan: module error", "module", modDir, "error", err.Error())
-			results = append(results, ModuleCoverage{
-				Dir:   modDir,
-				Error: fmt.Errorf("scan %s: %w", modDir, err),
-			})
+			mc.Error = fmt.Errorf("scan %s: %w", modDir, mc.Error)
+			results = append(results, mc)
 			continue
 		}
 
@@ -157,7 +155,7 @@ func walkForModules(root string, visit func(dir string) bool) error {
 	})
 }
 
-func (s *Scanner) scanModule(ctx context.Context, modDir string) (ModuleCoverage, error) {
+func (s *Scanner) scanModule(ctx context.Context, modDir string) ModuleCoverage {
 	mc := ModuleCoverage{Dir: modDir}
 	modulePath, err := readModulePath(modDir)
 	if err != nil {
@@ -167,28 +165,32 @@ func (s *Scanner) scanModule(ctx context.Context, modDir string) (ModuleCoverage
 
 	mc.ModulePath = modulePath
 	mc.Profile = s.Profile
+	var parseErr error
+	runTestsSuccess := false
 	if mc.Profile == "" {
 		mc.Profile, err = s.runTests(ctx, modDir)
 		if err != nil {
 			mc.Error = fmt.Errorf("runTests: %w", err)
-			return mc, mc.Error
+		} else {
+			runTestsSuccess = true
 		}
-
-		defer func() {
-			if removeErr := os.Remove(mc.Profile); removeErr != nil {
-				s.Logger.Debug("coverage scan: remove temp file error", "profile", mc.Profile, "error", removeErr.Error())
-			}
-		}()
 	}
 
-	functions, err := parseCoverProfile(mc.Profile, modDir, modulePath)
-	if err != nil {
-		mc.Error = fmt.Errorf("parseCoverProfile: %w", err)
-		return mc, mc.Error
+	functions, parseErr := parseCoverProfile(mc.Profile, modDir, modulePath)
+	if runTestsSuccess {
+		os.Remove(mc.Profile)
+	}
+
+	if parseErr != nil {
+		if mc.Error != nil {
+			return mc
+		}
+		mc.Error = fmt.Errorf("parseCoverProfile: %w", parseErr)
+		return mc
 	}
 
 	mc.Functions = s.filterByExclude(functions)
-	return mc, nil
+	return mc
 }
 
 func readModulePath(dir string) (string, error) {
@@ -223,16 +225,30 @@ func (s *Scanner) runTests(ctx context.Context, modDir string) (string, error) {
 
 	err = cmd.Run()
 	if err != nil {
-		if removeErr := os.Remove(profile); removeErr != nil {
-			s.Logger.Debug("coverage scan: remove temp file error", "profile", profile, "error", removeErr.Error())
+		if failed := extractFailedTests(stderr.String()); len(failed) > 0 {
+			s.Logger.Warn("coverage: tests failed in module", "module", modDir, "failed_tests", failed)
 		}
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return "", fmt.Errorf("go test: timed out (increase --timeout to allow more time): %w", err)
+			return profile, fmt.Errorf("go test: timed out (increase --timeout to allow more time): %w", err)
 		}
-		return "", fmt.Errorf("go test: %w\n%s", err, stderr.String())
+		return profile, fmt.Errorf("go test: %w\n%s", err, stderr.String())
 	}
 
 	return profile, nil
+}
+
+func extractFailedTests(stderr string) []string {
+	var failed []string
+	for line := range strings.SplitSeq(stderr, "\n") {
+		line = strings.TrimSpace(line)
+		if _, after, ok := strings.Cut(line, "--- FAIL: "); ok {
+			after = strings.TrimSpace(after)
+			if name, _, _ := strings.Cut(after, " "); name != "" {
+				failed = append(failed, name)
+			}
+		}
+	}
+	return failed
 }
 
 func (s *Scanner) filterByExclude(functions []FunctionCoverage) []FunctionCoverage {

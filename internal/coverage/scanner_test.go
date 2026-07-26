@@ -374,7 +374,7 @@ func Test_walkForModules_visit_skips_files(t *testing.T) {
 	assert.Equal(t, tempDir, visited[0])
 }
 
-type checkScannerscanModuleFn func(*testing.T, ModuleCoverage, error)
+type checkScannerscanModuleFn func(*testing.T, ModuleCoverage)
 
 var checkScannerscanModule = func(fns ...checkScannerscanModuleFn) []checkScannerscanModuleFn { return fns }
 
@@ -388,9 +388,9 @@ func TestScanner_scanModule(t *testing.T) {
 		{
 			name: "module_with_tests",
 			checks: checkScannerscanModule(
-				func(t *testing.T, r ModuleCoverage, err error) {
+				func(t *testing.T, r ModuleCoverage) {
 					t.Helper()
-					assert.NoError(t, err)
+					assert.NoError(t, r.Error)
 					assert.NotEmpty(t, r.ModulePath)
 					assert.Contains(t, r.ModulePath, "internal/testdata")
 				},
@@ -409,10 +409,10 @@ func TestScanner_scanModule(t *testing.T) {
 		{
 			name: "module_with_tests_removes_temp_profile",
 			checks: checkScannerscanModule(
-				func(t *testing.T, r ModuleCoverage, err error) {
+				func(t *testing.T, r ModuleCoverage) {
 					t.Helper()
-					assert.NoError(t, err)
-					_, err = os.Stat(r.Profile)
+					assert.NoError(t, r.Error)
+					_, err := os.Stat(r.Profile)
 					assert.ErrorIs(t, err, os.ErrNotExist, "coverage profile temp file(s) not cleaned up: %s", r.Profile)
 				},
 			),
@@ -430,9 +430,9 @@ func TestScanner_scanModule(t *testing.T) {
 		{
 			name: "module_with_failed_tests",
 			checks: checkScannerscanModule(
-				func(t *testing.T, r ModuleCoverage, err error) {
+				func(t *testing.T, r ModuleCoverage) {
 					t.Helper()
-					assert.Error(t, err)
+					assert.Error(t, r.Error)
 					assert.Contains(t, r.Error.Error(), "runTests")
 				},
 			),
@@ -463,11 +463,72 @@ func TestAlwaysFails(t *testing.T) {
 			},
 		},
 		{
+			name: "module_with_partial_coverage_on_failure",
+			checks: checkScannerscanModule(
+				func(t *testing.T, r ModuleCoverage) {
+					t.Helper()
+					t.Logf("r.Error: %v", r.Error)
+					t.Logf("r.ModulePath: %s", r.ModulePath)
+					t.Logf("r.Profile: %s", r.Profile)
+					t.Logf("r.Functions count: %d", len(r.Functions))
+					assert.Error(t, r.Error)
+					assert.Contains(t, r.Error.Error(), "runTests")
+					assert.NotEmpty(t, r.Functions, "partial coverage data should be available despite test failure")
+				},
+			),
+			before: func(s *Scanner) {
+				tempDir := t.TempDir()
+				goMod := `module partialmodule
+
+go 1.21
+`
+				os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte(goMod), 0644)
+
+				pkgDir := filepath.Join(tempDir, "pkg")
+				os.Mkdir(pkgDir, 0755)
+				os.WriteFile(filepath.Join(pkgDir, "pkg.go"), []byte(`package pkg
+
+func AlwaysPasses() int {
+	return 42
+}
+`), 0644)
+				os.WriteFile(filepath.Join(pkgDir, "pkg_test.go"), []byte(`package pkg
+
+import "testing"
+
+func TestAlwaysPasses(t *testing.T) {
+	if AlwaysPasses() != 42 {
+		t.Error("expected 42")
+	}
+}
+`), 0644)
+
+				failPkgDir := filepath.Join(tempDir, "failpkg")
+				os.Mkdir(failPkgDir, 0755)
+				os.WriteFile(filepath.Join(failPkgDir, "fail.go"), []byte(`package failpkg
+
+func AlwaysFails() error {
+	return nil
+}
+`), 0644)
+				os.WriteFile(filepath.Join(failPkgDir, "fail_test.go"), []byte(`package failpkg
+
+import "testing"
+
+func TestAlwaysFails(t *testing.T) {
+	t.Fatal("this always fails")
+}
+`), 0644)
+
+				s.Path = tempDir
+			},
+		},
+		{
 			name: "module_without_tests",
 			checks: checkScannerscanModule(
-				func(t *testing.T, r ModuleCoverage, err error) {
+				func(t *testing.T, r ModuleCoverage) {
 					t.Helper()
-					assert.NoError(t, err)
+					assert.NoError(t, r.Error)
 					// go test ./... covers all packages; even without _test.go
 					// the parser finds coverage for functions in the source.
 					assert.NotEmpty(t, r.Functions)
@@ -494,9 +555,9 @@ func Something() {}
 			// parsed straight from the profile.
 			name: "module_with_supplied_profile",
 			checks: checkScannerscanModule(
-				func(t *testing.T, r ModuleCoverage, err error) {
+				func(t *testing.T, r ModuleCoverage) {
 					t.Helper()
-					assert.NoError(t, err)
+					assert.NoError(t, r.Error)
 					require.Len(t, r.Functions, 1)
 					assert.Equal(t, "Covered", r.Functions[0].Name)
 					assert.Equal(t, 100.0, r.Functions[0].Coverage)
@@ -544,9 +605,9 @@ func TestCovered(t *testing.T) {
 				modDir = s.Path
 			}
 			ctx := context.Background()
-			r, err := s.scanModule(ctx, modDir)
+			r := s.scanModule(ctx, modDir)
 			for _, c := range tt.checks {
-				c(t, r, err)
+				c(t, r)
 			}
 		})
 	}
@@ -817,6 +878,64 @@ func TestScanner_filterByExclude(t *testing.T) {
 			for _, c := range tt.checks {
 				c(t, r)
 			}
+		})
+	}
+}
+
+func Test_extractFailedTests(t *testing.T) {
+	tests := []struct {
+		name     string
+		stderr   string
+		expected []string
+	}{
+		{
+			name: "single_failure",
+			stderr: `--- FAIL: TestFoo (0.01s)
+    scanner_test.go:10: panicked
+`,
+			expected: []string{"TestFoo"},
+		},
+		{
+			name: "multiple_failures",
+			stderr: `--- FAIL: TestFoo (0.01s)
+    main_test.go:5: error
+--- FAIL: TestBar (0.02s)
+    main_test.go:10: error
+ok  	package	0.100s
+`,
+			expected: []string{"TestFoo", "TestBar"},
+		},
+		{
+			name: "no_failures",
+			stderr: `ok  	package	0.100s
+`,
+			expected: nil,
+		},
+		{
+			name:     "empty",
+			stderr:   "",
+			expected: nil,
+		},
+		{
+			name:     "with_whitespace",
+			stderr:   "   \n--- FAIL:  TestBaz (0.01s)\n   ",
+			expected: []string{"TestBaz"},
+		},
+		{
+			name: "skip_non_fail_lines",
+			stderr: `=== RUN   TestFoo
+--- PASS: TestFoo (0.01s)
+--- FAIL: TestBar (0.01s)
+=== RUN   TestBaz
+--- PASS: TestBaz (0.01s)
+`,
+			expected: []string{"TestBar"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := extractFailedTests(tt.stderr)
+			assert.Equal(t, tt.expected, r)
 		})
 	}
 }
