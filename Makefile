@@ -34,6 +34,11 @@ coverage:
 	go test -race -coverprofile=coverage.out ./...
 	go tool cover -func=coverage.out
 
+fieldalignment:
+	fieldalignment ./...	
+
+preflight: fmt lint test fieldalignment
+
 help:
 	@echo "build     - compile binary"
 	@echo "test      - run tests with race detector"

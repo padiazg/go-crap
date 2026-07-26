@@ -17,14 +17,14 @@ import (
 )
 
 type Scanner struct {
-	Exclude *regexp.Regexp
 	Logger  logger.Logger
-	Timeout time.Duration
+	Exclude *regexp.Regexp
 	Path    string
 	// Profile, when set, is used as the coverage profile instead of running
 	// "go test". The same profile is applied to every discovered module;
 	// entries whose paths do not belong to a module are skipped.
 	Profile string
+	Timeout time.Duration
 }
 
 func NewScanner(path string, exclude *regexp.Regexp, logger logger.Logger, timeout time.Duration) *Scanner {

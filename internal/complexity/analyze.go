@@ -15,10 +15,10 @@ import (
 
 // Stat holds complexity analysis data for a single function.
 type Stat struct {
-	Pos        token.Position
 	FuncName   string
 	PkgName    string
 	Receiver   string
+	Pos        token.Position
 	Complexity int
 	EndLine    int
 }

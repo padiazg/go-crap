@@ -16,6 +16,7 @@ type Report struct {
 
 type JSONEntry struct {
 	Coverage          *float64             `json:"coverage,omitempty"`
+	CoverageWarning   string               `json:"coverage_warning,omitempty"`
 	File              string               `json:"file"`
 	Function          string               `json:"function"`
 	Package           string               `json:"package"`
@@ -27,7 +28,6 @@ type JSONEntry struct {
 	Line              int                  `json:"line"`
 	MutationScore     float64              `json:"mutation_score"`
 	CoverageUntrusted bool                 `json:"coverage_untrusted"`
-	CoverageWarning   string               `json:"coverage_warning,omitempty"`
 }
 
 type JSONMutationDetail struct {

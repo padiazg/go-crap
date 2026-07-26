@@ -24,13 +24,13 @@ var (
 
 type Options struct {
 	Logger          logger.Logger
-	Timeout         time.Duration
+	CoverageProfile string
 	Missing         string
 	MutationReport  string
 	Path            string
-	CoverageProfile string
 	Exclude         []string
 	Min             float64
+	Timeout         time.Duration
 	Top             int
 }
 
