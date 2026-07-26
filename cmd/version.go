@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"io"
+	"os"
 
 	"github.com/padiazg/go-crap/pkg/version"
 	"github.com/spf13/cobra"
@@ -23,8 +25,12 @@ func runVersion(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	version.Splash()
+	var (
+		stdWriter io.Writer = os.Stdout
+		errWriter io.Writer = os.Stderr
+	)
 
+	version.Splash(stdWriter, errWriter)
 }
 
 func init() {
