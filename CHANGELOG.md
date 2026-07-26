@@ -11,12 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Partial coverage preserved on test failure — when `go test` fails in a module, go-crap still parses the coverage profile from any passing tests instead of discarding all coverage data
 - `extractFailedTests` helper parses `--- FAIL: TestName` lines from stderr and logs failed test names at Warn level (use `--verbose` to see them)
+- `--coverage-profile` flag — supply an existing coverage profile instead of running `go test` (collaborated by @mem)
+- `--timeout` flag — configurable timeout for the scan command (collaborated by @matiasinsaurralde)
+- `Profile` field on `ModuleCoverage` — stores the path to the coverage profile file
 
 ### Changed
 
 - `runTests` no longer deletes the temp coverage profile on error; the profile is kept for `parseCoverProfile` and cleaned up after parsing
 - `scanModule` no longer returns early on `runTests` failure; coverage is always parsed and partial data is returned alongside the error
 - `Scan` preserves the full `ModuleCoverage` struct from `scanModule`, retaining `Functions` alongside the wrapped error
+
+### Fixed
+
+- Coverage profile temp files now cleaned up after successful scan (collaborated by @matiasinsaurralde)
+- Field alignment for better memory layout
+- Tests added for `Spash` function
 
 ## v0.4.1 - 2026-06-18
 
