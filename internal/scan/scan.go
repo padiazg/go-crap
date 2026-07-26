@@ -23,14 +23,15 @@ var (
 )
 
 type Options struct {
-	Logger         logger.Logger
-	Timeout        time.Duration
-	Missing        string
-	MutationReport string
-	Path           string
-	Exclude        []string
-	Min            float64
-	Top            int
+	Logger          logger.Logger
+	Timeout         time.Duration
+	Missing         string
+	MutationReport  string
+	Path            string
+	CoverageProfile string
+	Exclude         []string
+	Min             float64
+	Top             int
 }
 
 // DefaultTimeout is used when Options.Timeout is unset (zero).
@@ -76,6 +77,7 @@ func Scan(options *Options) (*Entries, error) {
 
 func runCoverageAnalysis(ctx context.Context, options *Options, exclude *regexp.Regexp, timeout time.Duration) ([]coverage.ModuleCoverage, error) {
 	scanner := coverage.NewScanner(options.Path, exclude, options.Logger, timeout)
+	scanner.Profile = options.CoverageProfile
 	coverages, err := scanner.Scan(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("coverage scan: %w", err)
