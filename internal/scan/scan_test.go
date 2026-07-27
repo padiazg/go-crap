@@ -16,6 +16,7 @@ import (
 	"github.com/padiazg/go-crap/internal/coverage"
 	"github.com/padiazg/go-crap/internal/score"
 	"github.com/padiazg/go-crap/pkg/logger"
+	"github.com/padiazg/go-crap/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/goleak"
 )
@@ -69,6 +70,28 @@ func checkSortedDesc() func(*testing.T, *Entries, error) {
 
 // TestScan — integration tests exercising the full Scan pipeline against
 // internal/testdata (real go test + complexity parsing + merge).
+func TestBuildExcludePatterns(t *testing.T) {
+	t.Run("includeTests_true_passes_user_patterns", func(t *testing.T) {
+		got := buildExcludePatterns([]string{`pb/.*`}, true)
+		assert.Equal(t, []string{`pb/.*`}, got)
+	})
+
+	t.Run("includeTests_false_prepends_default", func(t *testing.T) {
+		got := buildExcludePatterns(nil, false)
+		assert.Equal(t, []string{utils.DefaultExcludePattern}, got)
+	})
+
+	t.Run("includeTests_false_composes_user_patterns", func(t *testing.T) {
+		got := buildExcludePatterns([]string{`pb/.*`, `mock_`}, false)
+		assert.Equal(t, []string{utils.DefaultExcludePattern, `pb/.*`, `mock_`}, got)
+	})
+
+	t.Run("includeTests_false_with_nil_user", func(t *testing.T) {
+		got := buildExcludePatterns(nil, false)
+		assert.Equal(t, []string{utils.DefaultExcludePattern}, got)
+	})
+}
+
 func TestScan(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -78,8 +101,9 @@ func TestScan(t *testing.T) {
 		{
 			name: "default_scan_excludes_test_files",
 			options: &Options{
-				Path:    "../testdata",
-				Exclude: []string{".*_test.go"},
+				Path:         "../testdata",
+				IncludeTests: true,
+				Exclude:      []string{".*_test.go"},
 			},
 			checks: []func(*testing.T, *Entries, error){
 				checkScanError(""),
@@ -87,6 +111,32 @@ func TestScan(t *testing.T) {
 				checkValue(0, 90.00, "veryComplex"),
 				checkValue(4, 1.00, "simple"),
 				checkSortedDesc(),
+			},
+		},
+		{
+			name: "default_scan_excludes_test_files_without_explicit_exclude",
+			options: &Options{
+				Path:         "../testdata",
+				IncludeTests: false,
+			},
+			checks: []func(*testing.T, *Entries, error){
+				checkScanError(""),
+				checkLen(5),
+				checkValue(0, 90.00, "veryComplex"),
+				checkValue(4, 1.00, "simple"),
+				checkSortedDesc(),
+			},
+		},
+		{
+			name: "include_tests_flag_includes_test_files",
+			options: &Options{
+				Path:         "../testdata",
+				IncludeTests: true,
+			},
+			checks: []func(*testing.T, *Entries, error){
+				checkScanError(""),
+				checkLen(6),
+				checkValue(0, 90.00, "veryComplex"),
 			},
 		},
 		{
@@ -101,8 +151,9 @@ func TestScan(t *testing.T) {
 		{
 			name: "min_50_filters_low_scores",
 			options: &Options{
-				Path: "../testdata",
-				Min:  50,
+				Path:         "../testdata",
+				IncludeTests: true,
+				Min:          50,
 			},
 			checks: []func(*testing.T, *Entries, error){
 				checkScanError(""),
@@ -113,8 +164,9 @@ func TestScan(t *testing.T) {
 		{
 			name: "min_higher_than_all_returns_empty",
 			options: &Options{
-				Path: "../testdata",
-				Min:  100,
+				Path:         "../testdata",
+				IncludeTests: true,
+				Min:          100,
 			},
 			checks: []func(*testing.T, *Entries, error){
 				checkScanError(""),
@@ -124,8 +176,9 @@ func TestScan(t *testing.T) {
 		{
 			name: "top_2_limits_results",
 			options: &Options{
-				Path: "../testdata",
-				Top:  2,
+				Path:         "../testdata",
+				IncludeTests: true,
+				Top:          2,
 			},
 			checks: []func(*testing.T, *Entries, error){
 				checkScanError(""),
@@ -137,8 +190,9 @@ func TestScan(t *testing.T) {
 		{
 			name: "top_larger_than_result_set_is_no_op",
 			options: &Options{
-				Path: "../testdata",
-				Top:  100,
+				Path:         "../testdata",
+				IncludeTests: true,
+				Top:          100,
 			},
 			checks: []func(*testing.T, *Entries, error){
 				checkScanError(""),
@@ -148,8 +202,9 @@ func TestScan(t *testing.T) {
 		{
 			name: "invalid_missing_policy_returns_error",
 			options: &Options{
-				Path:    "../testdata",
-				Missing: "invalid",
+				Path:         "../testdata",
+				IncludeTests: true,
+				Missing:      "invalid",
 			},
 			checks: []func(*testing.T, *Entries, error){
 				checkScanError("unknown missing policy"),
@@ -158,8 +213,9 @@ func TestScan(t *testing.T) {
 		{
 			name: "exclude_function_name_reduces_count",
 			options: &Options{
-				Path:    "../testdata",
-				Exclude: []string{"veryComplex"},
+				Path:         "../testdata",
+				IncludeTests: true,
+				Exclude:      []string{"veryComplex"},
 			},
 			checks: []func(*testing.T, *Entries, error){
 				checkScanError(""),
@@ -170,8 +226,9 @@ func TestScan(t *testing.T) {
 		{
 			name: "missing_optimistic_assumes_100_percent_coverage",
 			options: &Options{
-				Path:    "../testdata",
-				Missing: "optimistic",
+				Path:         "../testdata",
+				IncludeTests: true,
+				Missing:      "optimistic",
 			},
 			checks: []func(*testing.T, *Entries, error){
 				checkScanError(""),
@@ -181,8 +238,9 @@ func TestScan(t *testing.T) {
 		{
 			name: "missing_pessimistic_default_policy",
 			options: &Options{
-				Path:    "../testdata",
-				Missing: "pessimistic",
+				Path:         "../testdata",
+				IncludeTests: true,
+				Missing:      "pessimistic",
 			},
 			checks: []func(*testing.T, *Entries, error){
 				checkScanError(""),
@@ -192,7 +250,8 @@ func TestScan(t *testing.T) {
 		{
 			name: "zero_timeout_uses_default",
 			options: &Options{
-				Path: "../testdata",
+				Path:         "../testdata",
+				IncludeTests: true,
 			},
 			checks: []func(*testing.T, *Entries, error){
 				checkScanError(""),

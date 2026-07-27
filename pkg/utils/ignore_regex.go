@@ -5,6 +5,8 @@ import (
 	"strings"
 )
 
+const DefaultExcludePattern = `.*_test\.go$`
+
 func BuildExcludeRegex(exclude []string) (*regexp.Regexp, error) {
 	if len(exclude) == 0 {
 		return nil, nil

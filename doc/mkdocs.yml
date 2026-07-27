@@ -80,6 +80,7 @@ nav:
   - Integrations:
     - integrations/index.md
     - GitHub Actions: integrations/github-actions.md
+    - Baseline Comparison: integrations/baseline-comparison.md
     - Gitea: integrations/gitea.md
     - GitLab CI: integrations/gitlab.md
     - Azure DevOps: integrations/azure-devops.md

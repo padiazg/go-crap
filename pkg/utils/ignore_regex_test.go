@@ -7,6 +7,31 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestDefaultExcludePattern(t *testing.T) {
+	assert.Equal(t, ".*_test\\.go$", DefaultExcludePattern)
+
+	re, err := regexp.Compile(DefaultExcludePattern)
+	assert.NoError(t, err)
+
+	tests := []struct {
+		filePath string
+		want     bool
+	}{
+		{"main_test.go", true},
+		{"pkg/main_test.go", true},
+		{"vendor/foo/bar/baz_test.go", true},
+		{"main.go", false},
+		{"pkg/helpers.go", false},
+		{"mock_main.go", false},
+		{"_test.go", true},
+	}
+
+	for _, tt := range tests {
+		got := re.MatchString(tt.filePath)
+		assert.Equal(t, tt.want, got, "Match(%q)", tt.filePath)
+	}
+}
+
 func TestMatchExclude(t *testing.T) {
 	tests := []struct {
 		name     string
