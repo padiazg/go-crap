@@ -23,6 +23,7 @@ var (
 	flagMin                     float64
 	flagMissing                 string
 	flagExclude                 []string
+	flagIncludeTests            bool
 	flagVerbose                 bool
 	flagOutput                  string
 	flagMutation                string
@@ -55,7 +56,9 @@ func init() {
 	scanCmd.Flags().StringVar(&flagMissing, "missing", "pessimistic",
 		"Policy for functions without coverage: pessimistic|optimistic|skip")
 	scanCmd.Flags().StringArrayVar(&flagExclude, "exclude", nil,
-		"Exclude files matching this regex (repeatable). Use . for any character, .* for any path depth. e.g. '.*_test\\.go' to exclude all test files, 'pb/.*\\.go' to exclude protobuf files")
+		"Exclude files matching this regex (repeatable). Use . for any character, .* for any path depth. _test.go files are excluded by default. e.g. 'pb/.*\\.go' to exclude protobuf files")
+	scanCmd.Flags().BoolVar(&flagIncludeTests, "include-tests", false,
+		"Include _test.go files in analysis (default: excluded)")
 	scanCmd.Flags().BoolVar(&flagVerbose, "verbose", false,
 		"Enable verbose (debug-level) logging")
 	scanCmd.Flags().StringVarP(&flagOutput, "output", "o", "",
@@ -99,6 +102,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 
 	entries, err := scan.Scan(&scan.Options{
 		Exclude:         flagExclude,
+		IncludeTests:    flagIncludeTests,
 		Path:            path,
 		Missing:         flagMissing,
 		Top:             flagTop,

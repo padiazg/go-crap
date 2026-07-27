@@ -67,9 +67,9 @@ jobs:
       - name: score
         run: |
           if [ -f baseline/crap-current.json ]; then
-            ./go-crap scan --baseline baseline/crap-current.json --format github --fail-above --threshold 30 --exclude ".*_test.go" --verbose
+            ./go-crap scan --baseline baseline/crap-current.json --format github --fail-above --threshold 30 --verbose
           else
-            ./go-crap scan --format github --fail-above --threshold 30 --exclude ".*_test.go" --verbose
+            ./go-crap scan --format github --fail-above --threshold 30 --verbose
           fi
 
       - name: check for regressions
@@ -80,9 +80,9 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           if [ -f baseline/crap-current.json ]; then
-            ./go-crap scan --baseline baseline/crap-current.json --format pr-comment --threshold 30 --exclude ".*_test.go" --output pr-comment.md
+            ./go-crap scan --baseline baseline/crap-current.json --format pr-comment --threshold 30 --output pr-comment.md
           else
-            ./go-crap scan --format pr-comment --threshold 30 --exclude ".*_test.go" --output pr-comment.md
+            ./go-crap scan --format pr-comment --threshold 30 --output pr-comment.md
           fi
 
       - name: save pr number

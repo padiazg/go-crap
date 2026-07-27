@@ -50,8 +50,8 @@ go-crap scan --top 10
 # Fail CI if any function exceeds threshold
 go-crap scan --fail-above --threshold 30
 
-# Exclude test files and protobuf
-go-crap scan --exclude '.*_test\.go' --exclude 'pb/.*\.go'
+# Exclude protobuf files (test files excluded by default)
+go-crap scan --exclude 'pb/.*\.go'
 ```
 
 ### Flags
@@ -64,7 +64,8 @@ go-crap scan --exclude '.*_test\.go' --exclude 'pb/.*\.go'
 | `--top` | | Show only the N worst offenders (0 = all) | `0` |
 | `--min` | | Hide entries below this score | `0` |
 | `--missing` | | Policy for functions without coverage: `pessimistic`, `optimistic`, or `skip` | `pessimistic` |
-| `--exclude` | | Exclude files matching this regex (repeatable). Use `.*` for any path depth. e.g. `.*_test\.go` to exclude all test files, `pb/.*\.go` to exclude protobuf files | none |
+| `--exclude` | | Exclude files matching this regex (repeatable). Use `.*` for any path depth. `_test.go` files are excluded by default | none |
+| `--include-tests` | | Include `_test.go` files in analysis (overrides default exclude) | `false` |
 | `--verbose` | | Enable verbose (debug-level) logging | `false` |
 | `--output` | `-o` | Output file path (default: stdout) | stdout |
 | `--mutation-report` | | Path to gremlins JSON mutation report to validate coverage reliability | `""` |

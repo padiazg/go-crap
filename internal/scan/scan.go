@@ -30,6 +30,7 @@ type Options struct {
 	MutationReport  string
 	Path            string
 	Exclude         []string
+	IncludeTests    bool
 	Min             float64
 	Timeout         time.Duration
 	Top             int
@@ -52,7 +53,7 @@ func Scan(options *Options) (*Entries, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	exclude, err := utils.BuildExcludeRegex(options.Exclude)
+	exclude, err := utils.BuildExcludeRegex(buildExcludePatterns(options.Exclude, options.IncludeTests))
 	if err != nil {
 		return nil, fmt.Errorf("coverage scan: %w", err)
 	}
@@ -113,4 +114,11 @@ func parseMissingPolicy(s string) (score.MissingPolicy, error) {
 
 func effectiveCRAP(e score.CRAPEntry) float64 {
 	return e.EffectiveScore()
+}
+
+func buildExcludePatterns(userPatterns []string, includeTests bool) []string {
+	if includeTests {
+		return userPatterns
+	}
+	return append([]string{utils.DefaultExcludePattern}, userPatterns...)
 }
