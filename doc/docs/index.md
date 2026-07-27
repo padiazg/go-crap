@@ -45,6 +45,20 @@ The `--detailed` flag includes full mutation failure details in report output. E
 - **SARIF**: survived mutations with code diffs appended to warning messages
 - **PR Comment**: `Survived Mutants` column with inline code snippets
 
+### Baseline Comparison
+
+The `--baseline` flag loads a previous JSON report and compares the current scan against it. This lets you track quality over time and catch regressions in CI.
+
+When a baseline is provided:
+- **pr-comment**: header shows Combined/Average CRAP with deltas vs baseline, plus "New Functions" and "Regressions" sections
+- **table**: `Δ` column with per-function delta, delta footer lines
+- **json**: per-entry `baseline_crap` and `delta` fields, `summary` object with baseline/compare stats (schema 1.1.0)
+- **github**: summary `::notice::` annotation
+
+Use `--fail-regression` to exit with code 1 when functions have regressed compared to the baseline. Adjust sensitivity with `--fail-regression-threshold`.
+
+→ [Baseline Comparison Guide](integrations/baseline-comparison.md)
+
 ### Missing Coverage Policy
 
 When a function has no coverage data, go-crap can handle it three ways:
