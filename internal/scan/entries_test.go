@@ -272,7 +272,7 @@ func TestNewEntries(t *testing.T) {
 func TestNewEntries_preserves_full_list(t *testing.T) {
 	const fn = "NewEntries"
 	tests := []struct {
-		name   string
+		name    string
 		options *Options
 		merged  []merge.MergedEntry
 		policy  score.MissingPolicy
@@ -351,7 +351,7 @@ func TestNewEntries_preserves_full_list(t *testing.T) {
 				{File: "example.go", FuncName: "A", Package: "example", Complexity: 1, Coverage: new(100.0), Line: 1},
 			},
 			policy: score.MissingPessimistic,
-			checks: 	checkEntries(
+			checks: checkEntries(
 				checkEntriesError(fn, ""),
 				checkEntry(func(t *testing.T, e *Entries) {
 					t.Helper()

@@ -40,7 +40,7 @@ coverage:
 fieldalignment:
 	fieldalignment -test=false ./...	
 
-preflight: fmt lint test fieldalignment crap
+preflight: lint test fieldalignment crap
 
 help:
 	@echo "build     - compile binary"
