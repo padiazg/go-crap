@@ -79,7 +79,7 @@ func (s *Scanner) Scan(ctx context.Context) ([]ModuleCoverage, error) {
 
 		mc := s.scanModule(ctx, modDir)
 		if mc.Error != nil {
-			s.Logger.Debug("coverage scan: module error", "module", modDir, "error", err.Error())
+			s.Logger.Debug("coverage scan: module error", "module", modDir, "error", mc.Error.Error())
 			mc.Error = fmt.Errorf("scan %s: %w", modDir, mc.Error)
 			results = append(results, mc)
 			continue

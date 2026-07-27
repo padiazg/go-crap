@@ -255,11 +255,13 @@ func Test_parseProfileLine_boundary_edge_cases(t *testing.T) {
 	entry, err := parseProfileLine("file.go:1.1,5.1 0 0")
 	assert.NoError(t, err)
 	assert.Equal(t, 1, entry.start)
+	assert.Equal(t, 5, entry.end)
 	assert.False(t, entry.covered)
 
 	entry, err = parseProfileLine("file.go:100.1,100.1 1 1")
 	assert.NoError(t, err)
 	assert.Equal(t, 100, entry.start)
+	assert.Equal(t, 100, entry.end)
 	assert.True(t, entry.covered)
 }
 
@@ -331,12 +333,15 @@ func MultipleBlocks() {
 	os.WriteFile(filepath.Join(subDir, "file.go"), []byte(goSrc), 0644)
 	profPath := filepath.Join(tempDir, "cover.out")
 	os.WriteFile(profPath, []byte("mode: set\n"+
-		"mod/path/to/file.go:1.1,10.1 1 0\n"+
-		"mod/path/to/file.go:1.1,10.1 1 1\n"), 0644)
+		"mod/path/to/file.go:4.1,5.1 1 0\n"+
+		"mod/path/to/file.go:4.1,5.1 1 1\n"+
+		"mod/path/to/file.go:5.1,6.1 1 0\n"), 0644)
 
 	entries, err := parseCoverProfile(profPath, tempDir, "mod/path")
 	assert.NoError(t, err)
-	assert.NotEmpty(t, entries)
+	assert.Len(t, entries, 1)
+	assert.Equal(t, "MultipleBlocks", entries[0].Name)
+	assert.Equal(t, 50.0, entries[0].Coverage)
 }
 
 func Test_parseCoverProfile_boundary_no_go_files(t *testing.T) {
@@ -542,81 +547,100 @@ func (m *MyType) PointerMethod() {}
 
 func Test_parsePositionFields(t *testing.T) {
 	tests := []struct {
-		name    string
-		rest    string
-		want    int
-		want2   bool
-		wantErr string
+		name       string
+		rest       string
+		wantStart  int
+		wantEnd    int
+		wantCovered bool
+		wantErr    string
 	}{
 		{
-			name:    "normal_covered",
-			rest:    "10.5,20.10 0 1",
-			want:    10,
-			want2:   true,
-			wantErr: "",
+			name:        "normal_covered",
+			rest:        "10.5,20.10 0 1",
+			wantStart:   10,
+			wantEnd:     20,
+			wantCovered: true,
+			wantErr:     "",
 		},
 		{
-			name:    "normal_not_covered",
-			rest:    "10.5,20.10 0 0",
-			want:    10,
-			want2:   false,
-			wantErr: "",
+			name:        "normal_not_covered",
+			rest:        "10.5,20.10 0 0",
+			wantStart:   10,
+			wantEnd:     20,
+			wantCovered: false,
+			wantErr:     "",
 		},
 		{
-			name:    "zero_line",
-			rest:    "0.1,0.1 1 1",
-			want:    0,
-			want2:   true,
-			wantErr: "",
+			name:        "zero_line",
+			rest:        "0.1,0.1 1 1",
+			wantStart:   0,
+			wantEnd:     0,
+			wantCovered: true,
+			wantErr:     "",
 		},
 		{
-			name:    "space_at_position_zero",
-			rest:    " 10.5,20.10 0 1",
-			want:    0,
-			want2:   false,
-			wantErr: "invalid line",
+			name:        "space_at_position_zero",
+			rest:        " 10.5,20.10 0 1",
+			wantStart:   0,
+			wantEnd:     0,
+			wantCovered: false,
+			wantErr:     "invalid line",
 		},
 		{
-			name:    "no_space_in_rest",
-			rest:    "10.5,20.10",
-			want:    0,
-			want2:   false,
-			wantErr: "invalid line",
+			name:        "no_space_in_rest",
+			rest:        "10.5,20.10",
+			wantStart:   0,
+			wantEnd:     0,
+			wantCovered: false,
+			wantErr:     "invalid line",
 		},
 		{
-			name:    "position_without_comma",
-			rest:    "10.5 0 1",
-			want:    0,
-			want2:   false,
-			wantErr: "invalid position",
+			name:        "position_without_comma",
+			rest:        "10.5 0 1",
+			wantStart:   0,
+			wantEnd:     0,
+			wantCovered: false,
+			wantErr:     "invalid position",
 		},
 		{
-			name:    "too_many_comma_parts",
-			rest:    "10.5,20.10,extra 0 1",
-			want:    0,
-			want2:   false,
-			wantErr: "invalid position",
+			name:        "too_many_comma_parts",
+			rest:        "10.5,20.10,extra 0 1",
+			wantStart:   0,
+			wantEnd:     0,
+			wantCovered: false,
+			wantErr:     "invalid position",
 		},
 		{
-			name:    "single_covered_field",
-			rest:    "10.5,20.10 0",
-			want:    0,
-			want2:   false,
-			wantErr: "invalid fields",
+			name:        "single_covered_field",
+			rest:        "10.5,20.10 0",
+			wantStart:   0,
+			wantEnd:     0,
+			wantCovered: false,
+			wantErr:     "invalid fields",
 		},
 		{
-			name:    "non_numeric_covered_value",
-			rest:    "10.5,20.10 0 abc",
-			want:    10,
-			want2:   false,
-			wantErr: "",
+			name:        "non_numeric_covered_value",
+			rest:        "10.5,20.10 0 abc",
+			wantStart:   10,
+			wantEnd:     20,
+			wantCovered: false,
+			wantErr:     "",
+		},
+		{
+			name:        "different_end_line",
+			rest:        "1.1,99.2 1 1",
+			wantStart:   1,
+			wantEnd:     99,
+			wantCovered: true,
+			wantErr:     "",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r, r2, err := parsePositionFields(tt.rest)
-			assert.Equal(t, tt.want, r)
-			assert.Equal(t, tt.want2, r2)
+			r, r2, r3, err := parsePositionFields(tt.rest)
+			assert.Equal(t, tt.wantStart, r)
+			assert.Equal(t, tt.wantEnd, r2)
+			assert.Equal(t, tt.wantCovered, r3)
 			if tt.wantErr != "" {
 				if assert.Error(t, err) {
 					assert.Contains(t, err.Error(), tt.wantErr)

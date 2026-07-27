@@ -55,6 +55,7 @@ Notes:
 
 - If the profile path does not exist, `scan` fails immediately rather than producing an empty report.
 - The same profile is applied to every discovered module; entries whose paths do not belong to a module are skipped.
+- Duplicate block entries from merged coverage profiles (common with `./...` test runs across multiple packages) are automatically deduplicated by `(startLine, endLine)` position using OR semantics — a block is covered if any test binary covered it.
 - When the scan `path` is a package subdirectory that has no `go.mod` of its own, the profile is resolved against the enclosing module (the nearest parent containing a `go.mod`). This lets you point `scan` at a single package:
 
   ```shell
