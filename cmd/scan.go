@@ -188,6 +188,9 @@ func output(entries *scan.Entries, config outputConfig) error {
 	var summary report.Summary
 	var baselineSummary *report.Baseline
 	if config.baseline != nil {
+		for i := range entries.List {
+			entries.List[i].File = report.RelativizePath(entries.List[i].File, config.path)
+		}
 		entries.List = report.AnnotateWithBaseline(entries.List, config.baseline)
 		summary = report.ComputeSummaryWithBaseline(entries, config.threshold, config.baseline)
 		baselineSummary = config.baseline

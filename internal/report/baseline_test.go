@@ -933,3 +933,34 @@ func TestFindRegressions_default_tolerance(t *testing.T) {
 	assert.Len(t, result, 1)
 	assert.Equal(t, "Foo", result[0].FuncName)
 }
+
+func TestAnnotateWithBaseline_absolute_vs_relative_path(t *testing.T) {
+	baseline := &Baseline{
+		entries: map[string]BaselineEntry{
+			"cmd/scan.go:FuncA": {EffectiveCRAP: 50.0},
+			"cmd/scan.go:FuncB": {EffectiveCRAP: 20.0},
+		},
+	}
+
+	entries := []score.CRAPEntry{
+		{File: "/full/path/cmd/scan.go", FuncName: "FuncA", CRAP: 60.0, EffectiveCRAP: 60.0},
+		{File: "/full/path/cmd/scan.go", FuncName: "FuncB", CRAP: 15.0, EffectiveCRAP: 15.0},
+	}
+
+	result := AnnotateWithBaseline(entries, baseline)
+
+	assert.Equal(t, -1.0, result[0].BaselineCRAP, "absolute path should not match baseline's relative path")
+	assert.Equal(t, -1.0, result[1].BaselineCRAP, "absolute path should not match baseline's relative path")
+}
+
+func TestRelativizePath_already_relative(t *testing.T) {
+	rel := RelativizePath("cmd/scan.go", ".")
+	assert.Equal(t, "cmd/scan.go", rel)
+}
+
+func TestRelativizePath_absolute_to_relative(t *testing.T) {
+	dir := t.TempDir()
+	absPath := filepath.Join(dir, "cmd/scan.go")
+	rel := RelativizePath(absPath, dir)
+	assert.Equal(t, "cmd/scan.go", rel)
+}
