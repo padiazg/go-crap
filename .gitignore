@@ -55,6 +55,7 @@ dist/
 !SECURITY.md
 !.github/**/*.md
 mutation.json
+crap-current*
 
 # MkDocs site
 doc/site/
