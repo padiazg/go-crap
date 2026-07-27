@@ -17,10 +17,10 @@ jobs:
         with:
           go-version: '1.26.2'
           cache: true
-      - name: Install go-crap
-        run: go install github.com/padiazg/go-crap@latest
+      - name: build
+        run: make build
       - name: Generate baseline
-        run: go-crap scan --format json --output crap-current.json
+        run: ./go-crap scan --format json --output crap-current.json
       - uses: actions/upload-artifact@v7
         with:
           name: crap-baseline

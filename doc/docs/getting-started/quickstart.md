@@ -5,7 +5,7 @@ This guide walks through your first CRAP score scan in under two minutes.
 ## 1. Install go-crap
 
 ```shell
-go install github.com/padiazg/go-crap@latest
+curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
 ```
 
 ## 2. Run a Scan

@@ -19,7 +19,7 @@ jobs:
           go-version: '1.23'
           cache: true
       - name: Install go-crap
-        run: go install github.com/padiazg/go-crap@latest
+        run: curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
       - name: Run go-crap
         run: go-crap scan --fail-above --threshold 30 --exclude '.*_test\.go' --exclude 'testdata/.*\.go'
 ```

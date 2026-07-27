@@ -9,7 +9,7 @@ CRAP score calculator for Go projects. Calculates the CRAP score (cyclomatic com
 ## Installation
 
 ```shell
-go install github.com/padiazg/go-crap@latest
+curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
 ```
 
 Or build from source:

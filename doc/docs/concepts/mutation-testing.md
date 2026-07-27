@@ -118,7 +118,7 @@ jobs:
           go-version: '1.23'
           cache: true
       - name: Install go-crap
-        run: go install github.com/padiazg/go-crap@latest
+        run: curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
       - name: Score
         run: go-crap scan --fail-above --threshold 30 --exclude '.*_test\.go'
 
@@ -141,7 +141,7 @@ jobs:
           --integration
           --output=mutation-report.json
       - name: Install go-crap
-        run: go install github.com/padiazg/go-crap@latest
+        run: curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
       - name: Generate PR comment
         run: >-
           go-crap scan

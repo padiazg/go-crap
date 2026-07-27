@@ -81,7 +81,12 @@ release:
 
     use Go
     ```shell
+    curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
+
+    Or install from source:
+    ```shell
     go install github.com/padiazg/go-crap@{{ .Tag }}
+    ```
     ```
     
     use Homebrew

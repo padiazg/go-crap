@@ -13,7 +13,7 @@ jobs:
       - checkout
       - run:
           name: Install go-crap
-          command: go install github.com/padiazg/go-crap@latest
+          command: curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
       - run:
           name: Run go-crap
           command: go-crap scan --fail-above --threshold 30 --exclude '.*_test\.go' --exclude 'testdata/.*\.go'
