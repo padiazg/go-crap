@@ -16,22 +16,22 @@ import (
 )
 
 var (
-	flagThreshold                float64
-	flagFailAbove                bool
-	flagFormat                   string
-	flagTop                      int
-	flagMin                      float64
-	flagMissing                  string
-	flagExclude                  []string
-	flagVerbose                  bool
-	flagOutput                   string
-	flagMutation                 string
-	flagDetailed                 bool
-	flagTimeout                  time.Duration
-	flagCoverProf                string
-	flagBaseline                 string
-	flagFailRegression           bool
-	flagFailRegressionThreshold  float64
+	flagThreshold               float64
+	flagFailAbove               bool
+	flagFormat                  string
+	flagTop                     int
+	flagMin                     float64
+	flagMissing                 string
+	flagExclude                 []string
+	flagVerbose                 bool
+	flagOutput                  string
+	flagMutation                string
+	flagDetailed                bool
+	flagTimeout                 time.Duration
+	flagCoverProf               string
+	flagBaseline                string
+	flagFailRegression          bool
+	flagFailRegressionThreshold float64
 
 	scanCmd = &cobra.Command{
 		Use:   "scan [path]",
@@ -121,13 +121,13 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 
 	err = output(entries, outputConfig{
-		path:       path,
-		writer:     cmd.OutOrStdout(),
-		output:     flagOutput,
-		format:     flagFormat,
-		threshold:  flagThreshold,
-		detailed:   flagDetailed,
-		baseline:   baseline,
+		path:      path,
+		writer:    cmd.OutOrStdout(),
+		output:    flagOutput,
+		format:    flagFormat,
+		threshold: flagThreshold,
+		detailed:  flagDetailed,
+		baseline:  baseline,
 	})
 	if err != nil {
 		return err
@@ -160,13 +160,13 @@ func fmtRegressionError(w io.Writer, regressions []score.CRAPEntry, baselineSumm
 }
 
 type outputConfig struct {
-	path       string
-	writer     io.Writer
-	output     string
-	format     string
-	threshold  float64
-	detailed   bool
-	baseline   *report.Baseline
+	writer    io.Writer
+	baseline  *report.Baseline
+	format    string
+	output    string
+	path      string
+	threshold float64
+	detailed  bool
 }
 
 func output(entries *scan.Entries, config outputConfig) error {

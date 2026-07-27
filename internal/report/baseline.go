@@ -17,12 +17,12 @@ type Baseline struct {
 
 // BaselineEntry holds CRAP data for a single function from a baseline report.
 type BaselineEntry struct {
+	File          string
+	FuncName      string
 	CRAP          float64
-	EffectiveCRAP float64
 	Complexity    int
 	Coverage      float64
-	FuncName      string
-	File          string
+	EffectiveCRAP float64
 	Line          int
 }
 
@@ -34,9 +34,9 @@ func LoadBaseline(path string) (*Baseline, error) {
 	}
 
 	var report struct {
-		Schema  string       `json:"$schema"`
-		Version string       `json:"version"`
-		Entries []JSONEntry  `json:"entries"`
+		Schema  string      `json:"$schema"`
+		Version string      `json:"version"`
+		Entries []JSONEntry `json:"entries"`
 	}
 
 	if err := json.Unmarshal(data, &report); err != nil {

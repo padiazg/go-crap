@@ -880,7 +880,7 @@ func TestLoadBaseline_json_roundtrip(t *testing.T) {
 	assert.InDelta(t, 25.0, baseline.Summary.Combined, 0.01)
 	assert.InDelta(t, 12.5, baseline.Summary.Average, 0.01)
 
-entry, ok := baseline.Lookup("src/main.go", "ProcessData")
+	entry, ok := baseline.Lookup("src/main.go", "ProcessData")
 	assert.True(t, ok)
 	assert.InDelta(t, 23.0, entry.EffectiveCRAP, 0.01)
 }

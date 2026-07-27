@@ -15,23 +15,23 @@ type Formatter interface {
 // FormatOptions configures report formatting behavior.
 type FormatOptions struct {
 	Writer    io.Writer
+	Baseline  *Baseline
+	Summary   *Summary
 	BaseDir   string
 	Threshold float64
 	Detailed  bool
-	Summary   *Summary
-	Baseline  *Baseline
 }
 
 // Summary holds aggregate CRAP statistics across all functions.
 type Summary struct {
-	Combined          float64
-	Average           float64
-	TotalFuncs        int
-	Exceeded          int
-	BaselineCombined  float64
-	BaselineAverage   float64
-	DeltaCombined     float64
-	DeltaAverage      float64
+	Combined         float64
+	Average          float64
+	TotalFuncs       int
+	Exceeded         int
+	BaselineCombined float64
+	BaselineAverage  float64
+	DeltaCombined    float64
+	DeltaAverage     float64
 }
 
 // ComputeSummary computes aggregate CRAP stats from entries using the given threshold.
