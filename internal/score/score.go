@@ -35,6 +35,7 @@ type CRAPEntry struct {
 	Coverage          float64
 	CRAP              float64
 	EffectiveCRAP     float64
+	BaselineCRAP      float64
 	Line              int
 	MutationScore     float64
 	CoverageUntrusted bool

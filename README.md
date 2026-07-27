@@ -1,7 +1,6 @@
 # go-crap
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/padiazg/go-crap.svg)](https://pkg.go.dev/github.com/padiazg/go-crap)
-[![Go Report Card](https://goreportcard.com/badge/github.com/padiazg/go-crap)](https://goreportcard.com/report/github.com/padiazg/go-crap)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![CRAP analysis](https://github.com/padiazg/go-crap/actions/workflows/crap.yml/badge.svg?branch=master)](https://github.com/padiazg/go-crap/actions/workflows/crap.yml)
 

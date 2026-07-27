@@ -9,6 +9,7 @@ import (
 	"github.com/padiazg/go-crap/internal/scan"
 	"github.com/padiazg/go-crap/internal/score"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type checkJSONFormatterFormatFn func(*testing.T, error)
@@ -660,3 +661,75 @@ func TestJSONFormatter_convertToJSONEntry_emptyMutationDetails_Nil(t *testing.T)
 // 	assert.Equal(t, "GoodFunction", goodEntry.Function)
 // 	assert.Nil(t, goodEntry.MutationDetails)
 // }
+
+func TestJSONFormatter_Format_summary_nil_backward_compat(t *testing.T) {
+	entries := &scan.Entries{List: []score.CRAPEntry{
+		{File: "/project/main.go", Package: "myapp", FuncName: "Foo", Line: 1, Complexity: 1, Coverage: 100, CRAP: 1},
+	}}
+	var gotReport Report
+	buf := &bytes.Buffer{}
+	opts := FormatOptions{Writer: buf, Summary: nil}
+	s := &JSONFormatter{}
+	captured := func(v any, prefix, indent string) ([]byte, error) {
+		data, err := json.MarshalIndent(v, prefix, indent)
+		if err == nil {
+			_ = json.Unmarshal(data, &gotReport)
+		}
+		return data, err
+	}
+	s.jsonMarshalIndent = captured
+	err := s.Format(entries, opts)
+	require.NoError(t, err)
+	assert.Nil(t, gotReport.Combined)
+	assert.Nil(t, gotReport.Average)
+}
+
+func TestJSONFormatter_Format_summary_non_nil(t *testing.T) {
+	entries := &scan.Entries{List: []score.CRAPEntry{
+		{File: "/project/main.go", Package: "myapp", FuncName: "Foo", Line: 1, Complexity: 1, Coverage: 100, CRAP: 1},
+		{File: "/project/main.go", Package: "myapp", FuncName: "Bar", Line: 10, Complexity: 10, Coverage: 0, CRAP: 100},
+	}}
+	combined := 101.0
+	average := 50.5
+	var gotReport Report
+	buf := &bytes.Buffer{}
+	opts := FormatOptions{Writer: buf, Summary: &Summary{Combined: combined, Average: average, TotalFuncs: 2, Exceeded: 1}}
+	s := &JSONFormatter{}
+	captured := func(v any, prefix, indent string) ([]byte, error) {
+		data, err := json.MarshalIndent(v, prefix, indent)
+		if err == nil {
+			_ = json.Unmarshal(data, &gotReport)
+		}
+		return data, err
+	}
+	s.jsonMarshalIndent = captured
+	err := s.Format(entries, opts)
+	require.NoError(t, err)
+	require.NotNil(t, gotReport.Combined)
+	require.NotNil(t, gotReport.Average)
+	assert.InDelta(t, combined, *gotReport.Combined, 0.01)
+	assert.InDelta(t, average, *gotReport.Average, 0.01)
+}
+
+func TestJSONFormatter_Format_summary_with_entries(t *testing.T) {
+	entries := &scan.Entries{List: []score.CRAPEntry{
+		{File: "/project/main.go", Package: "myapp", FuncName: "Foo", Line: 1, Complexity: 1, Coverage: 100, CRAP: 1},
+	}}
+	var gotReport Report
+	buf := &bytes.Buffer{}
+	opts := FormatOptions{Writer: buf, Summary: &Summary{Combined: 1.0, Average: 1.0, TotalFuncs: 1, Exceeded: 0}}
+	s := &JSONFormatter{}
+	captured := func(v any, prefix, indent string) ([]byte, error) {
+		data, err := json.MarshalIndent(v, prefix, indent)
+		if err == nil {
+			_ = json.Unmarshal(data, &gotReport)
+		}
+		return data, err
+	}
+	s.jsonMarshalIndent = captured
+	err := s.Format(entries, opts)
+	require.NoError(t, err)
+	assert.NotNil(t, gotReport.Combined)
+	assert.NotNil(t, gotReport.Average)
+	assert.Len(t, gotReport.Entries, 1)
+}

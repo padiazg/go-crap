@@ -432,3 +432,44 @@ func Test_coverageBar_at_full(t *testing.T) {
 	bar := coverageBar(100.0)
 	assert.Equal(t, "██████████", bar)
 }
+
+func TestTableFormatter_Format_summary_nil_backward_compat(t *testing.T) {
+	f := &TableFormatter{}
+	buf := &bytes.Buffer{}
+	entries := &scan.Entries{List: []score.CRAPEntry{
+		{File: "/project/main.go", Package: "myapp", FuncName: "FuncA", Line: 1, Complexity: 1, Coverage: 100, CRAP: 1},
+	}}
+	opts := FormatOptions{Threshold: 30, Writer: buf, Summary: nil}
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+	output := buf.String()
+	assert.NotContains(t, output, "Combined CRAP")
+	assert.Contains(t, output, "0/1 function(s)")
+}
+
+func TestTableFormatter_Format_summary_non_nil(t *testing.T) {
+	f := &TableFormatter{}
+	buf := &bytes.Buffer{}
+	entries := &scan.Entries{List: []score.CRAPEntry{
+		{File: "/project/main.go", Package: "myapp", FuncName: "Good", Line: 1, Complexity: 1, Coverage: 100, CRAP: 1},
+		{File: "/project/main.go", Package: "myapp", FuncName: "Bad", Line: 10, Complexity: 10, Coverage: 0, CRAP: 100},
+	}}
+	summary := Summary{Combined: 101, Average: 50.5, TotalFuncs: 2, Exceeded: 1}
+	opts := FormatOptions{Threshold: 30, Writer: buf, Summary: &summary}
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+	output := buf.String()
+	assert.Contains(t, output, "Combined CRAP: 101.00 | Average CRAP: 50.50")
+}
+
+func TestTableFormatter_Format_summary_empty_entries(t *testing.T) {
+	f := &TableFormatter{}
+	buf := &bytes.Buffer{}
+	entries := &scan.Entries{List: []score.CRAPEntry{}}
+	summary := Summary{Combined: 0, Average: 0, TotalFuncs: 0, Exceeded: 0}
+	opts := FormatOptions{Threshold: 30, Writer: buf, Summary: &summary}
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+	output := buf.String()
+	assert.Contains(t, output, "Combined CRAP: 0.00 | Average CRAP: 0.00")
+}

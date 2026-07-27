@@ -9,7 +9,7 @@ import (
 	"github.com/padiazg/go-crap/internal/score"
 )
 
-func (f *PRCommentFormatter) writePRHeader(w io.Writer, sorted []score.CRAPEntry, crappy []score.CRAPEntry, threshold float64) {
+func (f *PRCommentFormatter) writePRHeader(w io.Writer, sorted []score.CRAPEntry, crappy []score.CRAPEntry, threshold float64, summary *Summary) {
 	fmt.Fprintln(w, "<!-- go-crap-report -->")
 	fmt.Fprintln(w)
 
@@ -19,7 +19,12 @@ func (f *PRCommentFormatter) writePRHeader(w io.Writer, sorted []score.CRAPEntry
 		fmt.Fprintf(w, "## %d crappy function(s)\n", len(crappy))
 	}
 
-	fmt.Fprintf(w, "\n%d function(s) analyzed · threshold %.0f\n\n", len(sorted), threshold)
+	fmt.Fprintf(w, "\n%d function(s) analyzed · threshold %.0f", len(sorted), threshold)
+	if summary != nil {
+		fmt.Fprintf(w, " · Combined CRAP: %.2f | Average CRAP: %.2f", summary.Combined, summary.Average)
+	}
+	fmt.Fprintln(w)
+	fmt.Fprintln(w)
 }
 
 func (f *PRCommentFormatter) writeCrappyTable(w io.Writer, crappy []score.CRAPEntry, total int, baseDir string) {
@@ -105,7 +110,7 @@ func (f *PRCommentFormatter) Format(entries *scan.Entries, opts FormatOptions) e
 
 	crappy := filterAboveThreshold(sorted, opts.Threshold)
 
-	f.writePRHeader(opts.Writer, sorted, crappy, opts.Threshold)
+	f.writePRHeader(opts.Writer, sorted, crappy, opts.Threshold, opts.Summary)
 
 	if len(crappy) > maxPRCommentRows {
 		crappy = crappy[:maxPRCommentRows]
