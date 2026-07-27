@@ -136,3 +136,19 @@ func ComputeSummaryWithBaseline(entries *scan.Entries, threshold float64, baseli
 
 	return s
 }
+
+const defaultDeltaTolerance = 0.01
+
+// FindRegressions returns entries whose effective CRAP increased compared to baseline.
+func FindRegressions(entries []score.CRAPEntry, tolerance float64) []score.CRAPEntry {
+	if tolerance == 0 {
+		tolerance = defaultDeltaTolerance
+	}
+	result := make([]score.CRAPEntry, 0)
+	for _, e := range entries {
+		if e.BaselineCRAP >= 0 && e.EffectiveCRAP-e.BaselineCRAP > tolerance {
+			result = append(result, e)
+		}
+	}
+	return result
+}

@@ -108,7 +108,7 @@ func (f *TableFormatter) formatTableRow(e score.CRAPEntry, opts FormatOptions, h
 
 func (f *TableFormatter) formatDelta(e score.CRAPEntry) string {
 	if e.BaselineCRAP < 0 {
-		return "\U0001f195 new"
+		return "new"
 	}
 	delta := e.EffectiveCRAP - e.BaselineCRAP
 	if delta > deltaTolerance {
