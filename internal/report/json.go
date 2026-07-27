@@ -9,25 +9,27 @@ import (
 )
 
 type Report struct {
-	Schema    string         `json:"$schema"`
-	Version   string         `json:"version"`
-	Summary   *SummaryObject `json:"summary,omitempty"`
-	Entries   []JSONEntry    `json:"entries"`
+	Schema  string         `json:"$schema"`
+	Version string         `json:"version"`
+	Summary *SummaryObject `json:"summary,omitempty"`
+	Entries []JSONEntry    `json:"entries"`
 }
 
 type SummaryObject struct {
-	Combined          float64 `json:"combined"`
-	Average           float64 `json:"average"`
-	TotalFuncs        int     `json:"total_funcs"`
-	Exceeded          int     `json:"exceeded"`
-	BaselineCombined  *float64 `json:"baseline_combined,omitempty"`
-	BaselineAverage   *float64 `json:"baseline_average,omitempty"`
-	DeltaCombined     *float64 `json:"delta_combined,omitempty"`
-	DeltaAverage      *float64 `json:"delta_average,omitempty"`
+	BaselineAverage  *float64 `json:"baseline_average,omitempty"`
+	BaselineCombined *float64 `json:"baseline_combined,omitempty"`
+	DeltaAverage     *float64 `json:"delta_average,omitempty"`
+	DeltaCombined    *float64 `json:"delta_combined,omitempty"`
+	Average          float64  `json:"average"`
+	Combined         float64  `json:"combined"`
+	Exceeded         int      `json:"exceeded"`
+	TotalFuncs       int      `json:"total_funcs"`
 }
 
 type JSONEntry struct {
+	BaselineCRAP      *float64             `json:"baseline_crap,omitempty"`
 	Coverage          *float64             `json:"coverage,omitempty"`
+	Delta             *float64             `json:"delta,omitempty"`
 	CoverageWarning   string               `json:"coverage_warning,omitempty"`
 	File              string               `json:"file"`
 	Function          string               `json:"function"`
@@ -37,8 +39,6 @@ type JSONEntry struct {
 	CRAP              float64              `json:"crap"`
 	Cyclomatic        int                  `json:"cyclomatic"`
 	EffectiveCRAP     float64              `json:"effective_crap"`
-	BaselineCRAP      *float64             `json:"baseline_crap,omitempty"`
-	Delta             *float64             `json:"delta,omitempty"`
 	Line              int                  `json:"line"`
 	MutationScore     float64              `json:"mutation_score"`
 	CoverageUntrusted bool                 `json:"coverage_untrusted"`
