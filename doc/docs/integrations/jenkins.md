@@ -18,7 +18,7 @@ pipeline {
         }
         stage('Run go-crap') {
             steps {
-                sh "go-crap scan --fail-above --threshold 30 --exclude '.*_test\\.go' --exclude 'testdata/.*\\.go'"
+                sh "go-crap scan --fail-above --threshold 30 --exclude 'testdata/.*\\.go'"
             }
         }
     }

@@ -21,7 +21,7 @@ jobs:
       - name: Install go-crap
         run: curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
       - name: Run go-crap
-        run: go-crap scan --fail-above --threshold 30 --exclude '.*_test\.go' --exclude 'testdata/.*\.go'
+        run: go-crap scan --fail-above --threshold 30 --exclude 'testdata/.*\.go'
 ```
 
 ## Annotations
@@ -30,5 +30,5 @@ Gitea Actions supports GitHub-style `::warning` annotations:
 
 ```yaml
       - name: Run go-crap with annotations
-        run: go-crap scan --format github --threshold 30 --exclude '.*_test\.go'
+        run: go-crap scan --format github --threshold 30
 ```

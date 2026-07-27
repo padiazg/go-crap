@@ -16,7 +16,7 @@ jobs:
           command: curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
       - run:
           name: Run go-crap
-          command: go-crap scan --fail-above --threshold 30 --exclude '.*_test\.go' --exclude 'testdata/.*\.go'
+          command: go-crap scan --fail-above --threshold 30 --exclude 'testdata/.*\.go'
 
 workflows:
   quality:

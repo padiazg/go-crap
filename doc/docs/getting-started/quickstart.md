@@ -53,10 +53,10 @@ go-crap scan --top 10
 go-crap scan --min 10
 ```
 
-### Exclude test files and testdata
+### Exclude testdata and generated files
 
 ```shell
-go-crap scan --exclude '.*_test\.go' --exclude 'testdata/.*\.go'
+go-crap scan --exclude 'testdata/.*\.go' --exclude '\.pb\.go$' --exclude 'mock_'
 ```
 
 ### Exclude generated files at any depth

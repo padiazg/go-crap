@@ -13,7 +13,7 @@ crap:
   before_script:
     - curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
   script:
-    - go-crap scan --fail-above --threshold 30 --exclude '.*_test\.go' --exclude 'testdata/.*\.go'
+    - go-crap scan --fail-above --threshold 30 --exclude 'testdata/.*\.go'
   allow_failure: false
 ```
 
@@ -26,7 +26,7 @@ crap:
   before_script:
     - curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
   script:
-    - go-crap scan --format json > crap-report.json --exclude '.*_test\.go'
+    - go-crap scan --format json > crap-report.json
   artifacts:
     paths:
       - crap-report.json
