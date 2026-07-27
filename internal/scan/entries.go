@@ -11,8 +11,9 @@ import (
 
 // Entries is a list of CRAP entries.
 type Entries struct {
-	options *Options
-	List    []score.CRAPEntry
+	options  *Options
+	List     []score.CRAPEntry
+	FullList []score.CRAPEntry
 }
 
 func NewEntries(options *Options, merged []merge.MergedEntry, policy score.MissingPolicy) (*Entries, error) {
@@ -25,13 +26,20 @@ func NewEntries(options *Options, merged []merge.MergedEntry, policy score.Missi
 		return nil, fmt.Errorf("NewEntries: %w", err)
 	}
 
+	entries.FullList = make([]score.CRAPEntry, len(entries.List))
+	copy(entries.FullList, entries.List)
+
 	entries.applyFilters()
 
 	return entries, nil
 }
 
 func (entries *Entries) ThresholdExceeded(threshold float64) bool {
-	for _, e := range entries.List {
+	list := entries.FullList
+	if list == nil {
+		list = entries.List
+	}
+	for _, e := range list {
 		if e.EffectiveCRAP > threshold {
 			return true
 		}

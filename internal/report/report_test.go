@@ -153,6 +153,30 @@ func TestComputeSummary_with_effective_score(t *testing.T) {
 	require.Equal(t, 1, s.Exceeded)
 }
 
+func TestComputeSummary_uses_unfiltered_list(t *testing.T) {
+	filtered := []score.CRAPEntry{
+		{FuncName: "top1", Complexity: 10, Coverage: 0, CRAP: 100, EffectiveCRAP: 100},
+		{FuncName: "top2", Complexity: 5, Coverage: 50, CRAP: 10, EffectiveCRAP: 10},
+	}
+	full := []score.CRAPEntry{
+		{FuncName: "top1", Complexity: 10, Coverage: 0, CRAP: 100, EffectiveCRAP: 100},
+		{FuncName: "top2", Complexity: 5, Coverage: 50, CRAP: 10, EffectiveCRAP: 10},
+		{FuncName: "top3", Complexity: 3, Coverage: 80, CRAP: 3, EffectiveCRAP: 3},
+		{FuncName: "top4", Complexity: 2, Coverage: 90, CRAP: 2, EffectiveCRAP: 2},
+		{FuncName: "top5", Complexity: 1, Coverage: 100, CRAP: 1, EffectiveCRAP: 1},
+	}
+	entries := &scan.Entries{
+		List:     filtered,
+		FullList: full,
+	}
+	threshold := 20.0
+	s := ComputeSummary(entries, threshold)
+	require.Equal(t, 5, s.TotalFuncs, "TotalFuncs should reflect full list")
+	require.InDelta(t, 116.0, s.Combined, 0.01, "Combined should sum over full list")
+	require.InDelta(t, 23.2, s.Average, 0.01, "Average should divide over full list")
+	require.Equal(t, 1, s.Exceeded, "Exceeded should count over full list")
+}
+
 func TestRelativizePath_empty_base_dir(t *testing.T) {
 	got := RelativizePath("/project/main.go", "")
 	assert.Equal(t, "/project/main.go", got)

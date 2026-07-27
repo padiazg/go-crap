@@ -269,6 +269,172 @@ func TestNewEntries(t *testing.T) {
 	}
 }
 
+func TestNewEntries_preserves_full_list(t *testing.T) {
+	const fn = "NewEntries"
+	tests := []struct {
+		name   string
+		options *Options
+		merged  []merge.MergedEntry
+		policy  score.MissingPolicy
+		checks  []checkEntriesFn
+	}{
+		{
+			name:    "top filter preserves full list",
+			options: &Options{Top: 2},
+			merged: []merge.MergedEntry{
+				{File: "example.go", FuncName: "High", Package: "example", Complexity: 10, Coverage: new(5.0), Line: 1},
+				{File: "example.go", FuncName: "Mid", Package: "example", Complexity: 5, Coverage: new(50.0), Line: 10},
+				{File: "example.go", FuncName: "Low", Package: "example", Complexity: 2, Coverage: new(90.0), Line: 20},
+			},
+			policy: score.MissingPessimistic,
+			checks: checkEntries(
+				checkEntriesError(fn, ""),
+				checkEntry(
+					checkEntriesLen(fn, 2),
+				),
+				checkEntry(
+					func(t *testing.T, e *Entries) {
+						t.Helper()
+						assert.Len(t, e.FullList, 3, "FullList should contain all entries")
+						names := funcNames(e.FullList)
+						assert.Contains(t, names, "High")
+						assert.Contains(t, names, "Mid")
+						assert.Contains(t, names, "Low")
+					}),
+			),
+		},
+		{
+			name:    "min filter preserves full list",
+			options: &Options{Min: 50},
+			merged: []merge.MergedEntry{
+				{File: "example.go", FuncName: "High", Package: "example", Complexity: 10, Coverage: new(5.0), Line: 1},
+				{File: "example.go", FuncName: "Low", Package: "example", Complexity: 2, Coverage: new(90.0), Line: 10},
+			},
+			policy: score.MissingPessimistic,
+			checks: checkEntries(
+				checkEntriesError(fn, ""),
+				checkEntry(
+					checkEntriesLen(fn, 1),
+					checkEntryName(fn, 0, "High"),
+					func(t *testing.T, e *Entries) {
+						t.Helper()
+						assert.Len(t, e.FullList, 2, "FullList should contain all entries")
+					},
+				),
+			),
+		},
+		{
+			name:    "both filters preserve full list",
+			options: &Options{Min: 10, Top: 1},
+			merged: []merge.MergedEntry{
+				{File: "example.go", FuncName: "VeryHigh", Package: "example", Complexity: 10, Coverage: new(1.0), Line: 1},
+				{File: "example.go", FuncName: "High", Package: "example", Complexity: 10, Coverage: new(10.0), Line: 5},
+				{File: "example.go", FuncName: "Mid", Package: "example", Complexity: 5, Coverage: new(60.0), Line: 10},
+				{File: "example.go", FuncName: "Low", Package: "example", Complexity: 2, Coverage: new(90.0), Line: 20},
+			},
+			policy: score.MissingPessimistic,
+			checks: checkEntries(
+				checkEntriesError(fn, ""),
+				checkEntry(
+					checkEntriesLen(fn, 1),
+					func(t *testing.T, e *Entries) {
+						t.Helper()
+						assert.Len(t, e.FullList, 4, "FullList should contain all entries")
+					},
+				),
+			),
+		},
+		{
+			name:    "no filters copies all",
+			options: &Options{},
+			merged: []merge.MergedEntry{
+				{File: "example.go", FuncName: "A", Package: "example", Complexity: 1, Coverage: new(100.0), Line: 1},
+			},
+			policy: score.MissingPessimistic,
+			checks: 	checkEntries(
+				checkEntriesError(fn, ""),
+				checkEntry(func(t *testing.T, e *Entries) {
+					t.Helper()
+					assert.Len(t, e.FullList, 1)
+					assert.Len(t, e.List, 1)
+					assert.Equal(t, e.FullList, e.List)
+				}),
+			),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r, err := NewEntries(tt.options, tt.merged, tt.policy)
+			for _, c := range tt.checks {
+				c(t, r, err)
+			}
+		})
+	}
+}
+
+func TestEntries_ThresholdExceeded_uses_full_list(t *testing.T) {
+	const fn = "ThresholdExceeded"
+	tests := []struct {
+		name      string
+		entries   *Entries
+		threshold float64
+		want      bool
+	}{
+		{
+			name: "full list entry exceeds, filtered does not",
+			entries: &Entries{
+				List: []score.CRAPEntry{
+					{FuncName: "high", EffectiveCRAP: 200},
+				},
+				FullList: []score.CRAPEntry{
+					{FuncName: "high", EffectiveCRAP: 200},
+					{FuncName: "low", EffectiveCRAP: 30},
+				},
+			},
+			threshold: 100.0,
+			want:      true,
+		},
+		{
+			name: "empty filtered list but full list has exceeding entry",
+			entries: &Entries{
+				List:     []score.CRAPEntry{},
+				FullList: []score.CRAPEntry{{FuncName: "solo", EffectiveCRAP: 150}},
+			},
+			threshold: 100.0,
+			want:      true,
+		},
+		{
+			name: "full list exceeds but filtered does not",
+			entries: &Entries{
+				List: []score.CRAPEntry{
+					{FuncName: "low", EffectiveCRAP: 50},
+				},
+				FullList: []score.CRAPEntry{
+					{FuncName: "high", EffectiveCRAP: 200},
+					{FuncName: "low", EffectiveCRAP: 50},
+				},
+			},
+			threshold: 100.0,
+			want:      true,
+		},
+		{
+			name: "both empty returns false",
+			entries: &Entries{
+				List:     []score.CRAPEntry{},
+				FullList: []score.CRAPEntry{},
+			},
+			threshold: 100.0,
+			want:      false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.entries.ThresholdExceeded(tt.threshold)
+			assert.Equal(t, tt.want, got, "%s: %s", fn, tt.name)
+		})
+	}
+}
+
 func TestEntries_ThresholdExceeded(t *testing.T) {
 	const fn = "ThresholdExceeded"
 	tests := []struct {
