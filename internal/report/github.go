@@ -33,6 +33,27 @@ func (f *GithubFormatter) Format(entries *scan.Entries, opts FormatOptions) erro
 			fmt.Fprintf(opts.Writer, "::warning file=%s,line=%d::%s\n", file, e.Line, msg)
 		}
 	}
+
+	if opts.Summary != nil && opts.Baseline != nil {
+		fmt.Fprintf(opts.Writer, "::notice::CRAP Summary: combined %.1f", opts.Summary.Combined)
+		if opts.Summary.DeltaCombined != 0 {
+			symbol := "+"
+			if opts.Summary.DeltaCombined < 0 {
+				symbol = ""
+			}
+			fmt.Fprintf(opts.Writer, "(%s%.1f vs baseline)", symbol, opts.Summary.DeltaCombined)
+		}
+		fmt.Fprintf(opts.Writer, ", average %.1f", opts.Summary.Average)
+		if opts.Summary.DeltaAverage != 0 {
+			symbol := "+"
+			if opts.Summary.DeltaAverage < 0 {
+				symbol = ""
+			}
+			fmt.Fprintf(opts.Writer, "(%s%.1f vs baseline)", symbol, opts.Summary.DeltaAverage)
+		}
+		fmt.Fprintf(opts.Writer, ", %d/%d functions exceed threshold\n", opts.Summary.Exceeded, opts.Summary.TotalFuncs)
+	}
+
 	return nil
 }
 
