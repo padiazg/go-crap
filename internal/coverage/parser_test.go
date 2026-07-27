@@ -547,12 +547,12 @@ func (m *MyType) PointerMethod() {}
 
 func Test_parsePositionFields(t *testing.T) {
 	tests := []struct {
-		name       string
-		rest       string
-		wantStart  int
-		wantEnd    int
+		name        string
+		rest        string
+		wantStart   int
+		wantEnd     int
 		wantCovered bool
-		wantErr    string
+		wantErr     string
 	}{
 		{
 			name:        "normal_covered",
