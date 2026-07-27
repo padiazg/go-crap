@@ -56,11 +56,27 @@ jobs:
       - name: build
         run: make build
 
+      - name: Find latest master baseline run
+        id: get-run
+        run: |
+          RUN_ID=$(gh run list \
+            --workflow crap.yml \
+            --branch master \
+            --status success \
+            --json databaseId \
+            --jq '.[0].databaseId' \
+            --limit 1)
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        continue-on-error: true
+
       - name: Download baseline
         uses: actions/download-artifact@v8
         with:
           name: crap-baseline
           path: baseline
+          run-id: ${{ steps.get-run.outputs.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
