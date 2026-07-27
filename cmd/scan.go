@@ -28,6 +28,7 @@ var (
 	flagDetailed  bool
 	flagTimeout   time.Duration
 	flagCoverProf string
+	flagBaseline  string
 
 	scanCmd = &cobra.Command{
 		Use:   "scan [path]",
@@ -64,6 +65,8 @@ func init() {
 		"Timeout for the full scan (e.g. 30s, 5m, 1h30m)")
 	scanCmd.Flags().StringVar(&flagCoverProf, "coverage-profile", "",
 		`Use an existing coverage profile (as produced by "go test -coverprofile") instead of running go test`)
+	scanCmd.Flags().StringVar(&flagBaseline, "baseline", "",
+		"Path to a previous JSON report to use as baseline for comparison")
 	rootCmd.AddCommand(scanCmd)
 }
 
@@ -98,13 +101,22 @@ func runScan(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	var baseline *report.Baseline
+	if flagBaseline != "" {
+		baseline, err = report.LoadBaseline(flagBaseline)
+		if err != nil {
+			return err
+		}
+	}
+
 	err = output(entries, outputConfig{
-		path:      path,
-		writer:    cmd.OutOrStdout(),
-		output:    flagOutput,
-		format:    flagFormat,
-		threshold: flagThreshold,
-		detailed:  flagDetailed,
+		path:       path,
+		writer:     cmd.OutOrStdout(),
+		output:     flagOutput,
+		format:     flagFormat,
+		threshold:  flagThreshold,
+		detailed:   flagDetailed,
+		baseline:   baseline,
 	})
 	if err != nil {
 		return err
@@ -118,12 +130,13 @@ func runScan(cmd *cobra.Command, args []string) error {
 }
 
 type outputConfig struct {
-	path      string
-	writer    io.Writer
-	output    string
-	format    string
-	threshold float64
-	detailed  bool
+	path       string
+	writer     io.Writer
+	output     string
+	format     string
+	threshold  float64
+	detailed   bool
+	baseline   *report.Baseline
 }
 
 func output(entries *scan.Entries, config outputConfig) error {
@@ -138,6 +151,16 @@ func output(entries *scan.Entries, config outputConfig) error {
 		config.writer = f
 	}
 
+	var summary report.Summary
+	var baselineSummary *report.Baseline
+	if config.baseline != nil {
+		entries.List = report.AnnotateWithBaseline(entries.List, config.baseline)
+		summary = report.ComputeSummaryWithBaseline(entries, config.threshold, config.baseline)
+		baselineSummary = config.baseline
+	} else {
+		summary = report.ComputeSummary(entries, config.threshold)
+	}
+
 	formatter, err := resolveFormatter(config.format)
 	if err != nil {
 		return err
@@ -148,6 +171,8 @@ func output(entries *scan.Entries, config outputConfig) error {
 		Writer:    config.writer,
 		BaseDir:   config.path,
 		Detailed:  config.detailed,
+		Summary:   &summary,
+		Baseline:  baselineSummary,
 	}
 
 	if err := formatter.Format(entries, opts); err != nil {

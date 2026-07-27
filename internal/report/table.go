@@ -48,6 +48,10 @@ func (f *TableFormatter) Format(entries *scan.Entries, opts FormatOptions) error
 		fmt.Fprintf(opts.Writer, "%d/%d function(s) exceed threshold CRAP %.0f.\n", failed, total, opts.Threshold)
 	}
 
+	if opts.Summary != nil {
+		fmt.Fprintf(opts.Writer, "Combined CRAP: %.2f | Average CRAP: %.2f\n", opts.Summary.Combined, opts.Summary.Average)
+	}
+
 	if warningSeen {
 		fmt.Fprintln(opts.Writer)
 		for _, e := range sorted {

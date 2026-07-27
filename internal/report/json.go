@@ -9,9 +9,11 @@ import (
 )
 
 type Report struct {
-	Schema  string      `json:"$schema"`
-	Version string      `json:"version"`
-	Entries []JSONEntry `json:"entries"`
+	Schema    string      `json:"$schema"`
+	Version   string      `json:"version"`
+	Combined  *float64    `json:"combined,omitempty"`
+	Average   *float64    `json:"average,omitempty"`
+	Entries   []JSONEntry `json:"entries"`
 }
 
 type JSONEntry struct {
@@ -60,6 +62,11 @@ func (f *JSONFormatter) Format(entries *scan.Entries, opts FormatOptions) error 
 		Schema:  "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
 		Version: "1.0.0",
 		Entries: make([]JSONEntry, 0, len(entries.List)),
+	}
+
+	if opts.Summary != nil {
+		report.Combined = &opts.Summary.Combined
+		report.Average = &opts.Summary.Average
 	}
 
 	for _, e := range entries.List {
