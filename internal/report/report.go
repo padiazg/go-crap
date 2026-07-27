@@ -39,16 +39,19 @@ func ComputeSummary(entries *scan.Entries, threshold float64) Summary {
 	if entries == nil {
 		return Summary{}
 	}
-	sorted := entries.ForTable()
+	list := entries.FullList
+	if list == nil {
+		list = entries.ForTable()
+	}
 	var combined float64
 	exceeded := 0
-	for _, e := range sorted {
+	for _, e := range list {
 		combined += e.EffectiveScore()
 		if e.EffectiveScore() > threshold {
 			exceeded++
 		}
 	}
-	total := len(sorted)
+	total := len(list)
 	var avg float64
 	if total > 0 {
 		avg = combined / float64(total)
