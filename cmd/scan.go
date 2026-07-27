@@ -9,26 +9,29 @@ import (
 
 	"github.com/padiazg/go-crap/internal/report"
 	"github.com/padiazg/go-crap/internal/scan"
+	"github.com/padiazg/go-crap/internal/score"
 	"github.com/padiazg/go-crap/pkg/logger"
 	"github.com/padiazg/go-crap/pkg/slogger"
 	"github.com/spf13/cobra"
 )
 
 var (
-	flagThreshold float64
-	flagFailAbove bool
-	flagFormat    string
-	flagTop       int
-	flagMin       float64
-	flagMissing   string
-	flagExclude   []string
-	flagVerbose   bool
-	flagOutput    string
-	flagMutation  string
-	flagDetailed  bool
-	flagTimeout   time.Duration
-	flagCoverProf string
-	flagBaseline  string
+	flagThreshold                float64
+	flagFailAbove                bool
+	flagFormat                   string
+	flagTop                      int
+	flagMin                      float64
+	flagMissing                  string
+	flagExclude                  []string
+	flagVerbose                  bool
+	flagOutput                   string
+	flagMutation                 string
+	flagDetailed                 bool
+	flagTimeout                  time.Duration
+	flagCoverProf                string
+	flagBaseline                 string
+	flagFailRegression           bool
+	flagFailRegressionThreshold  float64
 
 	scanCmd = &cobra.Command{
 		Use:   "scan [path]",
@@ -67,6 +70,10 @@ func init() {
 		`Use an existing coverage profile (as produced by "go test -coverprofile") instead of running go test`)
 	scanCmd.Flags().StringVar(&flagBaseline, "baseline", "",
 		"Path to a previous JSON report to use as baseline for comparison")
+	scanCmd.Flags().BoolVar(&flagFailRegression, "fail-regression", false,
+		"Exit with code 1 if any function's CRAP score regressed compared to baseline")
+	scanCmd.Flags().Float64Var(&flagFailRegressionThreshold, "fail-regression-threshold", 0.01,
+		"Minimum delta to consider a regression when comparing against baseline")
 	rootCmd.AddCommand(scanCmd)
 }
 
@@ -74,6 +81,10 @@ func runScan(cmd *cobra.Command, args []string) error {
 	path := "."
 	if len(args) > 0 {
 		path = args[0]
+	}
+
+	if flagFailRegression && flagBaseline == "" {
+		return fmt.Errorf("--fail-regression requires --baseline")
 	}
 
 	logLevel := "error"
@@ -126,7 +137,26 @@ func runScan(cmd *cobra.Command, args []string) error {
 		return scan.ErrThresholdExceeded
 	}
 
+	if flagFailRegression && baseline != nil {
+		regressions := report.FindRegressions(entries.List, flagFailRegressionThreshold)
+		if len(regressions) > 0 {
+			return fmtRegressionError(cmd.OutOrStderr(), regressions, baseline.Summary)
+		}
+	}
+
 	return nil
+}
+
+func fmtRegressionError(w io.Writer, regressions []score.CRAPEntry, baselineSummary report.Summary) error {
+	fmt.Fprintln(w, "CRAP regression detected:")
+	for _, e := range regressions {
+		fmt.Fprintf(w, "  %s:%d %s: %.2f -> %.2f (+%.2f)\n",
+			e.File, e.Line, e.FuncName,
+			e.BaselineCRAP, e.EffectiveCRAP,
+			e.EffectiveCRAP-e.BaselineCRAP)
+	}
+	fmt.Fprintf(w, "Combined CRAP: %+0.2f vs baseline\n", baselineSummary.Combined)
+	return scan.ErrRegression
 }
 
 type outputConfig struct {

@@ -20,6 +20,7 @@ import (
 var (
 	ErrUnknownPolicy     = errors.New("unknown missing policy")
 	ErrThresholdExceeded = errors.New("CRAP threshold exceeded")
+	ErrRegression        = errors.New("CRAP regression detected")
 )
 
 type Options struct {

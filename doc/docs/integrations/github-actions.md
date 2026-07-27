@@ -252,6 +252,60 @@ jobs:
 
 The `<!-- go-crap-report -->` marker (emitted by `--format pr-comment`) ensures the comment is updated in place on subsequent pushes instead of creating duplicates.
 
+## Baseline comparison with `--baseline`
+
+Compare PR CRAP scores against a baseline to detect regressions. See [Baseline Comparison](baseline-comparison.md) for full documentation.
+
+```yaml
+name: crap
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+      - name: Install go-crap
+        run: go install github.com/padiazg/go-crap@latest
+      - name: Generate baseline
+        run: go-crap scan --format json --output crap-current.json
+      - name: Upload baseline
+        uses: actions/upload-artifact@v4
+        with:
+          name: crap-baseline
+          path: crap-current.json
+
+  pr-check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    needs: baseline
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+      - name: Install go-crap
+        run: go install github.com/padiazg/go-crap@latest
+      - name: Download baseline
+        uses: actions/download-artifact@v4
+        with:
+          name: crap-baseline
+          path: baseline
+      - name: Check for regressions
+        run: go-crap scan --baseline baseline/crap-current.json --fail-regression
+      - name: Generate PR comment
+        run: go-crap scan --baseline baseline/crap-current.json --format pr-comment --output pr-comment.md
+```
+
 ### Example output
 
 Before fixing -- functions above the threshold with unreliable coverage from survived mutants:

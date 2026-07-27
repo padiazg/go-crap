@@ -186,6 +186,9 @@ func resetFlags() {
 	flagMutation = ""
 	flagDetailed = false
 	flagTimeout = 10 * time.Minute
+	flagBaseline = ""
+	flagFailRegression = false
+	flagFailRegressionThreshold = 0.01
 }
 
 func Test_timeoutFlag_registered(t *testing.T) {
@@ -264,6 +267,14 @@ func Test_runScan(t *testing.T) {
 			setup: func() { resetFlags(); flagTimeout = 2 * time.Minute },
 			checks: checkrunScan(
 				checkrunScanError(""),
+			),
+		},
+		{
+			name:  "fail-regression without baseline returns error",
+			args:  []string{"../internal/testdata"},
+			setup: func() { resetFlags(); flagFailRegression = true },
+			checks: checkrunScan(
+				checkrunScanError("--fail-regression requires --baseline"),
 			),
 		},
 	}
