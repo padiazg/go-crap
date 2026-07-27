@@ -8,6 +8,24 @@ permissions:
   contents: read
 
 jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.26.2'
+          cache: true
+      - name: Install go-crap
+        run: go install github.com/padiazg/go-crap@latest
+      - name: Generate baseline
+        run: go-crap scan --format json --output crap-current.json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: crap-baseline
+          path: crap-current.json
+
   test:
     runs-on: ubuntu-latest
     steps:
@@ -26,7 +44,8 @@ jobs:
 
   crap:
     runs-on: ubuntu-latest
-    needs: test
+    needs: [test, baseline]
+    if: always() && needs.test.result == 'success'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -35,14 +54,36 @@ jobs:
       - name: build
         run: make build
 
+      - name: Download baseline
+        uses: actions/download-artifact@v8
+        with:
+          name: crap-baseline
+          path: baseline
+        continue-on-error: true
+
       - name: version
         run: ./go-crap version
 
       - name: score
-        run: ./go-crap scan --format github --fail-above --threshold 30 --exclude ".*_test.go" --verbose
+        run: |
+          if [ -f baseline/crap-current.json ]; then
+            ./go-crap scan --baseline baseline/crap-current.json --format github --fail-above --threshold 30 --exclude ".*_test.go" --verbose
+          else
+            ./go-crap scan --format github --fail-above --threshold 30 --exclude ".*_test.go" --verbose
+          fi
+
+      - name: check for regressions
+        if: github.event_name == 'pull_request' && hashFiles('baseline/crap-current.json') != ''
+        run: ./go-crap scan --baseline baseline/crap-current.json --fail-regression
 
       - name: generate pr comment
-        run: ./go-crap scan --format pr-comment --threshold 30 --exclude ".*_test.go" --output pr-comment.md
+        if: github.event_name == 'pull_request'
+        run: |
+          if [ -f baseline/crap-current.json ]; then
+            ./go-crap scan --baseline baseline/crap-current.json --format pr-comment --threshold 30 --exclude ".*_test.go" --output pr-comment.md
+          else
+            ./go-crap scan --format pr-comment --threshold 30 --exclude ".*_test.go" --output pr-comment.md
+          fi
 
       - name: save pr number
         if: github.event_name == 'pull_request'
