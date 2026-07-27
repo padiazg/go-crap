@@ -20,7 +20,7 @@ steps:
 
   - script: |
       curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
-      go-crap scan --fail-above --threshold 30 --exclude '.*_test\.go' --exclude 'testdata/.*\.go'
+      go-crap scan --fail-above --threshold 30 --exclude 'testdata/.*\.go'
     displayName: 'Run go-crap'
 ```
 
@@ -29,7 +29,7 @@ steps:
 ```yaml
   - script: |
       curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
-      go-crap scan --format json > $(Build.ArtifactStagingDirectory)/crap-report.json --exclude '.*_test\.go'
+      go-crap scan --format json > $(Build.ArtifactStagingDirectory)/crap-report.json
     displayName: 'Generate CRAP report'
 
   - task: PublishBuildArtifacts@1

@@ -37,7 +37,7 @@ jobs:
       - name: Install go-crap
         run: curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
       - name: Run go-crap
-        run: go-crap scan --fail-above --threshold 30 --exclude '.*_test\.go' --exclude 'testdata/.*\.go' --exclude '\.pb\.go$'
+        run: go-crap scan --fail-above --threshold 30 --exclude 'testdata/.*\.go' --exclude '\.pb\.go$'
 ```
 
 ## PR annotations with JSON report
@@ -46,7 +46,7 @@ jobs:
       - name: Install go-crap
         run: curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
       - name: Run go-crap with annotations
-        run: go-crap scan --format github --threshold 30 --exclude '.*_test\.go'
+        run: go-crap scan --format github --threshold 30
       - name: Generate JSON report
         run: go-crap scan --format json > crap-report.json
       - uses: actions/upload-artifact@v4
@@ -76,14 +76,14 @@ jobs:
       - name: Install go-crap
         run: curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
       - name: Run go-crap
-        run: go-crap scan --fail-above --threshold 30 --exclude '.*_test\.go'
+        run: go-crap scan --fail-above --threshold 30
 ```
 
 ## SARIF report with code scanning
 
 ```yaml
       - name: Run go-crap with SARIF output
-        run: go-crap scan --format sarif --threshold 30 --exclude '.*_test\.go' > report.sarif
+        run: go-crap scan --format sarif --threshold 30 > report.sarif
       - name: Upload SARIF report
         uses: github/codeql-action/upload-sarif@v3
         with:
@@ -96,7 +96,7 @@ SARIF output is compatible with GitHub Advanced Security code scanning, Azure De
 
 ```yaml
       - name: Run go-crap for PR comment
-        run: go-crap scan --format pr-comment --threshold 30 --exclude '.*_test\.go' --output pr-comment.md
+        run: go-crap scan --format pr-comment --threshold 30 --output pr-comment.md
       - name: Comment on PR
         uses: actions/github-script@v7
         with:
@@ -141,7 +141,7 @@ jobs:
       - name: Install go-crap
         run: curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
       - name: Score
-        run: go-crap scan --fail-above --threshold 30 --exclude '.*_test\.go'
+        run: go-crap scan --fail-above --threshold 30
 
   pr-comment:
     runs-on: ubuntu-latest
@@ -168,7 +168,6 @@ jobs:
           go-crap scan
           --format pr-comment
           --threshold 30
-          --exclude '.*_test\.go'
           --output pr-comment.md
           --mutation-report mutation-report.json || true
       - name: Get PR number

@@ -19,7 +19,7 @@ Integrate go-crap into your continuous integration pipeline to enforce CRAP scor
 For CI systems with persistent workspaces (not clean checkouts), skip the install step:
 
 ```shell
-go-crap scan --fail-above --threshold 30 --exclude '.*_test\.go'
+go-crap scan --fail-above --threshold 30
 ```
 
 ### Combine exclude patterns
@@ -28,7 +28,6 @@ Multiple `--exclude` flags stack:
 
 ```shell
 go-crap scan \
-  --exclude '.*_test\.go' \
   --exclude 'testdata/.*\.go' \
   --exclude '\.pb\.go$' \
   --exclude 'mock_'
@@ -56,7 +55,7 @@ go-crap scan --fail-above --threshold 15
 
 ```yaml
       - name: Debug scan
-        run: go-crap scan --verbose --format json --exclude '.*_test\.go'
+        run: go-crap scan --verbose --format json
 ```
 
 Use `--verbose` when diagnosing issues with module discovery, coverage parsing, or path matching in CI environments.

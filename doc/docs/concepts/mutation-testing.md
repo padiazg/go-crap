@@ -50,7 +50,7 @@ Combined one-liner:
 
 ```shell
 gremlins unleash --timeout-coefficient 20 -S "l" --integration --output=mutation.json \
-  && go-crap scan --mutation-report mutation.json --exclude ".*_test.go" --top 10
+  && go-crap scan --mutation-report mutation.json --top 10
 ```
 
 Or as separate steps:
@@ -64,7 +64,6 @@ gremlins unleash \
 
 go-crap scan \
   --mutation-report mutation.json \
-  --exclude ".*_test.go" \
   --top 10
 ```
 
@@ -120,7 +119,7 @@ jobs:
       - name: Install go-crap
         run: curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
       - name: Score
-        run: go-crap scan --fail-above --threshold 30 --exclude '.*_test\.go'
+        run: go-crap scan --fail-above --threshold 30
 
   pr-comment:
     runs-on: ubuntu-latest
@@ -147,7 +146,6 @@ jobs:
           go-crap scan
           --format pr-comment
           --threshold 30
-          --exclude '.*_test\.go'
           --output pr-comment.md
           --mutation-report mutation-report.json || true
       - name: Get PR number

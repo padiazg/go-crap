@@ -25,7 +25,8 @@ go-crap scan [path] [flags]
 | `--min` | | Hide entries below this score. `CoverageUntrusted` entries are never hidden, regardless of their score | `0` |
 | `--missing` | | Policy for functions without coverage: `pessimistic`, `optimistic`, or `skip` | `pessimistic` |
 | `--coverage-profile` | | Use an existing coverage profile (as produced by `go test -coverprofile`) instead of running `go test` | `""` (disabled) |
-| `--exclude` | | Exclude files matching this regex pattern (repeatable). Use `.*` to match any path depth. e.g. `.*_test\.go` to exclude all test files, `pb/.*\.go` to exclude protobuf files | none |
+| `--exclude` | | Exclude files matching this regex pattern (repeatable). `_test.go` files are excluded by default. e.g. `pb/.*\.go` to exclude protobuf files | none |
+| `--include-tests` | | Include `_test.go` files in analysis (overrides default exclude) | `false` |
 | `--verbose` | | Enable verbose (debug-level) logging | `false` |
 | `--output` | `-o` | Output file path (default: stdout) | stdout |
 | `--mutation-report` | | Path to gremlins JSON mutation report to validate coverage reliability | `""` (disabled) |
@@ -114,7 +115,7 @@ go-crap scan --min 10
 ### Exclude generated or test files
 
 ```shell
-go-crap scan --exclude '.*_test\.go' --exclude 'testdata/.*\.go'
+go-crap scan --exclude 'testdata/.*\.go'
 ```
 
 ### Exclude protobuf and mock files at any depth
