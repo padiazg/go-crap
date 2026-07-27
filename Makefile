@@ -31,7 +31,7 @@ mod-tidy:
 	go mod tidy
 
 install: build
-	cp $(BINARY) $(GOPATH)/bin/
+	cp $(BINARY) $(shell go env GOPATH)/bin/
 
 coverage:
 	go test -race -coverprofile=coverage.out ./...

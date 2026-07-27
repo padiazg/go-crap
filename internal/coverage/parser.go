@@ -74,6 +74,7 @@ func parseCoverOutput(r io.Reader) ([]FunctionCoverage, error) {
 type profileEntry struct {
 	path    string
 	start   int
+	end     int
 	covered bool
 }
 
@@ -204,13 +205,26 @@ func buildFuncMap(funcs []fileFunc) (map[string]*funcCoverage, []string) {
 }
 
 func attributeBlocks(fset *token.FileSet, node *ast.File, entries []profileEntry, funcMap map[string]*funcCoverage) {
+	type blockKey struct {
+		start int
+		end   int
+	}
+	seen := make(map[blockKey]bool)
 	for _, e := range entries {
-		fn := findFunctionForBlock(fset, node, e.start)
+		key := blockKey{e.start, e.end}
+		if covered, exists := seen[key]; exists {
+			seen[key] = covered || e.covered
+			continue
+		}
+		seen[key] = e.covered
+	}
+	for key, covered := range seen {
+		fn := findFunctionForBlock(fset, node, key.start)
 		if fn != nil {
-			key := fn.name
-			if fc, ok := funcMap[key]; ok {
+			fc := funcMap[fn.name]
+			if fc != nil {
 				fc.total++
-				if e.covered {
+				if covered {
 					fc.covered++
 				}
 			}
@@ -327,40 +341,42 @@ func parseProfileLine(line string) (profileEntry, error) {
 	entry.path = line[:colonIdx]
 	rest := line[colonIdx+1:]
 
-	startLine, covered, err := parsePositionFields(rest)
+	startLine, endLine, covered, err := parsePositionFields(rest)
 	if err != nil {
 		return entry, err
 	}
 	entry.start = startLine
+	entry.end = endLine
 	entry.covered = covered
 
 	return entry, nil
 }
 
-func parsePositionFields(rest string) (startLine int, covered bool, err error) {
+func parsePositionFields(rest string) (startLine, endLine int, covered bool, err error) {
 	spaceIdx := strings.Index(rest, " ")
 	if spaceIdx <= 0 {
-		return 0, false, fmt.Errorf("invalid line: %s", rest)
+		return 0, 0, false, fmt.Errorf("invalid line: %s", rest)
 	}
 
 	posStr := rest[:spaceIdx]
 	parts := strings.Split(posStr, ",")
 	if len(parts) != 2 {
-		return 0, false, fmt.Errorf("invalid position: %s", posStr)
+		return 0, 0, false, fmt.Errorf("invalid position: %s", posStr)
 	}
 
 	startLine, _ = parseCoord(parts[0])
+	endLine, _ = parseCoord(parts[1])
 
 	coveredStr := strings.Fields(rest[spaceIdx+1:])
 	if len(coveredStr) < 2 {
-		return 0, false, fmt.Errorf("invalid fields: %s", rest)
+		return 0, 0, false, fmt.Errorf("invalid fields: %s", rest)
 	}
 
 	coveredInt, err := strconv.Atoi(coveredStr[1])
 	if err != nil || coveredInt == 0 {
-		return startLine, false, nil
+		return startLine, endLine, false, nil
 	}
-	return startLine, true, nil
+	return startLine, endLine, true, nil
 }
 
 func parseCoord(s string) (line, col int) {

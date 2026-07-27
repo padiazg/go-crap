@@ -11,8 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Partial coverage preserved on test failure — when `go test` fails in a module, go-crap still parses the coverage profile from any passing tests instead of discarding all coverage data
 - `extractFailedTests` helper parses `--- FAIL: TestName` lines from stderr and logs failed test names at Warn level (use `--verbose` to see them)
-- `--coverage-profile` flag — supply an existing coverage profile instead of running `go test` (collaborated by @mem)
-- `--timeout` flag — configurable timeout for the scan command (collaborated by @matiasinsaurralde)
+- `--coverage-profile` flag — supply an existing coverage profile instead of running `go test` (collaboration with @mem)
+- `--timeout` flag — configurable timeout for the scan command (collaboration with @matiasinsaurralde)
 - `Profile` field on `ModuleCoverage` — stores the path to the coverage profile file
 - Baseline comparison engine — load previous JSON reports for delta analysis
 - New `--baseline <path>` flag — compare current CRAP against a previous report
@@ -40,7 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Coverage profile temp files now cleaned up after successful scan (collaborated by @matiasinsaurralde)
+- Coverage profile deduplication — when `go test -coverprofile` produces a merged profile from multiple test binaries, the same source blocks appeared multiple times. Entries are now deduplicated by `(startLine, endLine)` position using OR semantics (a block is covered if any test binary covered it), fixing inaccurate coverage percentages (reported by @corani)
+- Coverage profile temp files now cleaned up after successful scan (collaboration with @matiasinsaurralde)
 - Field alignment for better memory layout
 - Tests added for `Spash` function
 
