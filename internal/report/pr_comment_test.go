@@ -860,7 +860,8 @@ func TestPRCommentFormatter_Format_summary_non_nil(t *testing.T) {
 	require.NoError(t, err)
 
 	output := buf.String()
-	assert.Contains(t, output, "Combined CRAP: 101.00 | Average CRAP: 50.50")
+	assert.Contains(t, output, "Combined CRAP: 101.00")
+	assert.Contains(t, output, "Average CRAP: 50.50")
 	assert.Contains(t, output, "2 function(s) analyzed")
 }
 
@@ -880,6 +881,7 @@ func TestPRCommentFormatter_Format_summary_empty_entries(t *testing.T) {
 	require.NoError(t, err)
 
 	output := buf.String()
-	assert.Contains(t, output, "Combined CRAP: 0.00 | Average CRAP: 0.00")
+	assert.Contains(t, output, "Combined CRAP: 0.00")
+	assert.Contains(t, output, "Average CRAP: 0.00")
 	assert.Contains(t, output, "0 function(s) analyzed")
 }

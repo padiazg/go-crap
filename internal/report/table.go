@@ -19,9 +19,16 @@ func (f *TableFormatter) Format(entries *scan.Entries, opts FormatOptions) error
 
 	sorted := entries.ForTable()
 
+	var header table.Row
+	if opts.Baseline != nil {
+		header = table.Row{"", "CRAP", "CC", "Coverage", "Δ", "Function", "Location"}
+	} else {
+		header = table.Row{"", "CRAP", "CC", "Coverage", "Function", "Location"}
+	}
+
 	t := table.NewWriter()
 	t.SetStyle(table.StyleLight)
-	t.AppendHeader(table.Row{"", "CRAP", "CC", "Coverage", "Function", "Location"})
+	t.AppendHeader(header)
 
 	failed := 0
 	halfThreshold := opts.Threshold / 2.0
@@ -49,7 +56,13 @@ func (f *TableFormatter) Format(entries *scan.Entries, opts FormatOptions) error
 	}
 
 	if opts.Summary != nil {
-		fmt.Fprintf(opts.Writer, "Combined CRAP: %.2f | Average CRAP: %.2f\n", opts.Summary.Combined, opts.Summary.Average)
+		if opts.Baseline != nil {
+			fmt.Fprintf(opts.Writer, "Combined CRAP: %.2f (Δ%.2f vs baseline) | Average CRAP: %.2f (Δ%.2f vs baseline)\n",
+				opts.Summary.Combined, opts.Summary.DeltaCombined,
+				opts.Summary.Average, opts.Summary.DeltaAverage)
+		} else {
+			fmt.Fprintf(opts.Writer, "Combined CRAP: %.2f | Average CRAP: %.2f\n", opts.Summary.Combined, opts.Summary.Average)
+		}
 	}
 
 	if warningSeen {
@@ -77,14 +90,34 @@ func (f *TableFormatter) formatTableRow(e score.CRAPEntry, opts FormatOptions, h
 	loc := f.formatLocation(e, opts.BaseDir)
 	covStr := f.formatCoverageString(e)
 
-	return table.Row{
+	row := table.Row{
 		status,
 		fmt.Sprintf("%.2f", effectiveCRAP),
 		e.Complexity,
 		fmt.Sprintf("%s %s", covBar, covStr),
-		e.FuncName,
-		loc,
 	}
+
+	if opts.Baseline != nil {
+		row = append(row, f.formatDelta(e))
+	}
+
+	row = append(row, e.FuncName, loc)
+
+	return row
+}
+
+func (f *TableFormatter) formatDelta(e score.CRAPEntry) string {
+	if e.BaselineCRAP < 0 {
+		return "\U0001f195 new"
+	}
+	delta := e.EffectiveCRAP - e.BaselineCRAP
+	if delta > deltaTolerance {
+		return fmt.Sprintf("+%.1f \u2191", delta)
+	}
+	if delta < -deltaTolerance {
+		return fmt.Sprintf("%.1f \u2193", delta)
+	}
+	return "-"
 }
 
 func (f *TableFormatter) formatLocation(e score.CRAPEntry, baseDir string) string {

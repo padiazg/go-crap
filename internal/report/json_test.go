@@ -229,7 +229,7 @@ func TestJSONFormatter_Format(t *testing.T) {
 			entries: &scan.Entries{},
 			reportCheck: checkJSONFormatterFormatReport(
 				checkReportSchema("https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json"),
-				checkReportVersion("1.0.0"),
+				checkReportVersion("1.1.0"),
 				checkReportEntriesLen(0),
 			),
 		},
@@ -249,7 +249,7 @@ func TestJSONFormatter_Format(t *testing.T) {
 			}},
 			reportCheck: checkJSONFormatterFormatReport(
 				checkReportSchema("https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json"),
-				checkReportVersion("1.0.0"),
+				checkReportVersion("1.1.0"),
 				checkReportEntriesLen(1),
 				checkReportEntries(0,
 					checkEntryFile("/home/user/project/main.go"),
@@ -680,8 +680,7 @@ func TestJSONFormatter_Format_summary_nil_backward_compat(t *testing.T) {
 	s.jsonMarshalIndent = captured
 	err := s.Format(entries, opts)
 	require.NoError(t, err)
-	assert.Nil(t, gotReport.Combined)
-	assert.Nil(t, gotReport.Average)
+	assert.Nil(t, gotReport.Summary)
 }
 
 func TestJSONFormatter_Format_summary_non_nil(t *testing.T) {
@@ -705,10 +704,11 @@ func TestJSONFormatter_Format_summary_non_nil(t *testing.T) {
 	s.jsonMarshalIndent = captured
 	err := s.Format(entries, opts)
 	require.NoError(t, err)
-	require.NotNil(t, gotReport.Combined)
-	require.NotNil(t, gotReport.Average)
-	assert.InDelta(t, combined, *gotReport.Combined, 0.01)
-	assert.InDelta(t, average, *gotReport.Average, 0.01)
+	require.NotNil(t, gotReport.Summary)
+	require.NotNil(t, gotReport.Summary.Combined)
+	require.NotNil(t, gotReport.Summary.Average)
+	assert.InDelta(t, combined, gotReport.Summary.Combined, 0.01)
+	assert.InDelta(t, average, gotReport.Summary.Average, 0.01)
 }
 
 func TestJSONFormatter_Format_summary_with_entries(t *testing.T) {
@@ -729,7 +729,6 @@ func TestJSONFormatter_Format_summary_with_entries(t *testing.T) {
 	s.jsonMarshalIndent = captured
 	err := s.Format(entries, opts)
 	require.NoError(t, err)
-	assert.NotNil(t, gotReport.Combined)
-	assert.NotNil(t, gotReport.Average)
+	assert.NotNil(t, gotReport.Summary)
 	assert.Len(t, gotReport.Entries, 1)
 }
