@@ -31,6 +31,9 @@ go-crap scan [path] [flags]
 | `--mutation-report` | | Path to gremlins JSON mutation report to validate coverage reliability | `""` (disabled) |
 | `--detailed` | | Include mutation failure details (original/replacement code, line, type) in report output | `false` |
 | `--timeout` | | Timeout for the full scan (e.g. `30s`, `5m`, `1h30m`) | `10m0s` |
+| `--baseline` | | Path to a previous JSON report for baseline comparison | `""` |
+| `--fail-regression` | | Exit code 1 when functions regressed vs baseline | `false` |
+| `--fail-regression-threshold` | | Minimum delta to consider regression | `0.01` |
 
 > `CoverageUntrusted` has meaning only if `--mutation-report` was used.
 
@@ -190,3 +193,41 @@ The `--detailed` flag includes full mutation failure details in the report outpu
 - **Table**: no change — still shows ⚠ for untrusted coverage
 
 This is useful for debugging which specific mutants survived and what code transformations they represented.
+
+### Baseline comparison
+
+```shell
+go-crap scan --baseline baseline.json
+```
+
+Compare the current scan against a previous JSON report. Every formatter shows deltas:
+
+- **pr-comment**: header shows Combined/Average CRAP with deltas vs baseline, plus "New Functions" and "Regressions" sections
+- **table**: `Δ` column with per-function delta (e.g. `+15 ↑`), delta footer lines
+- **json**: per-entry `baseline_crap` and `delta` fields, `summary` object with baseline/compare stats
+- **github**: summary `::notice::` annotation when baseline provided
+
+### Regression enforcement
+
+```shell
+go-crap scan --baseline baseline.json --fail-regression
+```
+
+Exits with code 1 when any function's CRAP score has increased (regressed) compared to the baseline. Use `--fail-regression-threshold` to adjust the minimum delta that counts as a regression.
+
+### Combined threshold + regression
+
+```shell
+go-crap scan --fail-above --threshold 30 --baseline baseline.json --fail-regression
+```
+
+Fails if any function exceeds the threshold OR has regressed compared to baseline.
+
+### Creating a baseline
+
+```shell
+go-crap scan --format json > baseline.json
+go-crap scan --baseline baseline.json
+```
+
+Generate a JSON report to use as a baseline. Subsequent scans can compare against it to track quality over time.

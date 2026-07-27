@@ -5,6 +5,7 @@ Integrate go-crap into your continuous integration pipeline to enforce CRAP scor
 ## Providers
 
 - [GitHub Actions](github-actions.md) -- threshold enforcement, PR annotations, matrix builds, SARIF code scanning, fork-safe PR comments with mutation testing
+- [Baseline Comparison](baseline-comparison.md) -- load previous reports, track deltas, enforce regression thresholds in CI
 - [Gitea](gitea.md) -- Gitea Actions with annotation support
 - [GitLab CI](gitlab.md) -- quality stage with JSON artifact
 - [Azure DevOps](azure-devops.md) -- pipeline with artifact upload
@@ -80,7 +81,7 @@ The JSON output follows this schema:
 ```json
 {
   "$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "entries": [
     {
       "file": "internal/pkg/foo.go",

@@ -70,6 +70,10 @@ go-crap scan --exclude '.*_test\.go' --exclude 'pb/.*\.go'
 | `--mutation-report` | | Path to gremlins JSON mutation report to validate coverage reliability | `""` |
 | `--detailed` | | Include mutation failure details (original code, replacement, line) in report output | `false` |
 | `--timeout` | | Timeout for the full scan (e.g. `30s`, `5m`, `1h30m`) | `10m0s` |
+| `--coverage-profile` | | Supply an existing coverage profile instead of running `go test` | `""` |
+| `--baseline` | | Path to a previous JSON report for baseline comparison | `""` |
+| `--fail-regression` | | Exit code 1 when functions regressed vs baseline | `false` |
+| `--fail-regression-threshold` | | Minimum delta to consider regression | `0.01` |
 | `--help` | `-h` | Help for scan | — |
 
 ### Output Formats
@@ -123,6 +127,21 @@ go-crap scan --mutation-report gremlins-report.json --format json --detailed
 
 The `--detailed` flag includes full mutation failure details in the output: `type`, `line`, `original_code`, and `replacement_code` for each survived mutant. In `json` format, these appear as a `mutation_details` array per entry. In `sarif` and `pr-comment` formats, survived mutations with code snippets are appended to the warning messages.
 
+### Example: Baseline comparison
+
+```shell
+# Run a scan and save it as a baseline
+go-crap scan --format json > baseline.json
+
+# Compare against the baseline
+go-crap scan --baseline baseline.json --format table
+
+# Enforce regression thresholds in CI
+go-crap scan --baseline baseline.json --fail-regression --fail-regression-threshold 0.01
+```
+
+When a baseline is provided, every formatter shows deltas: the PR comment header displays combined/average CRAP with deltas, the table adds a `Δ` column, and JSON includes per-entry `baseline_crap` and `delta` fields.
+
 ## What is CRAP?
 
 CRAP = **C**yclomatic **R**eadability **A**nd **P**redictability. It measures how expensive a function is to test.
@@ -173,12 +192,14 @@ go-crap scan
 ```
 
 - `--fail-above` exits with code 1 when any function exceeds the threshold
+- `--fail-regression` exits with code 1 when functions regressed vs baseline
 - `--format github` emits `::warning` annotations that render as PR comments
 - `--format sarif` outputs SARIF 2.1.0 for integration with code scanning tools
 - `--format pr-comment` generates a markdown table for pull request comments
 - `--output -o` writes results to a file instead of stdout
 - `--mutation-report` validates coverage reliability against mutation testing results
 - `--detailed` includes mutation failure details (code, line, type) in report output
+- `--baseline` loads a previous JSON report for delta analysis
 - Coverage-unavailable warnings are emitted for modules where `go test` fails
 
 ### Badge

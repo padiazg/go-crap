@@ -14,12 +14,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--coverage-profile` flag — supply an existing coverage profile instead of running `go test` (collaborated by @mem)
 - `--timeout` flag — configurable timeout for the scan command (collaborated by @matiasinsaurralde)
 - `Profile` field on `ModuleCoverage` — stores the path to the coverage profile file
+- Baseline comparison engine — load previous JSON reports for delta analysis
+- New `--baseline <path>` flag — compare current CRAP against a previous report
+- New `--fail-regression` flag — exit code 1 when functions regressed vs baseline
+- New `--fail-regression-threshold <float>` flag (default `0.01`) — minimum delta to trigger
+- `Baseline` struct with `LoadBaseline()` — parses JSON reports into comparison-ready data
+- `AnnotateWithBaseline()` — sets `BaselineCRAP` on each CRAP entry for delta tracking
+- `ComputeSummaryWithBaseline()` — aggregate stats with baseline/compare deltas
+- `FindRegressions()` — exported regression detection for CLI use
+- `ErrRegression` sentinel error — distinct from threshold exceedance
+- `BaselineCRAP` field on `CRAPEntry` — stores previous report CRAP value (-1 = new function)
+- `Delta` field on `CRAPEntry` — CRAP delta from baseline
 
 ### Changed
 
 - `runTests` no longer deletes the temp coverage profile on error; the profile is kept for `parseCoverProfile` and cleaned up after parsing
 - `scanModule` no longer returns early on `runTests` failure; coverage is always parsed and partial data is returned alongside the error
 - `Scan` preserves the full `ModuleCoverage` struct from `scanModule`, retaining `Functions` alongside the wrapped error
+- JSON schema bumped to 1.1.0 — per-entry `baseline_crap`/`delta` fields, `summary` object with baseline/compare
+- PR comment formatter: header shows Combined/Average CRAP with deltas vs baseline; ASCII badges (`[OK]`, `[!!]`, `[ERROR]`, `[NEW]`); "New Functions" and "Regressions" sections; summary table
+- Table formatter: `Δ` column when baseline available; per-function delta with `+X ↑` / `-X ↓`; delta footer lines
+- GitHub formatter: summary `::notice::` annotation when baseline provided
+- CLI: `--fail-regression` without `--baseline` returns error
+- JSON output: schema field updated to 1.1.0, new `summary` object with baseline/compare stats
 
 ### Fixed
 
