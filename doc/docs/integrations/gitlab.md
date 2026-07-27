@@ -11,7 +11,7 @@ crap:
   stage: quality
   image: golang:1.23
   before_script:
-    - go install github.com/padiazg/go-crap@latest
+    - curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
   script:
     - go-crap scan --fail-above --threshold 30 --exclude '.*_test\.go' --exclude 'testdata/.*\.go'
   allow_failure: false
@@ -24,7 +24,7 @@ crap:
   stage: quality
   image: golang:1.23
   before_script:
-    - go install github.com/padiazg/go-crap@latest
+    - curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
   script:
     - go-crap scan --format json > crap-report.json --exclude '.*_test\.go'
   artifacts:

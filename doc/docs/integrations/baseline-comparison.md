@@ -70,9 +70,9 @@ jobs:
         with:
           go-version: '1.23'
           cache: true
+      - name: Install go-crap
+        run: curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
       - name: Generate baseline
-        run: go install github.com/padiazg/go-crap@latest
-      - name: Run go-crap
         run: go-crap scan --format json --output crap-current.json
       - name: Upload baseline
         uses: actions/upload-artifact@v4
@@ -103,7 +103,7 @@ jobs:
           name: crap-baseline
           path: baseline
       - name: Run go-crap
-        run: go install github.com/padiazg/go-crap@latest
+        run: curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
       - name: Check for regressions
         run: go-crap scan --baseline baseline/crap-current.json --fail-regression
       - name: Generate PR comment

@@ -35,7 +35,7 @@ jobs:
           go-version: '1.23'
           cache: true
       - name: Install go-crap
-        run: go install github.com/padiazg/go-crap@latest
+        run: curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
       - name: Run go-crap
         run: go-crap scan --fail-above --threshold 30 --exclude '.*_test\.go' --exclude 'testdata/.*\.go' --exclude '\.pb\.go$'
 ```
@@ -44,7 +44,7 @@ jobs:
 
 ```yaml
       - name: Install go-crap
-        run: go install github.com/padiazg/go-crap@latest
+        run: curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
       - name: Run go-crap with annotations
         run: go-crap scan --format github --threshold 30 --exclude '.*_test\.go'
       - name: Generate JSON report
@@ -74,7 +74,7 @@ jobs:
           go-version: ${{ matrix.go-version }}
           cache: true
       - name: Install go-crap
-        run: go install github.com/padiazg/go-crap@latest
+        run: curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
       - name: Run go-crap
         run: go-crap scan --fail-above --threshold 30 --exclude '.*_test\.go'
 ```
@@ -139,7 +139,7 @@ jobs:
           go-version: '1.23'
           cache: true
       - name: Install go-crap
-        run: go install github.com/padiazg/go-crap@latest
+        run: curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
       - name: Score
         run: go-crap scan --fail-above --threshold 30 --exclude '.*_test\.go'
 
@@ -162,7 +162,7 @@ jobs:
           --integration
           --output=mutation-report.json
       - name: Install go-crap
-        run: go install github.com/padiazg/go-crap@latest
+        run: curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
       - name: Generate PR comment
         run: >-
           go-crap scan
@@ -274,7 +274,7 @@ jobs:
           go-version: '1.23'
           cache: true
       - name: Install go-crap
-        run: go install github.com/padiazg/go-crap@latest
+        run: curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
       - name: Generate baseline
         run: go-crap scan --format json --output crap-current.json
       - name: Upload baseline
@@ -294,7 +294,7 @@ jobs:
           go-version: '1.23'
           cache: true
       - name: Install go-crap
-        run: go install github.com/padiazg/go-crap@latest
+        run: curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
       - name: Download baseline
         uses: actions/download-artifact@v4
         with:

@@ -83,7 +83,7 @@ When a function has no coverage data, go-crap can handle it three ways:
 
 ```bash
 # Install
-go install github.com/padiazg/go-crap@latest
+curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
 
 # Scan a project
 go-crap scan
@@ -100,7 +100,7 @@ go-crap scan --fail-above --threshold 30
 ## Installation
 
 ```bash
-go install github.com/padiazg/go-crap@latest
+curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
 ```
 
 → [Installation Guide](getting-started/installation.md)

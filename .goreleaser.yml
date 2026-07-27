@@ -74,7 +74,12 @@ release:
 
     Download the appropriate binary for your platform below, or:
 
-    use Go
+    Install the pre-built binary with version info stamped via ldflags:
+    ```shell
+    curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
+    ```
+    
+    Or install from source:
     ```shell
     go install github.com/padiazg/go-crap@{{ .Tag }}
     ```

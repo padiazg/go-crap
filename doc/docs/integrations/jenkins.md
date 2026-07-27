@@ -13,7 +13,7 @@ pipeline {
     stages {
         stage('Install go-crap') {
             steps {
-                sh "go install github.com/padiazg/go-crap@latest"
+                sh "curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh"
             }
         }
         stage('Run go-crap') {
