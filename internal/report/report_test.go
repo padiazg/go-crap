@@ -50,6 +50,56 @@ func TestComputeSummary(t *testing.T) {
 		checks    []ComputeSummaryFn
 	}{
 		{
+			name:      "nil_entries_returns_empty_summary",
+			entries:   nil,
+			threshold: 30.0,
+			checks: checkComputeSummary(
+				checkSummaryCombined(0),
+				checkSummaryAverage(0),
+				checkSummaryTotalFuncs(0),
+				checkSummaryExceeded(0),
+			),
+		},
+		{
+			name:      "entries_with_both_nil_lists",
+			entries:   &scan.Entries{},
+			threshold: 30.0,
+			checks: checkComputeSummary(
+				checkSummaryCombined(0),
+				checkSummaryAverage(0),
+				checkSummaryTotalFuncs(0),
+				checkSummaryExceeded(0),
+			),
+		},
+		{
+			name:      "entries_with_only_list_uses_fortable",
+			entries:   &scan.Entries{List: []score.CRAPEntry{{FuncName: "foo", CRAP: 5, EffectiveCRAP: 5}}},
+			threshold: 30.0,
+			checks: checkComputeSummary(
+				checkSummaryCombined(5),
+				checkSummaryAverage(5),
+				checkSummaryTotalFuncs(1),
+				checkSummaryExceeded(0),
+			),
+		},
+		{
+			name: "entries_with_fulllist_only_ignores_list",
+			entries: &scan.Entries{
+				FullList: []score.CRAPEntry{
+					{FuncName: "a", CRAP: 100, EffectiveCRAP: 100},
+					{FuncName: "b", CRAP: 1, EffectiveCRAP: 1},
+				},
+				List: nil,
+			},
+			threshold: 30.0,
+			checks: checkComputeSummary(
+				checkSummaryCombined(101),
+				checkSummaryAverage(50.5),
+				checkSummaryTotalFuncs(2),
+				checkSummaryExceeded(1),
+			),
+		},
+		{
 			name:      "success_empty_entries",
 			entries:   &scan.Entries{List: []score.CRAPEntry{}},
 			threshold: 30.0,

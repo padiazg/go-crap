@@ -140,15 +140,19 @@ func ComputeSummaryWithBaseline(entries *scan.Entries, threshold float64, baseli
 const defaultDeltaTolerance = 0.01
 
 // FindRegressions returns entries whose effective CRAP increased compared to baseline.
-func FindRegressions(entries []score.CRAPEntry, tolerance float64) []score.CRAPEntry {
+// When ignoreCovered is true, entries with coverage >= 99.95 go into the ignored list instead.
+func FindRegressions(entries []score.CRAPEntry, tolerance float64, ignoreCovered bool) (regressions, ignored []score.CRAPEntry) {
 	if tolerance == 0 {
 		tolerance = defaultDeltaTolerance
 	}
-	result := make([]score.CRAPEntry, 0)
 	for _, e := range entries {
 		if e.BaselineCRAP >= 0 && e.EffectiveCRAP-e.BaselineCRAP > tolerance {
-			result = append(result, e)
+			if ignoreCovered && e.Coverage >= 99.95 {
+				ignored = append(ignored, e)
+			} else {
+				regressions = append(regressions, e)
+			}
 		}
 	}
-	return result
+	return
 }

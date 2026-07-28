@@ -14,12 +14,14 @@ type Formatter interface {
 
 // FormatOptions configures report formatting behavior.
 type FormatOptions struct {
-	Writer    io.Writer
-	Baseline  *Baseline
-	Summary   *Summary
-	BaseDir   string
-	Threshold float64
-	Detailed  bool
+	Writer        io.Writer
+	Baseline      *Baseline
+	Summary       *Summary
+	BaseDir       string
+	Threshold     float64
+	Detailed      bool
+	ShowUnchanged bool
+	IgnoreCovered bool
 }
 
 // Summary holds aggregate CRAP statistics across all functions.

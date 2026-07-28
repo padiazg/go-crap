@@ -63,7 +63,7 @@ func (f *PRCommentFormatter) writeBadge(w io.Writer, summary *Summary) {
 	}
 }
 
-func (f *PRCommentFormatter) writeCrappyTable(w io.Writer, crappy []score.CRAPEntry, total int, baseDir string, baseline *Baseline) {
+func (f *PRCommentFormatter) writeCrappyTable(w io.Writer, crappy []score.CRAPEntry, total int, baseDir string, baseline *Baseline, ignoreCovered bool) {
 	if len(crappy) == 0 {
 		return
 	}
@@ -78,7 +78,7 @@ func (f *PRCommentFormatter) writeCrappyTable(w io.Writer, crappy []score.CRAPEn
 			if e.CoverageUntrusted {
 				covStr += " \xe2\x9a\xa0"
 			}
-			deltaStr := formatPRDelta(e)
+			deltaStr := formatPRDelta(e, ignoreCovered)
 			fmt.Fprintf(w, "| \xe2\x9c\x97 | %.2f | %d | %s | %s | `%s` | %s |\n",
 				e.EffectiveCRAP, e.Complexity, covStr, deltaStr, e.FuncName, loc)
 		}
@@ -104,15 +104,21 @@ func (f *PRCommentFormatter) writeCrappyTable(w io.Writer, crappy []score.CRAPEn
 	fmt.Fprintln(w)
 }
 
-func formatPRDelta(e score.CRAPEntry) string {
+func formatPRDelta(e score.CRAPEntry, ignoreCovered bool) string {
 	if e.BaselineCRAP < 0 {
 		return "[NEW]"
 	}
 	delta := e.EffectiveCRAP - e.BaselineCRAP
 	if delta > deltaTolerance {
+		if ignoreCovered && e.Coverage >= 99.95 {
+			return fmt.Sprintf("+%.1f ~", delta)
+		}
 		return fmt.Sprintf("+%.1f \U0001f534", delta)
 	}
 	if delta < -deltaTolerance {
+		if ignoreCovered && e.Coverage >= 99.95 {
+			return fmt.Sprintf("%.1f ~", delta)
+		}
 		return fmt.Sprintf("%.1f \U0001f7e2", delta)
 	}
 	return "-"
@@ -138,8 +144,18 @@ func (f *PRCommentFormatter) writeNewFunctionsSection(w io.Writer, sorted []scor
 	fmt.Fprintln(w)
 }
 
-func (f *PRCommentFormatter) writeRegressionsSection(w io.Writer, sorted []score.CRAPEntry, baseDir string) {
-	regressed := filterRegressions(sorted)
+func (f *PRCommentFormatter) writeRegressionsSection(w io.Writer, sorted []score.CRAPEntry, baseDir string, ignoreCovered bool) {
+	var regressed, ignored []score.CRAPEntry
+	for _, e := range sorted {
+		delta := e.EffectiveCRAP - e.BaselineCRAP
+		if e.BaselineCRAP >= 0 && delta > deltaTolerance {
+			if ignoreCovered && e.Coverage >= 99.95 {
+				ignored = append(ignored, e)
+			} else {
+				regressed = append(regressed, e)
+			}
+		}
+	}
 	if len(regressed) == 0 {
 		return
 	}
@@ -159,6 +175,24 @@ func (f *PRCommentFormatter) writeRegressionsSection(w io.Writer, sorted []score
 	}
 
 	fmt.Fprintln(w)
+
+	if len(ignored) > 0 {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "## Ignored (fully covered)")
+		fmt.Fprintln(w)
+
+		sortByDeltaDesc(ignored)
+		fmt.Fprintln(w, "| Function | CRAP | \u0394 | Location |")
+		fmt.Fprintln(w, "|---|---:|---:|---|")
+
+		for _, e := range ignored {
+			loc := formatPRLocation(e, baseDir)
+			delta := e.EffectiveCRAP - e.BaselineCRAP
+			fmt.Fprintf(w, "| `%s` | %.2f | +%.1f ~ | %s |\n", e.FuncName, e.EffectiveCRAP, delta, loc)
+		}
+
+		fmt.Fprintln(w)
+	}
 }
 
 func (f *PRCommentFormatter) writeSummaryTable(w io.Writer, summary *Summary, baseline *Baseline, totalFuncs, exceeded int) {
@@ -228,16 +262,6 @@ func filterNewFunctions(entries []score.CRAPEntry) []score.CRAPEntry {
 	return result
 }
 
-func filterRegressions(entries []score.CRAPEntry) []score.CRAPEntry {
-	result := make([]score.CRAPEntry, 0)
-	for _, e := range entries {
-		if e.BaselineCRAP >= 0 && e.EffectiveCRAP-e.BaselineCRAP > deltaTolerance {
-			result = append(result, e)
-		}
-	}
-	return result
-}
-
 // PRCommentFormatter outputs CRAP entries as a GitHub PR comment.
 type PRCommentFormatter struct{}
 
@@ -256,11 +280,11 @@ func (f *PRCommentFormatter) Format(entries *scan.Entries, opts FormatOptions) e
 		crappy = crappy[:maxPRCommentRows]
 	}
 
-	f.writeCrappyTable(opts.Writer, crappy, len(entries.List), opts.BaseDir, opts.Baseline)
+	f.writeCrappyTable(opts.Writer, crappy, len(entries.List), opts.BaseDir, opts.Baseline, opts.IgnoreCovered)
 
 	if opts.Baseline != nil {
 		f.writeNewFunctionsSection(opts.Writer, sorted, opts.BaseDir)
-		f.writeRegressionsSection(opts.Writer, sorted, opts.BaseDir)
+		f.writeRegressionsSection(opts.Writer, sorted, opts.BaseDir, opts.IgnoreCovered)
 		f.writeSummaryTable(opts.Writer, opts.Summary, opts.Baseline, len(entries.List), 0)
 	}
 

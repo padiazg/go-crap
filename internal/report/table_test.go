@@ -473,3 +473,298 @@ func TestTableFormatter_Format_summary_empty_entries(t *testing.T) {
 	output := buf.String()
 	assert.Contains(t, output, "Combined CRAP: 0.00 | Average CRAP: 0.00")
 }
+
+func Test_isUnchanged(t *testing.T) {
+	tests := []struct {
+		name string
+		e    score.CRAPEntry
+		want bool
+	}{
+		{
+			name: "new_function_not_unchanged",
+			e:    score.CRAPEntry{BaselineCRAP: -1, EffectiveCRAP: 50.0},
+			want: false,
+		},
+		{
+			name: "regressed",
+			e:    score.CRAPEntry{BaselineCRAP: 10.0, EffectiveCRAP: 25.0},
+			want: false,
+		},
+		{
+			name: "improved",
+			e:    score.CRAPEntry{BaselineCRAP: 50.0, EffectiveCRAP: 20.0},
+			want: false,
+		},
+		{
+			name: "exactly_unchanged",
+			e:    score.CRAPEntry{BaselineCRAP: 30.0, EffectiveCRAP: 30.0},
+			want: true,
+		},
+		{
+			name: "within_tolerance_positive",
+			e:    score.CRAPEntry{BaselineCRAP: 30.0, EffectiveCRAP: 30.005},
+			want: true,
+		},
+		{
+			name: "within_tolerance_negative",
+			e:    score.CRAPEntry{BaselineCRAP: 30.0, EffectiveCRAP: 29.995},
+			want: true,
+		},
+		{
+			name: "just_over_tolerance",
+			e:    score.CRAPEntry{BaselineCRAP: 30.0, EffectiveCRAP: 30.02},
+			want: false,
+		},
+		{
+			name: "just_under_tolerance",
+			e:    score.CRAPEntry{BaselineCRAP: 30.0, EffectiveCRAP: 29.98},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			r := isUnchanged(tt.e)
+			assert.Equal(t, tt.want, r)
+		})
+	}
+}
+
+func Test_anyChanged(t *testing.T) {
+	tests := []struct {
+		name   string
+		sorted []score.CRAPEntry
+		want   bool
+	}{
+		{
+			name:   "all_unchanged",
+			sorted: []score.CRAPEntry{{BaselineCRAP: 10.0, EffectiveCRAP: 10.0}, {BaselineCRAP: 20.0, EffectiveCRAP: 20.0}},
+			want:   false,
+		},
+		{
+			name: "one_new",
+			sorted: []score.CRAPEntry{
+				{BaselineCRAP: 10.0, EffectiveCRAP: 10.0},
+				{BaselineCRAP: -1, EffectiveCRAP: 50.0},
+			},
+			want: true,
+		},
+		{
+			name: "one_regressed",
+			sorted: []score.CRAPEntry{
+				{BaselineCRAP: 10.0, EffectiveCRAP: 10.0},
+				{BaselineCRAP: 20.0, EffectiveCRAP: 45.0},
+			},
+			want: true,
+		},
+		{
+			name: "one_improved",
+			sorted: []score.CRAPEntry{
+				{BaselineCRAP: 50.0, EffectiveCRAP: 50.0},
+				{BaselineCRAP: 40.0, EffectiveCRAP: 10.0},
+			},
+			want: true,
+		},
+		{
+			name:   "empty_list",
+			sorted: []score.CRAPEntry{},
+			want:   false,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			r := anyChanged(tt.sorted)
+			assert.Equal(t, tt.want, r)
+		})
+	}
+}
+
+func TestTableFormatter_printSummary(t *testing.T) {
+	tests := []struct {
+		name     string
+		opts     FormatOptions
+		checks   []checkTableFormatterOutputFn
+	}{
+		{
+			name: "nil_summary",
+			opts: FormatOptions{Writer: &strings.Builder{}},
+			checks: checkTableFormatterOutput(
+				// no output expected
+			),
+		},
+		{
+			name: "summary_without_baseline",
+			opts: FormatOptions{
+				Writer:    &strings.Builder{},
+				Threshold: 30.0,
+				Summary:   &Summary{Combined: 100.0, Average: 50.0, TotalFuncs: 2, Exceeded: 1},
+			},
+			checks: checkTableFormatterOutput(
+				checkOutputContains("Combined CRAP: 100.00"),
+				checkOutputContains("Average CRAP: 50.00"),
+				checkOutputNotContains("baseline"),
+			),
+		},
+		{
+			name: "summary_with_baseline",
+			opts: FormatOptions{
+				Writer:    &strings.Builder{},
+				Threshold: 30.0,
+				Summary:   &Summary{Combined: 100.0, Average: 50.0, TotalFuncs: 2, Exceeded: 1, BaselineCombined: 80.0, BaselineAverage: 40.0, DeltaCombined: 20.0, DeltaAverage: 10.0},
+				Baseline:  &Baseline{},
+			},
+			checks: checkTableFormatterOutput(
+				checkOutputContains("Combined CRAP: 100.00"),
+				checkOutputContains("Average CRAP: 50.00"),
+				checkOutputContains("baseline"),
+				checkOutputContains("vs baseline"),
+			),
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			s := &TableFormatter{}
+			var buf strings.Builder
+			tt.opts.Writer = &buf
+			s.printSummary(tt.opts)
+			for _, c := range tt.checks {
+				c(t, buf.String())
+			}
+		})
+	}
+}
+
+func TestTableFormatter_Format_baseline_filtering(t *testing.T) {
+	tests := []struct {
+		name       string
+		entries    scan.Entries
+		opts       FormatOptions
+		checks     []checkTableFormatterOutputFn
+		expectNoChanges bool
+	}{
+		{
+			name: "baseline_all_unchanged_show_unchanged_false",
+			entries: scan.Entries{List: []score.CRAPEntry{
+				{File: "/project/main.go", Package: "myapp", FuncName: "FuncA", Line: 1, Complexity: 1, Coverage: 100, CRAP: 1, BaselineCRAP: 1.0},
+				{File: "/project/main.go", Package: "myapp", FuncName: "FuncB", Line: 10, Complexity: 2, Coverage: 90, CRAP: 5.4, BaselineCRAP: 5.4},
+			}},
+			opts: FormatOptions{
+				Threshold: 30.0,
+				Baseline:  &Baseline{},
+				Summary:   &Summary{Combined: 6.4, Average: 3.2, TotalFuncs: 2},
+				ShowUnchanged: false,
+			},
+			checks: checkTableFormatterOutput(
+				checkOutputContains("No changes since baseline."),
+				checkOutputNotContains("FuncA"),
+				checkOutputNotContains("FuncB"),
+			),
+			expectNoChanges: true,
+		},
+		{
+			name: "baseline_mixed_show_unchanged_false",
+			entries: scan.Entries{List: []score.CRAPEntry{
+				{File: "/project/main.go", Package: "myapp", FuncName: "UnchangedFunc", Line: 1, Complexity: 1, Coverage: 100, CRAP: 1, BaselineCRAP: 1.0},
+				{File: "/project/main.go", Package: "myapp", FuncName: "RegressedFunc", Line: 10, Complexity: 5, Coverage: 50, CRAP: 12.5, BaselineCRAP: 5.0},
+				{File: "/project/main.go", Package: "myapp", FuncName: "ImprovedFunc", Line: 20, Complexity: 3, Coverage: 80, CRAP: 3.6, BaselineCRAP: 9.0},
+			}},
+			opts: FormatOptions{
+				Threshold: 30.0,
+				Baseline:  &Baseline{},
+				Summary:   &Summary{Combined: 17.1, Average: 5.7, TotalFuncs: 3},
+				ShowUnchanged: false,
+			},
+			checks: checkTableFormatterOutput(
+				checkOutputContains("RegressedFunc"),
+				checkOutputContains("ImprovedFunc"),
+				checkOutputNotContains("UnchangedFunc"),
+				checkOutputContains("function(s) exceed threshold"),
+			),
+		},
+		{
+			name: "baseline_all_unchanged_show_unchanged_true",
+			entries: scan.Entries{List: []score.CRAPEntry{
+				{File: "/project/main.go", Package: "myapp", FuncName: "FuncA", Line: 1, Complexity: 1, Coverage: 100, CRAP: 1, BaselineCRAP: 1.0},
+				{File: "/project/main.go", Package: "myapp", FuncName: "FuncB", Line: 10, Complexity: 2, Coverage: 90, CRAP: 5.4, BaselineCRAP: 5.4},
+			}},
+			opts: FormatOptions{
+				Threshold: 30.0,
+				Baseline:  &Baseline{},
+				Summary:   &Summary{Combined: 6.4, Average: 3.2, TotalFuncs: 2},
+				ShowUnchanged: true,
+			},
+			checks: checkTableFormatterOutput(
+				checkOutputContains("FuncA"),
+				checkOutputContains("FuncB"),
+				checkOutputNotContains("No changes since baseline."),
+			),
+		},
+		{
+			name: "baseline_all_changed_show_unchanged_false",
+			entries: scan.Entries{List: []score.CRAPEntry{
+				{File: "/project/main.go", Package: "myapp", FuncName: "NewFunc", Line: 1, Complexity: 5, Coverage: 0, CRAP: 30, BaselineCRAP: -1},
+				{File: "/project/main.go", Package: "myapp", FuncName: "RegressedFunc", Line: 10, Complexity: 10, Coverage: 0, CRAP: 100, BaselineCRAP: 30.0},
+			}},
+			opts: FormatOptions{
+				Threshold: 30.0,
+				Baseline:  &Baseline{},
+				Summary:   &Summary{Combined: 130.0, Average: 65.0, TotalFuncs: 2},
+				ShowUnchanged: false,
+			},
+			checks: checkTableFormatterOutput(
+				checkOutputContains("NewFunc"),
+				checkOutputContains("RegressedFunc"),
+				checkOutputContains("function(s) exceed threshold"),
+			),
+		},
+		{
+			name: "no_baseline_show_unchanged_true_is_noop",
+			entries: scan.Entries{List: []score.CRAPEntry{
+				{File: "/project/main.go", Package: "myapp", FuncName: "FuncA", Line: 1, Complexity: 1, Coverage: 100, CRAP: 1},
+				{File: "/project/main.go", Package: "myapp", FuncName: "FuncB", Line: 10, Complexity: 5, Coverage: 0, CRAP: 30},
+			}},
+			opts: FormatOptions{
+				Threshold: 30.0,
+				Summary:   &Summary{Combined: 31.0, Average: 15.5, TotalFuncs: 2},
+				ShowUnchanged: true,
+			},
+			checks: checkTableFormatterOutput(
+				checkOutputContains("FuncA"),
+				checkOutputContains("FuncB"),
+				checkOutputNotContains("No changes since baseline."),
+			),
+		},
+		{
+			name: "baseline_empty_list_all_unchanged",
+			entries:    scan.Entries{List: []score.CRAPEntry{}},
+			opts: FormatOptions{
+				Threshold: 30.0,
+				Baseline:  &Baseline{},
+				Summary:   &Summary{Combined: 0, Average: 0, TotalFuncs: 0},
+				ShowUnchanged: false,
+			},
+			checks: checkTableFormatterOutput(
+				checkOutputContains("No changes since baseline."),
+			),
+			expectNoChanges: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			f := &TableFormatter{}
+			buf := &bytes.Buffer{}
+			opts := tt.opts
+			opts.Writer = buf
+			err := f.Format(&tt.entries, opts)
+			require.NoError(t, err, "Format should not return an error")
+			output := buf.String()
+			for _, c := range tt.checks {
+				c(t, output)
+			}
+		})
+	}
+}
