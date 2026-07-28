@@ -16,23 +16,25 @@ import (
 )
 
 var (
-	flagThreshold               float64
-	flagFailAbove               bool
-	flagFormat                  string
-	flagTop                     int
-	flagMin                     float64
-	flagMissing                 string
-	flagExclude                 []string
-	flagIncludeTests            bool
-	flagVerbose                 bool
-	flagOutput                  string
-	flagMutation                string
-	flagDetailed                bool
-	flagTimeout                 time.Duration
-	flagCoverProf               string
-	flagBaseline                string
-	flagFailRegression          bool
-	flagFailRegressionThreshold float64
+	flagThreshold                    float64
+	flagFailAbove                    bool
+	flagFormat                       string
+	flagTop                          int
+	flagMin                          float64
+	flagMissing                      string
+	flagExclude                      []string
+	flagIncludeTests                 bool
+	flagVerbose                      bool
+	flagOutput                       string
+	flagMutation                     string
+	flagDetailed                     bool
+	flagTimeout                      time.Duration
+	flagCoverProf                    string
+	flagBaseline                     string
+	flagShowUnchanged                bool
+	flagFailRegression               bool
+	flagFailRegressionThreshold      float64
+	flagFailRegressionIgnoreCovered bool
 
 	scanCmd = &cobra.Command{
 		Use:   "scan [path]",
@@ -77,6 +79,10 @@ func init() {
 		"Exit with code 1 if any function's CRAP score regressed compared to baseline")
 	scanCmd.Flags().Float64Var(&flagFailRegressionThreshold, "fail-regression-threshold", 0.01,
 		"Minimum delta to consider a regression when comparing against baseline")
+	scanCmd.Flags().BoolVar(&flagFailRegressionIgnoreCovered, "fail-regression-ignore-covered", false,
+		"Exclude fully covered functions from regression failures (still shows them with ~)")
+	scanCmd.Flags().BoolVar(&flagShowUnchanged, "show-unchanged", false,
+		"In baseline mode, also show unchanged functions (requires --baseline)")
 	rootCmd.AddCommand(scanCmd)
 }
 
@@ -89,6 +95,13 @@ func runScan(cmd *cobra.Command, args []string) error {
 	if flagFailRegression && flagBaseline == "" {
 		return fmt.Errorf("--fail-regression requires --baseline")
 	}
+
+	if flagShowUnchanged && flagBaseline == "" {
+		return fmt.Errorf("--show-unchanged requires --baseline")
+	}
+
+	// all error from here are operational, no need to show usage
+	cmd.SilenceUsage = true
 
 	logLevel := "error"
 	if flagVerbose {
@@ -125,13 +138,15 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 
 	err = output(entries, outputConfig{
-		path:      path,
-		writer:    cmd.OutOrStdout(),
-		output:    flagOutput,
-		format:    flagFormat,
-		threshold: flagThreshold,
-		detailed:  flagDetailed,
-		baseline:  baseline,
+		path:            path,
+		writer:          cmd.OutOrStdout(),
+		output:          flagOutput,
+		format:          flagFormat,
+		threshold:       flagThreshold,
+		detailed:        flagDetailed,
+		baseline:        baseline,
+		showUnchanged:   flagShowUnchanged,
+		ignoreCovered:   flagFailRegressionIgnoreCovered,
 	})
 	if err != nil {
 		return err
@@ -142,35 +157,56 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 
 	if flagFailRegression && baseline != nil {
-		regressions := report.FindRegressions(entries.List, flagFailRegressionThreshold)
-		if len(regressions) > 0 {
-			return fmtRegressionError(cmd.OutOrStderr(), regressions, baseline.Summary)
+		regressions, ignored := report.FindRegressions(entries.List, flagFailRegressionThreshold, flagFailRegressionIgnoreCovered)
+		if len(regressions) > 0 || len(ignored) > 0 {
+			var currentCombined float64
+			for _, e := range entries.List {
+				currentCombined += e.EffectiveScore()
+			}
+			return fmtRegressionError(cmd.OutOrStderr(), regressions, ignored, currentCombined, baseline.Summary.Combined)
 		}
 	}
 
 	return nil
 }
 
-func fmtRegressionError(w io.Writer, regressions []score.CRAPEntry, baselineSummary report.Summary) error {
-	fmt.Fprintln(w, "CRAP regression detected:")
-	for _, e := range regressions {
-		fmt.Fprintf(w, "  %s:%d %s: %.2f -> %.2f (+%.2f)\n",
-			e.File, e.Line, e.FuncName,
-			e.BaselineCRAP, e.EffectiveCRAP,
-			e.EffectiveCRAP-e.BaselineCRAP)
+func fmtRegressionError(w io.Writer, regressions, ignored []score.CRAPEntry, currentCombined, baselineCombined float64) error {
+	if len(regressions) > 0 {
+		fmt.Fprintln(w, "CRAP regression detected:")
+		for _, e := range regressions {
+			fmt.Fprintf(w, "  %s:%d %s: %.2f -> %.2f (+%.2f)\n",
+				e.File, e.Line, e.FuncName,
+				e.BaselineCRAP, e.EffectiveCRAP,
+				e.EffectiveCRAP-e.BaselineCRAP)
+		}
 	}
-	fmt.Fprintf(w, "Combined CRAP: %+0.2f vs baseline\n", baselineSummary.Combined)
-	return scan.ErrRegression
+	if len(ignored) > 0 {
+		fmt.Fprintln(w, "\nIgnored (fully covered):")
+		for _, e := range ignored {
+			fmt.Fprintf(w, "  %s:%d %s: %.2f -> %.2f (+%.2f)\n",
+				e.File, e.Line, e.FuncName,
+				e.BaselineCRAP, e.EffectiveCRAP,
+				e.EffectiveCRAP-e.BaselineCRAP)
+		}
+	}
+	if len(regressions) > 0 {
+		delta := currentCombined - baselineCombined
+		fmt.Fprintf(w, "Combined CRAP: %.2f (Δ%+.2f vs baseline)\n", currentCombined, delta)
+		return scan.ErrRegression
+	}
+	return nil
 }
 
 type outputConfig struct {
-	writer    io.Writer
-	baseline  *report.Baseline
-	format    string
-	output    string
-	path      string
-	threshold float64
-	detailed  bool
+	writer            io.Writer
+	baseline          *report.Baseline
+	format            string
+	output            string
+	path              string
+	threshold         float64
+	detailed          bool
+	showUnchanged     bool
+	ignoreCovered     bool
 }
 
 func output(entries *scan.Entries, config outputConfig) error {
@@ -203,13 +239,15 @@ func output(entries *scan.Entries, config outputConfig) error {
 		return err
 	}
 
-	opts := report.FormatOptions{
-		Threshold: config.threshold,
-		Writer:    config.writer,
-		BaseDir:   config.path,
-		Detailed:  config.detailed,
-		Summary:   &summary,
-		Baseline:  baselineSummary,
+opts := report.FormatOptions{
+		Threshold:     config.threshold,
+		Writer:        config.writer,
+		BaseDir:       config.path,
+		Detailed:      config.detailed,
+		Summary:       &summary,
+		Baseline:      baselineSummary,
+		ShowUnchanged: config.showUnchanged,
+		IgnoreCovered: config.ignoreCovered,
 	}
 
 	if err := formatter.Format(entries, opts); err != nil {

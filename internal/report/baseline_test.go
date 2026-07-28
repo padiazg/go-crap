@@ -889,8 +889,9 @@ func TestFindRegressions_empty(t *testing.T) {
 	entries := []score.CRAPEntry{
 		{File: "a.go", FuncName: "Foo", EffectiveCRAP: 10.0, BaselineCRAP: -1},
 	}
-	result := FindRegressions(entries, 0.01)
+	result, ignored := FindRegressions(entries, 0.01, false)
 	assert.Empty(t, result)
+	assert.Empty(t, ignored)
 }
 
 func TestFindRegressions_no_regresions(t *testing.T) {
@@ -898,8 +899,9 @@ func TestFindRegressions_no_regresions(t *testing.T) {
 		{File: "a.go", FuncName: "Foo", EffectiveCRAP: 10.0, BaselineCRAP: 15.0},
 		{File: "b.go", FuncName: "Bar", EffectiveCRAP: 5.0, BaselineCRAP: 8.0},
 	}
-	result := FindRegressions(entries, 0.01)
+	result, ignored := FindRegressions(entries, 0.01, false)
 	assert.Empty(t, result)
+	assert.Empty(t, ignored)
 }
 
 func TestFindRegressions_identifies_regresions(t *testing.T) {
@@ -908,10 +910,11 @@ func TestFindRegressions_identifies_regresions(t *testing.T) {
 		{File: "b.go", FuncName: "Bar", EffectiveCRAP: 5.0, BaselineCRAP: 8.0},
 		{File: "c.go", FuncName: "Baz", EffectiveCRAP: 20.0, BaselineCRAP: 18.0},
 	}
-	result := FindRegressions(entries, 0.01)
+	result, ignored := FindRegressions(entries, 0.01, false)
 	assert.Len(t, result, 2)
 	assert.Equal(t, "Foo", result[0].FuncName)
 	assert.InDelta(t, 5.0, result[0].EffectiveCRAP-result[0].BaselineCRAP, 0.01)
+	assert.Empty(t, ignored)
 }
 
 func TestFindRegressions_tolerance_filters_small_deltas(t *testing.T) {
@@ -919,9 +922,10 @@ func TestFindRegressions_tolerance_filters_small_deltas(t *testing.T) {
 		{File: "a.go", FuncName: "Foo", EffectiveCRAP: 10.05, BaselineCRAP: 10.0},
 		{File: "b.go", FuncName: "Bar", EffectiveCRAP: 15.0, BaselineCRAP: 10.0},
 	}
-	result := FindRegressions(entries, 0.1)
+	result, ignored := FindRegressions(entries, 0.1, false)
 	assert.Len(t, result, 1)
 	assert.Equal(t, "Bar", result[0].FuncName)
+	assert.Empty(t, ignored)
 }
 
 func TestFindRegressions_default_tolerance(t *testing.T) {
@@ -929,9 +933,48 @@ func TestFindRegressions_default_tolerance(t *testing.T) {
 		{File: "a.go", FuncName: "Foo", EffectiveCRAP: 10.02, BaselineCRAP: 10.0},
 		{File: "b.go", FuncName: "Bar", EffectiveCRAP: 10.005, BaselineCRAP: 10.0},
 	}
-	result := FindRegressions(entries, 0)
+	result, ignored := FindRegressions(entries, 0, false)
 	assert.Len(t, result, 1)
 	assert.Equal(t, "Foo", result[0].FuncName)
+	assert.Empty(t, ignored)
+}
+
+func TestFindRegressions_ignoreCovered_filters_fully_covered(t *testing.T) {
+	entries := []score.CRAPEntry{
+		{File: "a.go", FuncName: "Foo", EffectiveCRAP: 15.0, BaselineCRAP: 10.0, Coverage: 100.0},
+		{File: "b.go", FuncName: "Bar", EffectiveCRAP: 20.0, BaselineCRAP: 10.0, Coverage: 90.0},
+		{File: "c.go", FuncName: "Baz", EffectiveCRAP: 12.0, BaselineCRAP: 10.0, Coverage: 100.0},
+	}
+	result, ignored := FindRegressions(entries, 0.01, true)
+	assert.Len(t, result, 1)
+	assert.Equal(t, "Bar", result[0].FuncName)
+	assert.Len(t, ignored, 2)
+	assert.Equal(t, "Foo", ignored[0].FuncName)
+	assert.Equal(t, "Baz", ignored[1].FuncName)
+}
+
+func TestFindRegressions_ignoreCovered_false_returns_all(t *testing.T) {
+	entries := []score.CRAPEntry{
+		{File: "a.go", FuncName: "Foo", EffectiveCRAP: 15.0, BaselineCRAP: 10.0, Coverage: 100.0},
+		{File: "b.go", FuncName: "Bar", EffectiveCRAP: 20.0, BaselineCRAP: 10.0, Coverage: 0.0},
+	}
+	result, ignored := FindRegressions(entries, 0.01, false)
+	assert.Len(t, result, 2)
+	assert.Empty(t, ignored)
+}
+
+func TestFindRegressions_ignoreCovered_near_boundary(t *testing.T) {
+	entries := []score.CRAPEntry{
+		{File: "a.go", FuncName: "Foo", EffectiveCRAP: 15.0, BaselineCRAP: 10.0, Coverage: 99.94},
+		{File: "b.go", FuncName: "Bar", EffectiveCRAP: 20.0, BaselineCRAP: 10.0, Coverage: 99.95},
+		{File: "c.go", FuncName: "Baz", EffectiveCRAP: 25.0, BaselineCRAP: 10.0, Coverage: 100.0},
+	}
+	result, ignored := FindRegressions(entries, 0.01, true)
+	assert.Len(t, result, 1)
+	assert.Equal(t, "Foo", result[0].FuncName)
+	assert.Len(t, ignored, 2)
+	assert.Equal(t, "Bar", ignored[0].FuncName)
+	assert.Equal(t, "Baz", ignored[1].FuncName)
 }
 
 func TestAnnotateWithBaseline_absolute_vs_relative_path(t *testing.T) {
