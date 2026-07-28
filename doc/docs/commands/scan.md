@@ -35,6 +35,7 @@ go-crap scan [path] [flags]
 | `--baseline` | | Path to a previous JSON report for baseline comparison | `""` |
 | `--fail-regression` | | Exit code 1 when functions regressed vs baseline | `false` |
 | `--fail-regression-threshold` | | Minimum delta to consider regression | `0.01` |
+| `--fail-regression-ignore-covered` | | Exclude fully covered functions from regression failures (still shows them with `~`) | `false` |
 
 > `CoverageUntrusted` has meaning only if `--mutation-report` was used.
 
@@ -216,6 +217,16 @@ go-crap scan --baseline baseline.json --fail-regression
 ```
 
 Exits with code 1 when any function's CRAP score has increased (regressed) compared to the baseline. Use `--fail-regression-threshold` to adjust the minimum delta that counts as a regression.
+
+### Ignoring fully covered regressions
+
+```shell
+go-crap scan --baseline baseline.json --fail-regression --fail-regression-ignore-covered
+```
+
+When `--fail-regression-ignore-covered` is set, fully covered functions (coverage ≥ 99.95%) that have regressed are excluded from triggering the exit code 1 failure. They are still reported in the PR comment output with a `~` symbol to indicate they were ignored.
+
+This is useful in CI pipelines where you want to enforce regression detection on partially covered functions while acknowledging that fully tested code shouldn't count as a failure.
 
 ### Combined threshold + regression
 

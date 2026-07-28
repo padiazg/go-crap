@@ -60,6 +60,7 @@ go-crap scan --exclude 'pb/.*\.go'
 | - | - | - | - |
 | `--threshold` | `-t` | Score above which a function is marked as problematic | `30.0` |
 | `--fail-above` | | Exit with code 1 if any function exceeds the threshold | `false` |
+| `--fail-regression-ignore-covered` | | Exclude fully covered functions from regression failures (still shows them with `~`) | `false` |
 | `--format` | `-f` | Output format: `table`, `json`, `github`, `sarif`, or `pr-comment` | `table` |
 | `--top` | | Show only the N worst offenders (0 = all) | `0` |
 | `--min` | | Hide entries below this score | `0` |
@@ -194,6 +195,7 @@ go-crap scan
 
 - `--fail-above` exits with code 1 when any function exceeds the threshold
 - `--fail-regression` exits with code 1 when functions regressed vs baseline
+- `--fail-regression-ignore-covered` excludes fully covered functions from regression failures (still shows them with `~`)
 - `--format github` emits `::warning` annotations that render as PR comments
 - `--format sarif` outputs SARIF 2.1.0 for integration with code scanning tools
 - `--format pr-comment` generates a markdown table for pull request comments
