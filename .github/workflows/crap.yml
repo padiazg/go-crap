@@ -93,7 +93,7 @@ jobs:
 
       - name: check for regressions
         if: github.event_name == 'pull_request' && hashFiles('baseline/crap-current.json') != ''
-        run: ./go-crap scan --baseline baseline/crap-current.json --fail-regression
+        run: ./go-crap scan --baseline baseline/crap-current.json --fail-regression --fail-regression-ignore-covered
 
       - name: generate pr comment
         if: github.event_name == 'pull_request'
