@@ -16,24 +16,24 @@ import (
 )
 
 var (
-	flagThreshold                    float64
-	flagFailAbove                    bool
-	flagFormat                       string
-	flagTop                          int
-	flagMin                          float64
-	flagMissing                      string
-	flagExclude                      []string
-	flagIncludeTests                 bool
-	flagVerbose                      bool
-	flagOutput                       string
-	flagMutation                     string
-	flagDetailed                     bool
-	flagTimeout                      time.Duration
-	flagCoverProf                    string
-	flagBaseline                     string
-	flagShowUnchanged                bool
-	flagFailRegression               bool
-	flagFailRegressionThreshold      float64
+	flagThreshold                   float64
+	flagFailAbove                   bool
+	flagFormat                      string
+	flagTop                         int
+	flagMin                         float64
+	flagMissing                     string
+	flagExclude                     []string
+	flagIncludeTests                bool
+	flagVerbose                     bool
+	flagOutput                      string
+	flagMutation                    string
+	flagDetailed                    bool
+	flagTimeout                     time.Duration
+	flagCoverProf                   string
+	flagBaseline                    string
+	flagShowUnchanged               bool
+	flagFailRegression              bool
+	flagFailRegressionThreshold     float64
 	flagFailRegressionIgnoreCovered bool
 
 	scanCmd = &cobra.Command{
@@ -138,15 +138,15 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 
 	err = output(entries, outputConfig{
-		path:            path,
-		writer:          cmd.OutOrStdout(),
-		output:          flagOutput,
-		format:          flagFormat,
-		threshold:       flagThreshold,
-		detailed:        flagDetailed,
-		baseline:        baseline,
-		showUnchanged:   flagShowUnchanged,
-		ignoreCovered:   flagFailRegressionIgnoreCovered,
+		path:          path,
+		writer:        cmd.OutOrStdout(),
+		output:        flagOutput,
+		format:        flagFormat,
+		threshold:     flagThreshold,
+		detailed:      flagDetailed,
+		baseline:      baseline,
+		showUnchanged: flagShowUnchanged,
+		ignoreCovered: flagFailRegressionIgnoreCovered,
 	})
 	if err != nil {
 		return err
@@ -198,15 +198,15 @@ func fmtRegressionError(w io.Writer, regressions, ignored []score.CRAPEntry, cur
 }
 
 type outputConfig struct {
-	writer            io.Writer
-	baseline          *report.Baseline
-	format            string
-	output            string
-	path              string
-	threshold         float64
-	detailed          bool
-	showUnchanged     bool
-	ignoreCovered     bool
+	writer        io.Writer
+	baseline      *report.Baseline
+	format        string
+	output        string
+	path          string
+	threshold     float64
+	detailed      bool
+	showUnchanged bool
+	ignoreCovered bool
 }
 
 func output(entries *scan.Entries, config outputConfig) error {
@@ -239,7 +239,7 @@ func output(entries *scan.Entries, config outputConfig) error {
 		return err
 	}
 
-opts := report.FormatOptions{
+	opts := report.FormatOptions{
 		Threshold:     config.threshold,
 		Writer:        config.writer,
 		BaseDir:       config.path,

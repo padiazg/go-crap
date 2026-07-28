@@ -582,15 +582,15 @@ func Test_anyChanged(t *testing.T) {
 
 func TestTableFormatter_printSummary(t *testing.T) {
 	tests := []struct {
-		name     string
-		opts     FormatOptions
-		checks   []checkTableFormatterOutputFn
+		name   string
+		opts   FormatOptions
+		checks []checkTableFormatterOutputFn
 	}{
 		{
-			name: "nil_summary",
-			opts: FormatOptions{Writer: &strings.Builder{}},
+			name:   "nil_summary",
+			opts:   FormatOptions{Writer: &strings.Builder{}},
 			checks: checkTableFormatterOutput(
-				// no output expected
+			// no output expected
 			),
 		},
 		{
@@ -638,10 +638,10 @@ func TestTableFormatter_printSummary(t *testing.T) {
 
 func TestTableFormatter_Format_baseline_filtering(t *testing.T) {
 	tests := []struct {
-		name       string
-		entries    scan.Entries
-		opts       FormatOptions
-		checks     []checkTableFormatterOutputFn
+		name            string
+		entries         scan.Entries
+		opts            FormatOptions
+		checks          []checkTableFormatterOutputFn
 		expectNoChanges bool
 	}{
 		{
@@ -651,9 +651,9 @@ func TestTableFormatter_Format_baseline_filtering(t *testing.T) {
 				{File: "/project/main.go", Package: "myapp", FuncName: "FuncB", Line: 10, Complexity: 2, Coverage: 90, CRAP: 5.4, BaselineCRAP: 5.4},
 			}},
 			opts: FormatOptions{
-				Threshold: 30.0,
-				Baseline:  &Baseline{},
-				Summary:   &Summary{Combined: 6.4, Average: 3.2, TotalFuncs: 2},
+				Threshold:     30.0,
+				Baseline:      &Baseline{},
+				Summary:       &Summary{Combined: 6.4, Average: 3.2, TotalFuncs: 2},
 				ShowUnchanged: false,
 			},
 			checks: checkTableFormatterOutput(
@@ -671,9 +671,9 @@ func TestTableFormatter_Format_baseline_filtering(t *testing.T) {
 				{File: "/project/main.go", Package: "myapp", FuncName: "ImprovedFunc", Line: 20, Complexity: 3, Coverage: 80, CRAP: 3.6, BaselineCRAP: 9.0},
 			}},
 			opts: FormatOptions{
-				Threshold: 30.0,
-				Baseline:  &Baseline{},
-				Summary:   &Summary{Combined: 17.1, Average: 5.7, TotalFuncs: 3},
+				Threshold:     30.0,
+				Baseline:      &Baseline{},
+				Summary:       &Summary{Combined: 17.1, Average: 5.7, TotalFuncs: 3},
 				ShowUnchanged: false,
 			},
 			checks: checkTableFormatterOutput(
@@ -690,9 +690,9 @@ func TestTableFormatter_Format_baseline_filtering(t *testing.T) {
 				{File: "/project/main.go", Package: "myapp", FuncName: "FuncB", Line: 10, Complexity: 2, Coverage: 90, CRAP: 5.4, BaselineCRAP: 5.4},
 			}},
 			opts: FormatOptions{
-				Threshold: 30.0,
-				Baseline:  &Baseline{},
-				Summary:   &Summary{Combined: 6.4, Average: 3.2, TotalFuncs: 2},
+				Threshold:     30.0,
+				Baseline:      &Baseline{},
+				Summary:       &Summary{Combined: 6.4, Average: 3.2, TotalFuncs: 2},
 				ShowUnchanged: true,
 			},
 			checks: checkTableFormatterOutput(
@@ -708,9 +708,9 @@ func TestTableFormatter_Format_baseline_filtering(t *testing.T) {
 				{File: "/project/main.go", Package: "myapp", FuncName: "RegressedFunc", Line: 10, Complexity: 10, Coverage: 0, CRAP: 100, BaselineCRAP: 30.0},
 			}},
 			opts: FormatOptions{
-				Threshold: 30.0,
-				Baseline:  &Baseline{},
-				Summary:   &Summary{Combined: 130.0, Average: 65.0, TotalFuncs: 2},
+				Threshold:     30.0,
+				Baseline:      &Baseline{},
+				Summary:       &Summary{Combined: 130.0, Average: 65.0, TotalFuncs: 2},
 				ShowUnchanged: false,
 			},
 			checks: checkTableFormatterOutput(
@@ -726,8 +726,8 @@ func TestTableFormatter_Format_baseline_filtering(t *testing.T) {
 				{File: "/project/main.go", Package: "myapp", FuncName: "FuncB", Line: 10, Complexity: 5, Coverage: 0, CRAP: 30},
 			}},
 			opts: FormatOptions{
-				Threshold: 30.0,
-				Summary:   &Summary{Combined: 31.0, Average: 15.5, TotalFuncs: 2},
+				Threshold:     30.0,
+				Summary:       &Summary{Combined: 31.0, Average: 15.5, TotalFuncs: 2},
 				ShowUnchanged: true,
 			},
 			checks: checkTableFormatterOutput(
@@ -737,12 +737,12 @@ func TestTableFormatter_Format_baseline_filtering(t *testing.T) {
 			),
 		},
 		{
-			name: "baseline_empty_list_all_unchanged",
-			entries:    scan.Entries{List: []score.CRAPEntry{}},
+			name:    "baseline_empty_list_all_unchanged",
+			entries: scan.Entries{List: []score.CRAPEntry{}},
 			opts: FormatOptions{
-				Threshold: 30.0,
-				Baseline:  &Baseline{},
-				Summary:   &Summary{Combined: 0, Average: 0, TotalFuncs: 0},
+				Threshold:     30.0,
+				Baseline:      &Baseline{},
+				Summary:       &Summary{Combined: 0, Average: 0, TotalFuncs: 0},
 				ShowUnchanged: false,
 			},
 			checks: checkTableFormatterOutput(

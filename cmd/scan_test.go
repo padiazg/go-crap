@@ -51,15 +51,6 @@ func checkoutputError(want string) outputCheckFn {
 	}
 }
 
-func checkoutputBaselineContains(want string) outputCheckFn {
-	return func(t *testing.T, writer io.Writer, err error) {
-		t.Helper()
-		assert.NoErrorf(t, err, "expected no error, got %v", err)
-		mw, ok := writer.(*mockWriter)
-		assert.Truef(t, ok, "writer is not mockWriter")
-		assert.Containsf(t, string(mw.buf), want, "output should contain %q", want)
-	}
-}
 func Test_output(t *testing.T) {
 	entries := &scan.Entries{
 		List: []score.CRAPEntry{
@@ -873,21 +864,21 @@ func Test_failRegressionIgnoreCoveredFlag_registered(t *testing.T) {
 
 func Test_fmtRegressionError(t *testing.T) {
 	tests := []struct {
-		name       string
-		regressions []score.CRAPEntry
-		ignored    []score.CRAPEntry
-		currentCombined float64
+		name             string
+		regressions      []score.CRAPEntry
+		ignored          []score.CRAPEntry
+		currentCombined  float64
 		baselineCombined float64
-		wantContains []string
-		wantErr bool
+		wantContains     []string
+		wantErr          bool
 	}{
 		{
-			name:       "only regressions",
+			name: "only regressions",
 			regressions: []score.CRAPEntry{
 				{File: "cmd/scan.go", Line: 10, FuncName: "Foo", BaselineCRAP: 5.0, EffectiveCRAP: 10.0},
 			},
-			ignored:         []score.CRAPEntry{},
-			currentCombined: 20.0,
+			ignored:          []score.CRAPEntry{},
+			currentCombined:  20.0,
 			baselineCombined: 15.0,
 			wantContains: []string{
 				"CRAP regression detected:",
@@ -897,12 +888,12 @@ func Test_fmtRegressionError(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:       "only ignored fully covered",
+			name:        "only ignored fully covered",
 			regressions: []score.CRAPEntry{},
 			ignored: []score.CRAPEntry{
 				{File: "cmd/scan.go", Line: 20, FuncName: "Bar", BaselineCRAP: 5.0, EffectiveCRAP: 7.0, Coverage: 100.0},
 			},
-			currentCombined: 20.0,
+			currentCombined:  20.0,
 			baselineCombined: 15.0,
 			wantContains: []string{
 				"Ignored (fully covered):",
@@ -911,14 +902,14 @@ func Test_fmtRegressionError(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:       "mixed regressions and ignored",
+			name: "mixed regressions and ignored",
 			regressions: []score.CRAPEntry{
 				{File: "internal/foo.go", Line: 30, FuncName: "Baz", BaselineCRAP: 3.0, EffectiveCRAP: 8.0},
 			},
 			ignored: []score.CRAPEntry{
 				{File: "cmd/scan.go", Line: 10, FuncName: "Qux", BaselineCRAP: 4.0, EffectiveCRAP: 6.0, Coverage: 100.0},
 			},
-			currentCombined: 25.0,
+			currentCombined:  25.0,
 			baselineCombined: 20.0,
 			wantContains: []string{
 				"CRAP regression detected:",
