@@ -979,7 +979,7 @@ func TestPRCommentFormatter_writeRegressionsSection(t *testing.T) {
 				{File: "/project/main.go", Package: "myapp", FuncName: "FullyCovered", Line: 1, BaselineCRAP: 0, EffectiveCRAP: 20, Coverage: 100},
 			},
 			ignoreCovered: true,
-			checks: []checkRegressionsOutputFn{checkRegressionsOutputEmpty()},
+			checks:        []checkRegressionsOutputFn{checkRegressionsOutputEmpty()},
 		},
 		{
 			name: "ignore_covered_true_uncovered_regression",
