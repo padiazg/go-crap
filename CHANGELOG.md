@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Baseline comparison engine — load previous JSON reports for delta analysis
 - New `--baseline <path>` flag — compare current CRAP against a previous report
 - New `--fail-regression` flag — exit code 1 when functions regressed vs baseline
+- New `--fail-regression-ignore-covered` flag — exclude fully covered functions from regression failures (still shows them with `~`)
 - New `--fail-regression-threshold <float>` flag (default `0.01`) — minimum delta to trigger
 - `Baseline` struct with `LoadBaseline()` — parses JSON reports into comparison-ready data
 - `AnnotateWithBaseline()` — sets `BaselineCRAP` on each CRAP entry for delta tracking

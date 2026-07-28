@@ -51,6 +51,18 @@ go-crap scan --baseline baseline.json --fail-regression --fail-regression-thresh
 
 Only flags functions whose CRAP increased by more than the threshold.
 
+### `--fail-regression-ignore-covered`
+
+Exclude fully covered functions from regression failures (default: `false`).
+
+```bash
+go-crap scan --baseline baseline.json --fail-regression --fail-regression-ignore-covered
+```
+
+When enabled, functions with coverage ≥ 99.95% that have regressed are excluded from triggering the exit code 1 failure. They are still visible in the PR comment output with a `~` symbol.
+
+This is useful when you want to enforce regression detection on partially covered functions while acknowledging that fully tested code shouldn't count as a failure.
+
 ## CI Example: GitHub Actions
 
 ### Generate baseline on main
