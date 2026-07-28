@@ -885,3 +885,327 @@ func TestPRCommentFormatter_Format_summary_empty_entries(t *testing.T) {
 	assert.Contains(t, output, "Average CRAP: 0.00")
 	assert.Contains(t, output, "0 function(s) analyzed")
 }
+
+type checkRegressionsOutputFn func(*testing.T, string)
+
+func checkRegressionsOutputContains(want string) checkRegressionsOutputFn {
+	return func(t *testing.T, got string) {
+		t.Helper()
+		assert.Containsf(t, got, want, "output should contain %q", want)
+	}
+}
+
+func checkRegressionsOutputNotContains(want string) checkRegressionsOutputFn {
+	return func(t *testing.T, got string) {
+		t.Helper()
+		assert.NotContainsf(t, got, want, "output should not contain %q", want)
+	}
+}
+
+func checkRegressionsOutputEmpty() checkRegressionsOutputFn {
+	return func(t *testing.T, got string) {
+		t.Helper()
+		assert.Empty(t, got, "output should be empty")
+	}
+}
+
+func TestPRCommentFormatter_writeRegressionsSection(t *testing.T) {
+	tests := []struct {
+		name          string
+		w             *bytes.Buffer
+		sorted        []score.CRAPEntry
+		baseDir       string
+		ignoreCovered bool
+		checks        []checkRegressionsOutputFn
+	}{
+		{
+			name:   "no_regressions_empty_sorted",
+			sorted: []score.CRAPEntry{},
+			checks: []checkRegressionsOutputFn{checkRegressionsOutputEmpty()},
+		},
+		{
+			name: "no_regressions_baseline_negative",
+			sorted: []score.CRAPEntry{
+				{File: "/project/main.go", Package: "myapp", FuncName: "NewFunc", Line: 1, BaselineCRAP: -1, EffectiveCRAP: 10},
+				{File: "/project/main.go", Package: "myapp", FuncName: "AlsoNew", Line: 5, BaselineCRAP: -1, EffectiveCRAP: 20},
+			},
+			checks: []checkRegressionsOutputFn{checkRegressionsOutputEmpty()},
+		},
+		{
+			name: "no_regressions_delta_below_tolerance",
+			sorted: []score.CRAPEntry{
+				{File: "/project/main.go", Package: "myapp", FuncName: "Almost", Line: 1, BaselineCRAP: 0, EffectiveCRAP: 0.009},
+			},
+			checks: []checkRegressionsOutputFn{checkRegressionsOutputEmpty()},
+		},
+		{
+			name: "single_regression",
+			sorted: []score.CRAPEntry{
+				{File: "/project/main.go", Package: "myapp", FuncName: "Degraded", Line: 10, BaselineCRAP: 0, EffectiveCRAP: 10},
+			},
+			checks: []checkRegressionsOutputFn{checkRegressionsOutputContains("## \U0001f534 Regressions")},
+		},
+		{
+			name: "multiple_regressions_sorted_by_delta_desc",
+			sorted: []score.CRAPEntry{
+				{File: "/project/a.go", Package: "myapp", FuncName: "SmallDelta", Line: 1, BaselineCRAP: 0, EffectiveCRAP: 5},
+				{File: "/project/b.go", Package: "myapp", FuncName: "BigDelta", Line: 2, BaselineCRAP: 0, EffectiveCRAP: 15},
+				{File: "/project/c.go", Package: "myapp", FuncName: "MidDelta", Line: 3, BaselineCRAP: 0, EffectiveCRAP: 10},
+			},
+			checks: []checkRegressionsOutputFn{
+				checkRegressionsOutputContains("## \U0001f534 Regressions"),
+				checkRegressionsOutputContains("BigDelta"),
+				checkRegressionsOutputContains("MidDelta"),
+				checkRegressionsOutputContains("SmallDelta"),
+			},
+		},
+		{
+			name: "delta_at_tolerance_boundary_above",
+			sorted: []score.CRAPEntry{
+				{File: "/project/main.go", Package: "myapp", FuncName: "JustAbove", Line: 1, BaselineCRAP: 0, EffectiveCRAP: 0.011},
+			},
+			checks: []checkRegressionsOutputFn{checkRegressionsOutputContains("## \U0001f534 Regressions")},
+		},
+		{
+			name: "delta_at_tolerance_boundary_below",
+			sorted: []score.CRAPEntry{
+				{File: "/project/main.go", Package: "myapp", FuncName: "JustBelow", Line: 1, BaselineCRAP: 0, EffectiveCRAP: 0.009},
+			},
+			checks: []checkRegressionsOutputFn{checkRegressionsOutputEmpty()},
+		},
+		{
+			name: "ignore_covered_true_all_covered_no_regressions",
+			sorted: []score.CRAPEntry{
+				{File: "/project/main.go", Package: "myapp", FuncName: "FullyCovered", Line: 1, BaselineCRAP: 0, EffectiveCRAP: 20, Coverage: 100},
+			},
+			ignoreCovered: true,
+			checks: []checkRegressionsOutputFn{checkRegressionsOutputEmpty()},
+		},
+		{
+			name: "ignore_covered_true_uncovered_regression",
+			sorted: []score.CRAPEntry{
+				{File: "/project/main.go", Package: "myapp", FuncName: "PartiallyCovered", Line: 1, BaselineCRAP: 0, EffectiveCRAP: 20, Coverage: 50},
+			},
+			ignoreCovered: true,
+			checks: []checkRegressionsOutputFn{
+				checkRegressionsOutputContains("## \U0001f534 Regressions"),
+				checkRegressionsOutputContains("PartiallyCovered"),
+				checkRegressionsOutputNotContains("## Ignored"),
+			},
+		},
+		{
+			name: "ignore_covered_mixed_regressed_and_ignored",
+			sorted: []score.CRAPEntry{
+				{File: "/project/main.go", Package: "myapp", FuncName: "IgnoredFunc", Line: 1, BaselineCRAP: 0, EffectiveCRAP: 20, Coverage: 100},
+				{File: "/project/main.go", Package: "myapp", FuncName: "RegressedFunc", Line: 2, BaselineCRAP: 0, EffectiveCRAP: 10, Coverage: 50},
+			},
+			ignoreCovered: true,
+			checks: []checkRegressionsOutputFn{
+				checkRegressionsOutputContains("## \U0001f534 Regressions"),
+				checkRegressionsOutputContains("RegressedFunc"),
+				checkRegressionsOutputContains("## Ignored (fully covered)"),
+				checkRegressionsOutputContains("IgnoredFunc"),
+			},
+		},
+		{
+			name: "ignore_covered_false_covered_regression",
+			sorted: []score.CRAPEntry{
+				{File: "/project/main.go", Package: "myapp", FuncName: "FullyCovered", Line: 1, BaselineCRAP: 0, EffectiveCRAP: 20, Coverage: 100},
+			},
+			ignoreCovered: false,
+			checks: []checkRegressionsOutputFn{
+				checkRegressionsOutputContains("## \U0001f534 Regressions"),
+				checkRegressionsOutputContains("FullyCovered"),
+				checkRegressionsOutputNotContains("## Ignored"),
+			},
+		},
+		{
+			name: "baseline_crap_zero",
+			sorted: []score.CRAPEntry{
+				{File: "/project/main.go", Package: "myapp", FuncName: "ZeroBaseline", Line: 1, BaselineCRAP: 0, EffectiveCRAP: 5},
+			},
+			checks: []checkRegressionsOutputFn{checkRegressionsOutputContains("## \U0001f534 Regressions")},
+		},
+		{
+			name: "negative_delta_not_shown",
+			sorted: []score.CRAPEntry{
+				{File: "/project/main.go", Package: "myapp", FuncName: "Improved", Line: 1, BaselineCRAP: 10, EffectiveCRAP: 5},
+			},
+			checks: []checkRegressionsOutputFn{checkRegressionsOutputEmpty()},
+		},
+		{
+			name: "with_base_dir_relativized",
+			sorted: []score.CRAPEntry{
+				{File: "/tmp/project/main.go", Package: "myapp", FuncName: "Relocated", Line: 15, BaselineCRAP: 0, EffectiveCRAP: 10},
+			},
+			baseDir: "/tmp/project",
+			checks: []checkRegressionsOutputFn{
+				checkRegressionsOutputContains("## \U0001f534 Regressions"),
+				checkRegressionsOutputContains("`main.go:15`"),
+				checkRegressionsOutputNotContains("`/tmp/project/main.go:15`"),
+			},
+		},
+		{
+			name: "ignore_covered_tilde_in_ignored_section",
+			sorted: []score.CRAPEntry{
+				{File: "/project/main.go", Package: "myapp", FuncName: "Regressed", Line: 1, BaselineCRAP: 0, EffectiveCRAP: 10, Coverage: 50},
+				{File: "/project/main.go", Package: "myapp", FuncName: "CoveredDegraded", Line: 2, BaselineCRAP: 0, EffectiveCRAP: 30, Coverage: 100},
+			},
+			ignoreCovered: true,
+			checks: []checkRegressionsOutputFn{
+				checkRegressionsOutputContains("## \U0001f534 Regressions"),
+				checkRegressionsOutputContains("Regressed"),
+				checkRegressionsOutputContains("## Ignored (fully covered)"),
+				checkRegressionsOutputContains("CoveredDegraded"),
+				checkRegressionsOutputContains("~"),
+			},
+		},
+		{
+			name: "delta_at_tolerance_boundary_exact",
+			sorted: []score.CRAPEntry{
+				{File: "/project/main.go", Package: "myapp", FuncName: "ExactlyAt", Line: 1, BaselineCRAP: 0, EffectiveCRAP: 0.01},
+			},
+			checks: []checkRegressionsOutputFn{checkRegressionsOutputEmpty()},
+		},
+		{
+			name: "multiple_regressions_with_negative_deltas",
+			sorted: []score.CRAPEntry{
+				{File: "/project/a.go", Package: "myapp", FuncName: "Improved", Line: 1, BaselineCRAP: 10, EffectiveCRAP: 5},
+				{File: "/project/b.go", Package: "myapp", FuncName: "Regressed", Line: 2, BaselineCRAP: 0, EffectiveCRAP: 15},
+				{File: "/project/c.go", Package: "myapp", FuncName: "WorseRegressed", Line: 3, BaselineCRAP: 0, EffectiveCRAP: 25},
+			},
+			checks: []checkRegressionsOutputFn{
+				checkRegressionsOutputContains("## \U0001f534 Regressions"),
+				checkRegressionsOutputContains("WorseRegressed"),
+				checkRegressionsOutputContains("Regressed"),
+				checkRegressionsOutputNotContains("Improved"),
+			},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			f := &PRCommentFormatter{}
+			if tt.w == nil {
+				tt.w = &bytes.Buffer{}
+			}
+			f.writeRegressionsSection(tt.w, tt.sorted, tt.baseDir, tt.ignoreCovered)
+			for _, c := range tt.checks {
+				c(t, tt.w.String())
+			}
+		})
+	}
+}
+
+func Test_formatPRDelta(t *testing.T) {
+	tests := []struct {
+		name          string
+		e             score.CRAPEntry
+		ignoreCovered bool
+		want          string
+	}{
+		{
+			name:          "new_function",
+			e:             score.CRAPEntry{BaselineCRAP: -1, EffectiveCRAP: 10},
+			ignoreCovered: false,
+			want:          "[NEW]",
+		},
+		{
+			name:          "negative_baseline_new",
+			e:             score.CRAPEntry{BaselineCRAP: -0.5, EffectiveCRAP: 10},
+			ignoreCovered: false,
+			want:          "[NEW]",
+		},
+		{
+			name:          "regression",
+			e:             score.CRAPEntry{BaselineCRAP: 0, EffectiveCRAP: 10},
+			ignoreCovered: false,
+			want:          "+10.0 🔴",
+		},
+		{
+			name:          "improvement",
+			e:             score.CRAPEntry{BaselineCRAP: 10, EffectiveCRAP: 0},
+			ignoreCovered: false,
+			want:          "-10.0 🟢",
+		},
+		{
+			name:          "no_change_equal_values",
+			e:             score.CRAPEntry{BaselineCRAP: 5, EffectiveCRAP: 5},
+			ignoreCovered: false,
+			want:          "-",
+		},
+		{
+			name:          "zero_delta",
+			e:             score.CRAPEntry{BaselineCRAP: 0, EffectiveCRAP: 0},
+			ignoreCovered: true,
+			want:          "-",
+		},
+		{
+			name:          "delta_at_upper_tolerance",
+			e:             score.CRAPEntry{BaselineCRAP: 0, EffectiveCRAP: 0.01},
+			ignoreCovered: false,
+			want:          "-",
+		},
+		{
+			name:          "delta_at_lower_tolerance",
+			e:             score.CRAPEntry{BaselineCRAP: 0, EffectiveCRAP: -0.01},
+			ignoreCovered: false,
+			want:          "-",
+		},
+		{
+			name:          "delta_just_above_tolerance",
+			e:             score.CRAPEntry{BaselineCRAP: 0, EffectiveCRAP: 0.011},
+			ignoreCovered: false,
+			want:          "+0.0 🔴",
+		},
+		{
+			name:          "delta_just_below_tolerance",
+			e:             score.CRAPEntry{BaselineCRAP: 0, EffectiveCRAP: -0.011},
+			ignoreCovered: false,
+			want:          "-0.0 🟢",
+		},
+		{
+			name:          "regression_ignored_fully_covered",
+			e:             score.CRAPEntry{BaselineCRAP: 0, EffectiveCRAP: 10, Coverage: 100},
+			ignoreCovered: true,
+			want:          "+10.0 ~",
+		},
+		{
+			name:          "improvement_ignored_fully_covered",
+			e:             score.CRAPEntry{BaselineCRAP: 10, EffectiveCRAP: 0, Coverage: 100},
+			ignoreCovered: true,
+			want:          "-10.0 ~",
+		},
+		{
+			name:          "regression_not_ignored_below_coverage",
+			e:             score.CRAPEntry{BaselineCRAP: 0, EffectiveCRAP: 10, Coverage: 99.94},
+			ignoreCovered: true,
+			want:          "+10.0 🔴",
+		},
+		{
+			name:          "improvement_not_ignored_below_coverage",
+			e:             score.CRAPEntry{BaselineCRAP: 10, EffectiveCRAP: 0, Coverage: 99.94},
+			ignoreCovered: true,
+			want:          "-10.0 🟢",
+		},
+		{
+			name:          "regression_fully_covered_ignore_false",
+			e:             score.CRAPEntry{BaselineCRAP: 0, EffectiveCRAP: 10, Coverage: 100},
+			ignoreCovered: false,
+			want:          "+10.0 🔴",
+		},
+		{
+			name:          "improvement_fully_covered_ignore_false",
+			e:             score.CRAPEntry{BaselineCRAP: 10, EffectiveCRAP: 0, Coverage: 100},
+			ignoreCovered: false,
+			want:          "-10.0 🟢",
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			r := formatPRDelta(tt.e, tt.ignoreCovered)
+			assert.Equal(t, tt.want, r)
+		})
+	}
+}
