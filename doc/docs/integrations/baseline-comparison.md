@@ -65,20 +65,28 @@ This is useful when you want to enforce regression detection on partially covere
 
 ## CI Example: GitHub Actions
 
-### Generate baseline on main
+The recommended setup is a single workflow with three jobs: one that generates a baseline
+on `master`, a test job, and a PR comparison job that fetches the latest baseline.
+
+### Full workflow
 
 ```yaml
-name: crap-baseline
+name: crap
 on:
   push:
     branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
 
 jobs:
   baseline:
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v8
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.23'
           cache: true
@@ -86,53 +94,162 @@ jobs:
         run: curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
       - name: Generate baseline
         run: go-crap scan --format json --output crap-current.json
-      - name: Upload baseline
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v8
         with:
           name: crap-baseline
           path: crap-current.json
-```
 
-### Compare on PR
-
-```yaml
-name: crap-pr
-on:
-  pull_request:
-
-jobs:
-  check:
+  test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v8
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.23'
           cache: true
+      - run: go test -race -count=1 ./...
+      - name: Lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: latest
+
+  crap:
+    runs-on: ubuntu-latest
+    needs: test
+    if: always() && needs.test.result == 'success'
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v8
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.23'
+          cache: true
+      - name: Install go-crap
+        run: curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
+
+      - name: Find latest master baseline run
+        id: get-run
+        run: |
+          RUN_ID=$(gh run list \
+            --workflow crap.yml \
+            --branch master \
+            --status success \
+            --json databaseId \
+            --jq '.[0].databaseId' \
+            --limit 1)
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        continue-on-error: true
+
       - name: Download baseline
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: crap-baseline
           path: baseline
-      - name: Run go-crap
-        run: curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
+          run-id: ${{ steps.get-run.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
       - name: Check for regressions
-        run: go-crap scan --baseline baseline/crap-current.json --fail-regression
+        if: github.event_name == 'pull_request' && hashFiles('baseline/crap-current.json') != ''
+        run: go-crap scan --baseline baseline/crap-current.json --fail-regression --fail-regression-ignore-covered
+
       - name: Generate PR comment
-        run: go-crap scan --baseline baseline/crap-current.json --format pr-comment --output pr-comment.md
-      - name: Comment on PR
-        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        run: |
+          if [ -f baseline/crap-current.json ]; then
+            go-crap scan --baseline baseline/crap-current.json --format pr-comment --threshold 30 --output pr-comment.md
+          else
+            go-crap scan --format pr-comment --threshold 30 --output pr-comment.md
+          fi
+
+      - name: Save PR number
+        if: github.event_name == 'pull_request'
+        run: echo "${{ github.event.pull_request.number }}" > pr-number.txt
+
+      - name: Upload PR comment artifacts
+        uses: actions/upload-artifact@v8
+        with:
+          name: crap-comment
+          path: |
+            pr-comment.md
+            pr-number.txt
+          if-no-files-found: ignore
+```
+
+The `baseline` job only runs on push to `master`. For PRs, the `crap` job uses `gh run list` to
+find the latest successful baseline run from `master` and downloads it. If no baseline exists
+yet (e.g. first PR), the `crap` job continues with `--baseline` omitted.
+
+### Fork-safe PR comment
+
+The CI job's `GITHUB_TOKEN` is read-only on fork PRs. To post comments on forks,
+use a separate workflow triggered by `workflow_run`:
+
+```yaml
+name: post PR comment
+on:
+  workflow_run:
+    workflows: [crap]
+    types: [completed]
+
+permissions:
+  pull-requests: write
+  actions: read
+
+jobs:
+  comment:
+    name: Post or update PR comment
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.event == 'pull_request'
+    steps:
+      - name: Download PR comment artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: crap-comment
+          path: .
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Post or update PR comment
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
-            const comment = fs.readFileSync('pr-comment.md', 'utf8');
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
+            if (!fs.existsSync('pr-comment.md') || !fs.existsSync('pr-number.txt')) return;
+            const body = fs.readFileSync('pr-comment.md', 'utf8');
+            const prNumber = parseInt(fs.readFileSync('pr-number.txt', 'utf8').trim(), 10);
+            if (!prNumber) return;
+            const marker = '<!-- go-crap-report -->';
+            const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: comment
+              issue_number: prNumber,
             });
+            const existing = comments.find(c => c.body.startsWith(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body,
+              });
+            }
 ```
+
+The `<!-- go-crap-report -->` marker (emitted by `--format pr-comment`) ensures the
+comment is updated in place on subsequent pushes instead of creating duplicates.
 
 ### Combined threshold + regression check
 
@@ -143,7 +260,8 @@ jobs:
           --fail-above --threshold 30
           --baseline baseline/crap-current.json
           --fail-regression
+          --fail-regression-ignore-covered
           --fail-regression-threshold 5.0
 ```
 
-This fails if any function exceeds threshold 30 **or** if any function regressed by more than 5.0 vs baseline.
+This fails if any function exceeds threshold 30 **or** if any function regressed by more than 5.0 vs baseline (excluding fully covered functions).

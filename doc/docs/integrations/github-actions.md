@@ -29,8 +29,8 @@ jobs:
   crap:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v8
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.23'
           cache: true
@@ -49,7 +49,7 @@ jobs:
         run: go-crap scan --format github --threshold 30
       - name: Generate JSON report
         run: go-crap scan --format json > crap-report.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v8
         with:
           name: crap-report
           path: crap-report.json
@@ -68,8 +68,8 @@ jobs:
       matrix:
         go-version: ['1.22', '1.23', '1.24']
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v8
+      - uses: actions/setup-go@v7
         with:
           go-version: ${{ matrix.go-version }}
           cache: true
@@ -97,21 +97,21 @@ SARIF output is compatible with GitHub Advanced Security code scanning, Azure De
 ```yaml
       - name: Run go-crap for PR comment
         run: go-crap scan --format pr-comment --threshold 30 --output pr-comment.md
-      - name: Comment on PR
-        uses: actions/github-script@v7
+      - name: Get PR number
+        run: echo "${{ github.event.pull_request.number }}" > pr-number.txt
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v8
         with:
-          script: |
-            const fs = require('fs');
-            const comment = fs.readFileSync('pr-comment.md', 'utf8');
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: comment
-            });
+          name: crap-comment
+          path: |
+            pr-comment.md
+            pr-number.txt
+          if-no-files-found: ignore
 ```
 
 The `pr-comment` format generates a markdown table suitable for pull request comments, showing status symbols, CRAP scores, complexity, coverage, function names, and file locations.
+
+The artifact is posted by a [fork-safe workflow](#fork-safe-pr-comment-with-mutation-testing) using `workflow_run` + marker-based upsert (the `<!-- go-crap-report -->` marker ensures updates in place).
 
 ## Fork-safe PR comment with mutation testing
 
@@ -133,8 +133,8 @@ jobs:
   threshold:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v8
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.23'
           cache: true
@@ -147,8 +147,8 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v8
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.23'
           cache: true
@@ -173,7 +173,7 @@ jobs:
       - name: Get PR number
         run: echo "${{ github.event.pull_request.number }}" > pr-number.txt
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v8
         with:
           name: crap-comment
           path: |
@@ -208,7 +208,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download PR comment artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: crap-comment
           path: .
@@ -217,7 +217,7 @@ jobs:
         continue-on-error: true
 
       - name: Post or update PR comment
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
@@ -262,13 +262,16 @@ on:
     branches: [main, master]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   baseline:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v8
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.23'
           cache: true
@@ -276,33 +279,73 @@ jobs:
         run: curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
       - name: Generate baseline
         run: go-crap scan --format json --output crap-current.json
-      - name: Upload baseline
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v8
         with:
           name: crap-baseline
           path: crap-current.json
 
-  pr-check:
+  test:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    needs: baseline
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v8
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.23'
+          cache: true
+      - run: go test -race -count=1 ./...
+
+  crap:
+    runs-on: ubuntu-latest
+    needs: test
+    if: always() && needs.test.result == 'success'
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v8
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.23'
           cache: true
       - name: Install go-crap
         run: curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
+
+      - name: Find latest master baseline run
+        id: get-run
+        run: |
+          RUN_ID=$(gh run list \
+            --workflow crap.yml \
+            --branch master \
+            --status success \
+            --json databaseId \
+            --jq '.[0].databaseId' \
+            --limit 1)
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        continue-on-error: true
+
       - name: Download baseline
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: crap-baseline
           path: baseline
+          run-id: ${{ steps.get-run.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
       - name: Check for regressions
-        run: go-crap scan --baseline baseline/crap-current.json --fail-regression
+        if: github.event_name == 'pull_request' && hashFiles('baseline/crap-current.json') != ''
+        run: go-crap scan --baseline baseline/crap-current.json --fail-regression --fail-regression-ignore-covered
+
       - name: Generate PR comment
-        run: go-crap scan --baseline baseline/crap-current.json --format pr-comment --output pr-comment.md
+        if: github.event_name == 'pull_request'
+        run: |
+          if [ -f baseline/crap-current.json ]; then
+            go-crap scan --baseline baseline/crap-current.json --format pr-comment --threshold 30 --output pr-comment.md
+          else
+            go-crap scan --format pr-comment --threshold 30 --output pr-comment.md
+          fi
 ```
 
 ### Example output
