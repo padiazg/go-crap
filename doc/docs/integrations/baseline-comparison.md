@@ -51,6 +51,18 @@ go-crap scan --baseline baseline.json --fail-regression --fail-regression-thresh
 
 Only flags functions whose CRAP increased by more than the threshold.
 
+### `--show-unchanged`
+
+Also show functions whose CRAP score did not change vs baseline (default: `false`).
+
+```bash
+go-crap scan --baseline baseline.json --show-unchanged
+```
+
+By default, only functions with a changed CRAP score (increase or decrease) are shown. With `--show-unchanged`, all functions from the baseline appear in the output, including those with zero delta.
+
+Requires `--baseline`.
+
 ### `--fail-regression-ignore-covered`
 
 Exclude fully covered functions from regression failures (default: `false`).

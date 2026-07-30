@@ -76,6 +76,7 @@ go-crap scan --exclude 'pb/.*\.go'
 | `--baseline` | | Path to a previous JSON report for baseline comparison | `""` |
 | `--fail-regression` | | Exit code 1 when functions regressed vs baseline | `false` |
 | `--fail-regression-threshold` | | Minimum delta to consider regression | `0.01` |
+| `--show-unchanged` | | In baseline mode, also show functions whose CRAP score did not change (requires `--baseline`) | `false` |
 | `--help` | `-h` | Help for scan | — |
 
 ### Output Formats
@@ -137,6 +138,9 @@ go-crap scan --format json > baseline.json
 
 # Compare against the baseline
 go-crap scan --baseline baseline.json --format table
+
+# Show all functions including unchanged ones
+go-crap scan --baseline baseline.json --show-unchanged
 
 # Enforce regression thresholds in CI
 go-crap scan --baseline baseline.json --fail-regression --fail-regression-threshold 0.01
@@ -203,6 +207,7 @@ go-crap scan
 - `--mutation-report` validates coverage reliability against mutation testing results
 - `--detailed` includes mutation failure details (code, line, type) in report output
 - `--baseline` loads a previous JSON report for delta analysis
+- `--show-unchanged` includes functions with no CRAP change in baseline output
 - Coverage-unavailable warnings are emitted for modules where `go test` fails
 
 ### Badge

@@ -36,6 +36,7 @@ go-crap scan [path] [flags]
 | `--fail-regression` | | Exit code 1 when functions regressed vs baseline | `false` |
 | `--fail-regression-threshold` | | Minimum delta to consider regression | `0.01` |
 | `--fail-regression-ignore-covered` | | Exclude fully covered functions from regression failures (still shows them with `~`) | `false` |
+| `--show-unchanged` | | In baseline mode, also show functions whose CRAP score did not change (requires `--baseline`) | `false` |
 
 > `CoverageUntrusted` has meaning only if `--mutation-report` was used.
 

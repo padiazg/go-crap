@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New `--fail-regression` flag — exit code 1 when functions regressed vs baseline
 - New `--fail-regression-ignore-covered` flag — exclude fully covered functions from regression failures (still shows them with `~`)
 - New `--fail-regression-threshold <float>` flag (default `0.01`) — minimum delta to trigger
+- New `--show-unchanged` flag — in baseline mode, also show functions whose CRAP score did not change (requires `--baseline`)
 - `Baseline` struct with `LoadBaseline()` — parses JSON reports into comparison-ready data
 - `AnnotateWithBaseline()` — sets `BaselineCRAP` on each CRAP entry for delta tracking
 - `ComputeSummaryWithBaseline()` — aggregate stats with baseline/compare deltas
