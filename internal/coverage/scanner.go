@@ -14,12 +14,14 @@ import (
 
 	"github.com/padiazg/go-crap/pkg/dummylogger"
 	"github.com/padiazg/go-crap/pkg/logger"
+	"github.com/padiazg/go-crap/pkg/progress"
 )
 
 type Scanner struct {
-	Logger  logger.Logger
-	Exclude *regexp.Regexp
-	Path    string
+	Logger   logger.Logger
+	Progress progress.Reporter
+	Exclude  *regexp.Regexp
+	Path     string
 	// Profile, when set, is used as the coverage profile instead of running
 	// "go test". The same profile is applied to every discovered module;
 	// entries whose paths do not belong to a module are skipped.
@@ -69,6 +71,10 @@ func (s *Scanner) Scan(ctx context.Context) ([]ModuleCoverage, error) {
 		}
 	}
 
+	if s.Progress != nil {
+		s.Progress.SetTotal(len(modules))
+	}
+
 	var results []ModuleCoverage
 	for _, modDir := range modules {
 		select {
@@ -77,15 +83,24 @@ func (s *Scanner) Scan(ctx context.Context) ([]ModuleCoverage, error) {
 		default:
 		}
 
+		if s.Progress != nil {
+			s.Progress.SetDetail(filepath.Base(modDir))
+		}
 		mc := s.scanModule(ctx, modDir)
 		if mc.Error != nil {
 			s.Logger.Debug("coverage scan: module error", "module", modDir, "error", mc.Error.Error())
 			mc.Error = fmt.Errorf("scan %s: %w", modDir, mc.Error)
 			results = append(results, mc)
+			if s.Progress != nil {
+				s.Progress.Advance(1)
+			}
 			continue
 		}
 
 		results = append(results, mc)
+		if s.Progress != nil {
+			s.Progress.Advance(1)
+		}
 	}
 
 	return results, nil

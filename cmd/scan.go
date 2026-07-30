@@ -7,15 +7,21 @@ import (
 	"strings"
 	"time"
 
+	internalprogress "github.com/padiazg/go-crap/internal/progress"
 	"github.com/padiazg/go-crap/internal/report"
 	"github.com/padiazg/go-crap/internal/scan"
 	"github.com/padiazg/go-crap/internal/score"
 	"github.com/padiazg/go-crap/pkg/logger"
+	pkgprogress "github.com/padiazg/go-crap/pkg/progress"
 	"github.com/padiazg/go-crap/pkg/slogger"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 var (
+	flagProgress   bool
+	flagNoProgress bool
+
 	flagThreshold                   float64
 	flagFailAbove                   bool
 	flagFormat                      string
@@ -83,7 +89,25 @@ func init() {
 		"Exclude fully covered functions from regression failures (still shows them with ~)")
 	scanCmd.Flags().BoolVar(&flagShowUnchanged, "show-unchanged", false,
 		"In baseline mode, also show unchanged functions (requires --baseline)")
+	scanCmd.Flags().BoolVar(&flagProgress, "progress", false,
+		"Show progress indicators (default: auto-detect terminal)")
+	scanCmd.Flags().BoolVar(&flagNoProgress, "no-progress", false,
+		"Disable progress indicators")
 	rootCmd.AddCommand(scanCmd)
+}
+
+func resolveProgressReporter() pkgprogress.Reporter {
+	if flagNoProgress {
+		return pkgprogress.NoopReporter{}
+	}
+
+	if flagProgress || term.IsTerminal(int(os.Stderr.Fd())) {
+		r := internalprogress.NewGoPrettyReporter(os.Stderr)
+		go r.Render()
+		return r
+	}
+
+	return pkgprogress.NoopReporter{}
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
@@ -113,17 +137,23 @@ func runScan(cmd *cobra.Command, args []string) error {
 	})
 	lp := &l
 
+	pr := resolveProgressReporter()
+	if pr != nil {
+		defer pr.Done()
+	}
+
 	entries, err := scan.Scan(&scan.Options{
-		Exclude:         flagExclude,
-		IncludeTests:    flagIncludeTests,
-		Path:            path,
-		Missing:         flagMissing,
-		Top:             flagTop,
-		Min:             flagMin,
-		Logger:          lp,
-		MutationReport:  flagMutation,
-		Timeout:         flagTimeout,
-		CoverageProfile: flagCoverProf,
+		Exclude:          flagExclude,
+		IncludeTests:     flagIncludeTests,
+		Path:             path,
+		Missing:          flagMissing,
+		Top:              flagTop,
+		Min:              flagMin,
+		Logger:           lp,
+		MutationReport:   flagMutation,
+		Timeout:          flagTimeout,
+		CoverageProfile:  flagCoverProf,
+		ProgressReporter: pr,
 	})
 	if err != nil {
 		return err

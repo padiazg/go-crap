@@ -95,6 +95,57 @@ release:
 
     ---
 
+# Docker images (multi-arch via buildx)
+dockers:
+  - image_templates:
+      - "docker.io/padiazg/go-crap:{{ .Tag }}-amd64"
+      - "ghcr.io/padiazg/go-crap:{{ .Tag }}-amd64"
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - --platform=linux/amd64
+      - --label=org.opencontainers.image.title=go-crap
+      - --label=org.opencontainers.image.description=CRAP score calculator for Go projects
+      - --label=org.opencontainers.image.url=https://padiazg.github.io/go-crap
+      - --label=org.opencontainers.image.source=https://github.com/padiazg/go-crap
+      - --label=org.opencontainers.image.version={{ .Tag }}
+      - --label=org.opencontainers.image.created={{ .Date }}
+    goarch: amd64
+  - image_templates:
+      - "docker.io/padiazg/go-crap:{{ .Tag }}-arm64"
+      - "ghcr.io/padiazg/go-crap:{{ .Tag }}-arm64"
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - --platform=linux/arm64
+      - --label=org.opencontainers.image.title=go-crap
+      - --label=org.opencontainers.image.description=CRAP score calculator for Go projects
+      - --label=org.opencontainers.image.url=https://padiazg.github.io/go-crap
+      - --label=org.opencontainers.image.source=https://github.com/padiazg/go-crap
+      - --label=org.opencontainers.image.version={{ .Tag }}
+      - --label=org.opencontainers.image.created={{ .Date }}
+    goarch: arm64
+
+docker_manifests:
+  - name_template: "docker.io/padiazg/go-crap:{{ .Tag }}"
+    image_templates:
+      - "docker.io/padiazg/go-crap:{{ .Tag }}-amd64"
+      - "docker.io/padiazg/go-crap:{{ .Tag }}-arm64"
+  - name_template: "ghcr.io/padiazg/go-crap:{{ .Tag }}"
+    image_templates:
+      - "ghcr.io/padiazg/go-crap:{{ .Tag }}-amd64"
+      - "ghcr.io/padiazg/go-crap:{{ .Tag }}-arm64"
+  - name_template: "docker.io/padiazg/go-crap:latest"
+    image_templates:
+      - "docker.io/padiazg/go-crap:{{ .Tag }}-amd64"
+      - "docker.io/padiazg/go-crap:{{ .Tag }}-arm64"
+    skip_push: auto
+  - name_template: "ghcr.io/padiazg/go-crap:latest"
+    image_templates:
+      - "ghcr.io/padiazg/go-crap:{{ .Tag }}-amd64"
+      - "ghcr.io/padiazg/go-crap:{{ .Tag }}-arm64"
+    skip_push: auto
+
 # Homebrew configuration (GoReleaser v2 format)
 # To publish to Homebrew, create a tap repository at github.com/padiazg/homebrew-go-crap
 brews:

@@ -13,6 +13,7 @@ import (
 	"github.com/padiazg/go-crap/internal/merge"
 	"github.com/padiazg/go-crap/internal/score"
 	"github.com/padiazg/go-crap/pkg/logger"
+	pkgprogress "github.com/padiazg/go-crap/pkg/progress"
 	"github.com/padiazg/go-crap/pkg/utils"
 )
 
@@ -24,16 +25,17 @@ var (
 )
 
 type Options struct {
-	Logger          logger.Logger
-	CoverageProfile string
-	Missing         string
-	MutationReport  string
-	Path            string
-	Exclude         []string
-	IncludeTests    bool
-	Min             float64
-	Timeout         time.Duration
-	Top             int
+	Logger           logger.Logger
+	ProgressReporter pkgprogress.Reporter
+	CoverageProfile  string
+	Missing          string
+	MutationReport   string
+	Path             string
+	Exclude          []string
+	Min              float64
+	Timeout          time.Duration
+	Top              int
+	IncludeTests     bool
 }
 
 // DefaultTimeout is used when Options.Timeout is unset (zero).
@@ -58,15 +60,27 @@ func Scan(options *Options) (*Entries, error) {
 		return nil, fmt.Errorf("coverage scan: %w", err)
 	}
 
+	pr := options.ProgressReporter
+	if pr == nil {
+		pr = pkgprogress.NoopReporter{}
+	}
+	defer pr.Done()
+	defer pr.Errored()
+
+	pr.StartPhase(pkgprogress.PhaseCoverageTests, 0)
 	coverages, err := runCoverageAnalysis(ctx, options, exclude, timeout)
 	if err != nil {
 		return nil, err
 	}
+	pr.FinishPhase()
 
 	logCoverageErrors(options.Logger, coverages)
 
+	pr.StartPhase(pkgprogress.PhaseComplexity, 0)
 	stats := complexity.Analyze([]string{options.Path}, exclude, options.Logger)
+	pr.FinishPhase()
 
+	pr.StartPhase(pkgprogress.PhaseProcessing, 0)
 	merged := merge.Merge(coverages, stats)
 
 	policy, err := parseMissingPolicy(options.Missing)
@@ -74,12 +88,15 @@ func Scan(options *Options) (*Entries, error) {
 		return nil, err
 	}
 
-	return NewEntries(options, merged, policy)
+	entries, err := NewEntries(options, merged, policy)
+	pr.FinishPhase()
+	return entries, err
 }
 
 func runCoverageAnalysis(ctx context.Context, options *Options, exclude *regexp.Regexp, timeout time.Duration) ([]coverage.ModuleCoverage, error) {
 	scanner := coverage.NewScanner(options.Path, exclude, options.Logger, timeout)
 	scanner.Profile = options.CoverageProfile
+	scanner.Progress = options.ProgressReporter
 	coverages, err := scanner.Scan(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("coverage scan: %w", err)

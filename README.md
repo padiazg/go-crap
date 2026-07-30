@@ -27,6 +27,31 @@ brew tap padiazg/go-crap
 brew install go-crap
 ```
 
+## Docker
+
+Pull and run a pre-built image:
+
+```shell
+docker run --rm -v "$PWD:/code" ghcr.io/padiazg/go-crap scan
+```
+
+Registries: `docker.io/padiazg/go-crap`, `ghcr.io/padiazg/go-crap`
+
+Available tags correspond to [releases](https://github.com/padiazg/go-crap/releases). Multi-arch images (linux/amd64, linux/arm64).
+
+Build locally:
+
+```shell
+make docker-build
+docker run --rm -v "$PWD:/code" go-crap:local scan
+```
+
+The image runs `go-crap scan /code` by default — it analyses whatever directory you mount at `/code`. Pass any flags directly:
+
+```shell
+docker run --rm -v "$PWD:/code" ghcr.io/padiazg/go-crap scan --top 10 --format table
+```
+
 ## Usage
 
 ```shell
@@ -68,6 +93,8 @@ go-crap scan --exclude 'pb/.*\.go'
 | `--exclude` | | Exclude files matching this regex (repeatable). Use `.*` for any path depth. `_test.go` files are excluded by default | none |
 | `--include-tests` | | Include `_test.go` files in analysis (overrides default exclude) | `false` |
 | `--verbose` | | Enable verbose (debug-level) logging | `false` |
+| `--progress` | | Show progress indicators (default: auto-detect terminal) | `false` |
+| `--no-progress` | | Disable progress indicators | `false` |
 | `--output` | `-o` | Output file path (default: stdout) | stdout |
 | `--mutation-report` | | Path to gremlins JSON mutation report to validate coverage reliability | `""` |
 | `--detailed` | | Include mutation failure details (original code, replacement, line) in report output | `false` |
@@ -78,6 +105,24 @@ go-crap scan --exclude 'pb/.*\.go'
 | `--fail-regression-threshold` | | Minimum delta to consider regression | `0.01` |
 | `--show-unchanged` | | In baseline mode, also show functions whose CRAP score did not change (requires `--baseline`) | `false` |
 | `--help` | `-h` | Help for scan | — |
+
+### Progress Indicators
+
+go-crap can show progress bars on stderr during long scans:
+
+- **Default** — auto-detects terminal: enabled when stderr is a TTY, disabled when piped
+- **`--progress`** — force-enable progress indicators
+- **`--no-progress`** — force-disable progress indicators (useful in CI or when redirecting stderr)
+
+Phases tracked: "Discovering modules", "Running coverage tests", "Analyzing complexity", "Processing results".
+
+```shell
+# Force progress in a non-interactive CI step
+go-crap scan --progress
+
+# Suppress bars when stderr is a TTY but you want clean output
+go-crap scan --no-progress
+```
 
 ### Output Formats
 

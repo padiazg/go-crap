@@ -5,6 +5,15 @@ All notable changes to go-crap will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.5.1 - UNRELEASED
+
+### Added
+
+- `--progress` flag — force-enable progress indicators (default: auto-detect terminal)
+- `--no-progress` flag — force-disable progress indicators
+- Progress bars on stderr showing scan phases: "Discovering modules", "Running coverage tests", "Analyzing complexity", "Processing results"
+- Docker images published to `docker.io/padiazg/go-crap` and `ghcr.io/padiazg/go-crap` (multi-arch linux/amd64 + linux/arm64) — run with `docker run --rm -v "$PWD:/code" ghcr.io/padiazg/go-crap scan`
+
 ## v0.5.0 - 2026-07-28
 
 ### Added

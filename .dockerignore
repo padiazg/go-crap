@@ -1,0 +1,14 @@
+.git/
+.gitignore
+.opencode/
+dist/
+doc/
+*.md
+!README.md
+*.out
+coverage.out
+mutation*.json
+*.tar.gz
+known-issues.md
+crap-current*
+.DS_Store
