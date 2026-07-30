@@ -28,6 +28,8 @@ go-crap scan [path] [flags]
 | `--exclude` | | Exclude files matching this regex pattern (repeatable). `_test.go` files are excluded by default. e.g. `pb/.*\.go` to exclude protobuf files | none |
 | `--include-tests` | | Include `_test.go` files in analysis (overrides default exclude) | `false` |
 | `--verbose` | | Enable verbose (debug-level) logging | `false` |
+| `--progress` | | Show progress indicators (default: auto-detect terminal) | `false` |
+| `--no-progress` | | Disable progress indicators | `false` |
 | `--output` | `-o` | Output file path (default: stdout) | stdout |
 | `--mutation-report` | | Path to gremlins JSON mutation report to validate coverage reliability | `""` (disabled) |
 | `--detailed` | | Include mutation failure details (original/replacement code, line, type) in report output | `false` |
@@ -81,6 +83,24 @@ functions with no coverage data get a warning.
 This is distinct from the `--missing` policy, which handles functions that have no coverage data because they were not exercised by tests. Coverage unavailable means the entire module's test run failed.
 
 If the test run was killed because it exceeded `--timeout`, the error message says so explicitly (`go test: timed out (increase --timeout to allow more time)`) instead of the generic `signal: killed`.
+
+## Progress Indicators
+
+During long scans, go-crap can show real-time progress bars on stderr:
+
+- **Default** — auto-detects terminal: enabled when stderr is a TTY, disabled when piped
+- **`--progress`** — force-enable progress indicators
+- **`--no-progress`** — force-disable (useful in CI or when redirecting stderr)
+
+Phases tracked: `Discovering modules`, `Running coverage tests`, `Analyzing complexity`, `Processing results`.
+
+```shell
+# Force progress in CI
+go-crap scan --progress
+
+# Suppress progress (e.g. in scripts that capture stderr)
+go-crap scan --no-progress --format json
+```
 
 ## Examples
 
@@ -245,3 +265,17 @@ go-crap scan --baseline baseline.json
 ```
 
 Generate a JSON report to use as a baseline. Subsequent scans can compare against it to track quality over time.
+
+### Docker
+
+```shell
+docker run --rm -v "$PWD:/code" ghcr.io/padiazg/go-crap scan
+```
+
+Mount the project directory at `/code` — the container runs `go-crap scan /code` by default. Pass any flags directly:
+
+```shell
+docker run --rm -v "$PWD:/code" ghcr.io/padiazg/go-crap scan --format json --threshold 30
+```
+
+Images are available at `docker.io/padiazg/go-crap` and `ghcr.io/padiazg/go-crap`. Tags map to [releases](https://github.com/padiazg/go-crap/releases).

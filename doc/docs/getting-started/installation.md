@@ -30,6 +30,26 @@ go install github.com/padiazg/go-crap@latest
 
 The binary is placed in `$GOPATH/bin` (or `$GOBIN` if set). Make sure that directory is in your `PATH`.
 
+## Install via Docker
+
+Pull and run a pre-built image:
+
+```shell
+docker run --rm -v "$PWD:/code" ghcr.io/padiazg/go-crap scan
+```
+
+Available from `docker.io/padiazg/go-crap` and `ghcr.io/padiazg/go-crap`.
+Multi-arch images (linux/amd64, linux/arm64). Tags correspond to [releases](https://github.com/padiazg/go-crap/releases).
+
+Build locally from source:
+
+```shell
+git clone https://github.com/padiazg/go-crap.git
+cd go-crap
+make docker-build
+docker run --rm -v "$PWD:/code" go-crap:local scan
+```
+
 ## Build from Source
 
 ```shell
