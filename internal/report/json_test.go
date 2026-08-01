@@ -800,8 +800,8 @@ func TestJSONFormatter_Format_summary_with_baseline(t *testing.T) {
 	var gotReport Report
 	buf := &bytes.Buffer{}
 	opts := FormatOptions{
-		Writer:  buf,
-		Summary: &Summary{Combined: 12.0, Average: 12.0, TotalFuncs: 1, Exceeded: 0, BaselineCombined: 10.0, BaselineAverage: 9.0, DeltaCombined: 2.0, DeltaAverage: 3.0},
+		Writer:   buf,
+		Summary:  &Summary{Combined: 12.0, Average: 12.0, TotalFuncs: 1, Exceeded: 0, BaselineCombined: 10.0, BaselineAverage: 9.0, DeltaCombined: 2.0, DeltaAverage: 3.0},
 		Baseline: &Baseline{},
 	}
 	s := &JSONFormatter{}

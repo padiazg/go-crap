@@ -1596,9 +1596,9 @@ func TestPRCommentFormatter_writePRHeader(t *testing.T) {
 			),
 		},
 		{
-			name:      "summary_without_baseline_no_delta",
-			summary:   &Summary{Combined: 100.5, Average: 50.25},
-			baseline:  nil,
+			name:     "summary_without_baseline_no_delta",
+			summary:  &Summary{Combined: 100.5, Average: 50.25},
+			baseline: nil,
 			checks: checkPRCommentFormatterOutput(
 				checkPRCommentOutputContains("Combined CRAP: 100.50"),
 				checkPRCommentOutputContains("Average CRAP: 50.25"),
@@ -1649,8 +1649,8 @@ func TestPRCommentFormatter_writePRHeader(t *testing.T) {
 			),
 		},
 		{
-			name:    "no_summary_no_crash",
-			summary: nil,
+			name:     "no_summary_no_crash",
+			summary:  nil,
 			baseline: &Baseline{},
 			checks: checkPRCommentFormatterOutput(
 				checkPRCommentOutputContains("function(s) analyzed"),
