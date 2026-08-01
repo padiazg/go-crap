@@ -2,6 +2,7 @@ package coverage
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/padiazg/go-crap/pkg/progress"
 )
 
 type NewScannerFn func(*testing.T, *Scanner)
@@ -80,7 +83,54 @@ type checkScannerScanFn func(*testing.T, []ModuleCoverage, error)
 
 var checkScannerScan = func(fns ...checkScannerScanFn) []checkScannerScanFn { return fns }
 
+type mockProgressReporter struct {
+	calls []string
+}
+
+func (m *mockProgressReporter) StartPhase(progress.Phase, int) {}
+func (m *mockProgressReporter) Advance(int)                    { m.calls = append(m.calls, "Advance") }
+func (m *mockProgressReporter) SetDetail(detail string) {
+	m.calls = append(m.calls, "SetDetail:"+detail)
+}
+func (m *mockProgressReporter) SetTotal(int) { m.calls = append(m.calls, "SetTotal") }
+func (m *mockProgressReporter) FinishPhase() {}
+func (m *mockProgressReporter) Done()        {}
+func (m *mockProgressReporter) Errored()     {}
+
+func advanceCount(calls []string) int {
+	n := 0
+	for _, c := range calls {
+		if c == "Advance" {
+			n++
+		}
+	}
+	return n
+}
+
 func TestScanner_Scan(t *testing.T) {
+	checkError := func(want string) checkScannerScanFn {
+		return func(t *testing.T, _ []ModuleCoverage, err error) {
+			t.Helper()
+			if want != "" {
+				assert.Containsf(t, err.Error(), want, "%s expected in error", want)
+				return
+			}
+			assert.Emptyf(t, err, "error not expected: %s", err)
+		}
+	}
+
+	checkEmpty := func(want bool) checkScannerScanFn {
+		return func(t *testing.T, mc []ModuleCoverage, err error) {
+			t.Helper()
+			if want {
+				assert.Empty(t, mc)
+			} else {
+				assert.NotEmpty(t, mc)
+			}
+		}
+	}
+
+	var prog *mockProgressReporter
 	tests := []struct {
 		name       string
 		checks     []checkScannerScanFn
@@ -90,22 +140,25 @@ func TestScanner_Scan(t *testing.T) {
 		{
 			name: "empty_dir_no_modules",
 			checks: checkScannerScan(
-				func(t *testing.T, r []ModuleCoverage, err error) {
-					t.Helper()
-					assert.NoError(t, err)
-					assert.Empty(t, r)
-				},
+				checkError(""),
+				checkEmpty(true),
 			),
-			before: func(s *Scanner) {
-				s.Path = t.TempDir()
-			},
+			before: func(s *Scanner) { s.Path = t.TempDir() },
+		},
+		{
+			name: "non_existen_dir",
+			checks: checkScannerScan(
+				checkError("/nonexistend/: no such file or directory"),
+				checkEmpty(true),
+			),
+			before: func(s *Scanner) { s.Path = "/nonexistend/" },
 		},
 		{
 			name: "single_module_with_tests",
 			checks: checkScannerScan(
+				checkError(""),
 				func(t *testing.T, r []ModuleCoverage, err error) {
 					t.Helper()
-					assert.NoError(t, err)
 					require.Len(t, r, 1)
 					assert.NotEmpty(t, r[0].Dir)
 					assert.NotEmpty(t, r[0].ModulePath)
@@ -124,14 +177,11 @@ func TestScanner_Scan(t *testing.T) {
 		{
 			name: "ctx_cancel_during_scan",
 			checks: checkScannerScan(
-				func(t *testing.T, r []ModuleCoverage, err error) {
-					t.Helper()
-					// Scan only checks ctx before each scanModule iteration.
-					// With 1 module in tempDir, the loop finishes before
-					// the cancellation check can fire. No error expected.
-					assert.NoError(t, err)
-					assert.NotEmpty(t, r)
-				},
+				// Scan only checks ctx before each scanModule iteration.
+				// With 1 module in tempDir, the loop finishes before
+				// the cancellation check can fire. No error expected.
+				checkError(""),
+				checkEmpty(false),
 			),
 			before: func(s *Scanner) {
 				cwd, err := os.Getwd()
@@ -147,16 +197,43 @@ func TestScanner_Scan(t *testing.T) {
 			},
 		},
 		{
+			// Cancel fires mid-scan: discovery (sub-ms) completes, then the
+			// slow module's "go test" keeps scanModule busy long enough for
+			// the next loop iteration to hit the ctx.Done() check.
+			name: "ctx_cancel_mid_scan",
+			checks: checkScannerScan(
+				func(t *testing.T, r []ModuleCoverage, err error) {
+					t.Helper()
+					assert.ErrorIs(t, err, context.Canceled)
+				},
+			),
+			before: func(s *Scanner) {
+				parent := t.TempDir()
+				for _, name := range []string{"modA", "modB"} {
+					modDir := filepath.Join(parent, name)
+					os.MkdirAll(modDir, 0755)
+					os.WriteFile(filepath.Join(modDir, "go.mod"), fmt.Appendf(nil, "module %s\n\ngo 1.21\n", name), 0644)
+					os.WriteFile(filepath.Join(modDir, "pkg.go"), fmt.Appendf(nil, "package %s\n\nfunc Something() int { return 42 }\n", name), 0644)
+					os.WriteFile(filepath.Join(modDir, "pkg_test.go"), fmt.Appendf(nil, "package %s\n\nimport (\n\t\"testing\"\n\t\"time\"\n)\n\nfunc TestSlow(t *testing.T) {\n\ttime.Sleep(2 * time.Second)\n}\n", name), 0644)
+				}
+				s.Path = parent
+			},
+			newContext: func() context.Context {
+				ctx, cancel := context.WithCancel(context.Background())
+				go func() {
+					time.Sleep(300 * time.Millisecond)
+					cancel()
+				}()
+				return ctx
+			},
+		},
+		{
 			// A supplied profile that does not exist is a hard, fail-fast
 			// error rather than a silently degraded empty report.
 			name: "missing_supplied_profile",
 			checks: checkScannerScan(
-				func(t *testing.T, r []ModuleCoverage, err error) {
-					t.Helper()
-					require.Error(t, err)
-					assert.Contains(t, err.Error(), "coverage profile")
-					assert.Empty(t, r)
-				},
+				checkError("coverage profile:"),
+				checkEmpty(true),
 			),
 			before: func(s *Scanner) {
 				s.Path = t.TempDir()
@@ -168,9 +245,10 @@ func TestScanner_Scan(t *testing.T) {
 			// no go.mod of its own resolves against the enclosing module.
 			name: "supplied_profile_on_package_subdir",
 			checks: checkScannerScan(
+				checkError(""),
 				func(t *testing.T, r []ModuleCoverage, err error) {
 					t.Helper()
-					assert.NoError(t, err)
+					// assert.NoError(t, err)
 					require.Len(t, r, 1)
 					require.Len(t, r[0].Functions, 1)
 					assert.Equal(t, "Covered", r[0].Functions[0].Name)
@@ -181,23 +259,140 @@ func TestScanner_Scan(t *testing.T) {
 				modDir := t.TempDir()
 				goMod := `module submod
 
-go 1.21
-`
+		go 1.21
+		`
 				os.WriteFile(filepath.Join(modDir, "go.mod"), []byte(goMod), 0644)
 				pkgDir := filepath.Join(modDir, "internal", "pkg")
 				os.MkdirAll(pkgDir, 0755)
 				src := `package pkg
 
-func Covered() int {
-	return 42
-}
-`
+		func Covered() int {
+			return 42
+		}
+		`
 				os.WriteFile(filepath.Join(pkgDir, "pkg.go"), []byte(src), 0644)
 				profPath := filepath.Join(modDir, "cover.out")
 				os.WriteFile(profPath, []byte("mode: set\n"+
 					"submod/internal/pkg/pkg.go:3.20,5.2 1 1\n"), 0644)
 				s.Path = pkgDir
 				s.Profile = profPath
+			},
+		},
+		{
+			name: "multiple_modules",
+			checks: checkScannerScan(
+				checkError(""),
+				func(t *testing.T, r []ModuleCoverage, err error) {
+					t.Helper()
+					// assert.NoError(t, err)
+					require.Len(t, r, 2)
+				},
+			),
+			before: func(s *Scanner) {
+				parent := t.TempDir()
+				for _, name := range []string{"modA", "modB"} {
+					modDir := filepath.Join(parent, name)
+					os.MkdirAll(modDir, 0755)
+					os.WriteFile(filepath.Join(modDir, "go.mod"), fmt.Appendf(nil, "module %s\n\ngo 1.21\n", name), 0644)
+					os.WriteFile(filepath.Join(modDir, "pkg.go"), fmt.Appendf(nil, "package %s\n\nfunc Something() int { return 42 }\n", name), 0644)
+					os.WriteFile(filepath.Join(modDir, "pkg_test.go"), fmt.Appendf(nil, "package %s\n\nimport \"testing\"\n\nfunc TestSuccess(t *testing.T) {\n\tif 1+1 != 2 {\n\t\tt.Error(\"math broken\")\n\t}\n}\n", name), 0644)
+				}
+				s.Path = parent
+			},
+		},
+		{
+			name: "partial_module_failure",
+			checks: checkScannerScan(
+				checkError(""),
+				func(t *testing.T, r []ModuleCoverage, err error) {
+					t.Helper()
+					// assert.NoError(t, err)
+					require.Len(t, r, 2)
+					var goodCount, badCount int
+					for _, mc := range r {
+						if mc.Error != nil {
+							assert.Contains(t, mc.Error.Error(), "runTests")
+							badCount++
+						} else {
+							goodCount++
+						}
+					}
+					assert.Equal(t, 1, goodCount, "expected one module without error")
+					assert.Equal(t, 1, badCount, "expected one module with error")
+				},
+				func(t *testing.T, r []ModuleCoverage, err error) {
+					t.Helper()
+					// Advance fires once per module on both the success path
+					// and the module-error path.
+					require.NotNil(t, prog)
+					assert.Equal(t, 2, advanceCount(prog.calls), "expected one Advance per module")
+				},
+			),
+			before: func(s *Scanner) {
+				parent := t.TempDir()
+				// Good module — passing tests
+				modDir := filepath.Join(parent, "good")
+				os.MkdirAll(modDir, 0755)
+				os.WriteFile(filepath.Join(modDir, "go.mod"), []byte("module good\n\ngo 1.21\n"), 0644)
+				os.WriteFile(filepath.Join(modDir, "pkg.go"), []byte("package good\n\nfunc Something() int { return 42 }\n"), 0644)
+				os.WriteFile(filepath.Join(modDir, "pkg_test.go"), []byte("package good\n\nimport \"testing\"\n\nfunc TestSuccess(t *testing.T) {\n\tif 1+1 != 2 {\n\t\tt.Error(\"math broken\")\n\t}\n}\n"), 0644)
+				// Bad module — failing test
+				modDir = filepath.Join(parent, "bad")
+				os.MkdirAll(modDir, 0755)
+				os.WriteFile(filepath.Join(modDir, "go.mod"), []byte("module bad\n\ngo 1.21\n"), 0644)
+				os.WriteFile(filepath.Join(modDir, "pkg.go"), []byte("package bad\n\nfunc Something() int { return 42 }\n"), 0644)
+				os.WriteFile(filepath.Join(modDir, "pkg_test.go"), []byte("package bad\n\nimport \"testing\"\n\nfunc TestFail(t *testing.T) {\n\tt.Fatal(\"intentional failure\")\n}\n"), 0644)
+				prog = &mockProgressReporter{}
+				s.Progress = prog
+				s.Path = parent
+			},
+		},
+		{
+			name: "ctx_cancelled_before_discovery",
+			checks: checkScannerScan(
+				checkError(""),
+				checkEmpty(true),
+				// func(t *testing.T, r []ModuleCoverage, err error) {
+				// 	t.Helper()
+				// 	assert.NoError(t, err)
+				// 	assert.Empty(t, r)
+				// },
+			),
+			before: func(s *Scanner) {
+				parent := t.TempDir()
+				modDir := filepath.Join(parent, "mod")
+				os.MkdirAll(modDir, 0755)
+				os.WriteFile(filepath.Join(modDir, "go.mod"), []byte("module mod\n\ngo 1.21\n"), 0644)
+				os.WriteFile(filepath.Join(modDir, "pkg.go"), []byte("package mod\n\nfunc Something() int { return 42 }\n"), 0644)
+				s.Path = parent
+			},
+			newContext: func() context.Context {
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel()
+				return ctx
+			},
+		},
+		{
+			name: "progress_reporter_tracking",
+			checks: checkScannerScan(
+				checkError(""),
+				func(t *testing.T, r []ModuleCoverage, err error) {
+					t.Helper()
+					// assert.NoError(t, err)
+					require.Len(t, r, 2)
+				},
+			),
+			before: func(s *Scanner) {
+				parent := t.TempDir()
+				for _, name := range []string{"modA", "modB"} {
+					modDir := filepath.Join(parent, name)
+					os.MkdirAll(modDir, 0755)
+					os.WriteFile(filepath.Join(modDir, "go.mod"), fmt.Appendf(nil, "module %s\n\ngo 1.21\n", name), 0644)
+					os.WriteFile(filepath.Join(modDir, "pkg.go"), fmt.Appendf(nil, "package %s\n\nfunc Something() int { return 42 }\n", name), 0644)
+					os.WriteFile(filepath.Join(modDir, "pkg_test.go"), fmt.Appendf(nil, "package %s\n\nimport \"testing\"\n\nfunc TestSuccess(t *testing.T) {\n\tif 1+1 != 2 {\n\t\tt.Error(\"math broken\")\n\t}\n}\n", name), 0644)
+				}
+				s.Path = parent
+				s.Progress = &mockProgressReporter{}
 			},
 		},
 	}
@@ -807,6 +1002,42 @@ func TestSlow(t *testing.T) {
 		assert.Contains(t, err.Error(), "timed out")
 		assert.Contains(t, err.Error(), "--timeout")
 	}
+}
+
+type recordingLogger struct {
+	warns []string
+}
+
+func (l *recordingLogger) Debug(format string, args ...any) {}
+
+func (l *recordingLogger) Info(format string, args ...any) {}
+
+func (l *recordingLogger) Warn(format string, args ...any) {
+	l.warns = append(l.warns, format)
+}
+
+func (l *recordingLogger) Error(format string, args ...any) {}
+
+func TestScanner_runTests_no_warning_without_failed_tests(t *testing.T) {
+	tempDir := t.TempDir()
+	goMod := `module buildfail
+
+go 1.21
+`
+	os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte(goMod), 0644)
+	src := `package buildfail
+
+func broken( {
+`
+	os.WriteFile(filepath.Join(tempDir, "pkg.go"), []byte(src), 0644)
+
+	logger := &recordingLogger{}
+	s := NewScanner("value", nil, logger, 0)
+
+	ctx := context.Background()
+	_, err := s.runTests(ctx, tempDir)
+	assert.Error(t, err)
+	assert.NotContains(t, logger.warns, "coverage: tests failed in module", "no failed tests to report")
 }
 
 type checkScannerfilterByExcludeFn func(*testing.T, []FunctionCoverage)

@@ -1,6 +1,7 @@
 package merge
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/padiazg/go-crap/internal/complexity"
@@ -44,6 +45,13 @@ func checkFuncName(index int, want string) MergeFn {
 	return func(t *testing.T, m []MergedEntry) {
 		t.Helper()
 		assert.Equal(t, want, m[index].FuncName)
+	}
+}
+
+func checkCoverageWarning(index int, want string) MergeFn {
+	return func(t *testing.T, m []MergedEntry) {
+		t.Helper()
+		assert.Equal(t, want, m[index].CoverageWarning)
 	}
 }
 
@@ -187,6 +195,39 @@ func TestMerge(t *testing.T) {
 				checkLen(1),
 				checkFuncName(0, "Baz"),
 				checkCoverage(0, true),
+			),
+		},
+		{
+			name: "function in errored module gets coverage warning",
+			coverages: []coverage.ModuleCoverage{
+				{
+					Dir:        "/test",
+					ModulePath: "test/pkg",
+					Error:      errors.New("runTests: boom"),
+					Functions:  []coverage.FunctionCoverage{},
+				},
+			},
+			stats: []complexity.Stat{
+				{
+					PkgName:    "pkg",
+					FuncName:   "Baz",
+					Complexity: 2,
+					Pos: struct {
+						Filename string
+						Offset   int
+						Line     int
+						Column   int
+					}{
+						Filename: "/test/pkg/baz.go",
+						Line:     10,
+					},
+				},
+			},
+			checks: checkMerge(
+				checkLen(1),
+				checkFuncName(0, "Baz"),
+				checkCoverage(0, true),
+				checkCoverageWarning(0, "coverage unavailable for /test: runTests: boom"),
 			),
 		},
 		{
