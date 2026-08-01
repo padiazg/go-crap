@@ -502,12 +502,12 @@ func TestGithubFormatter_summary_with_baseline_writes_notice(t *testing.T) {
 		{CRAP: 10.0, Coverage: 50.0, FuncName: "Foo", File: "f.go", Line: 1},
 	}}
 	summary := &Summary{
-		Combined:        10.0,
-		Average:         10.0,
-		TotalFuncs:      1,
-		Exceeded:        0,
-		DeltaCombined:   2.0,
-		DeltaAverage:    1.0,
+		Combined:         10.0,
+		Average:          10.0,
+		TotalFuncs:       1,
+		Exceeded:         0,
+		DeltaCombined:    2.0,
+		DeltaAverage:     1.0,
 		BaselineCombined: 8.0,
 		BaselineAverage:  9.0,
 	}
