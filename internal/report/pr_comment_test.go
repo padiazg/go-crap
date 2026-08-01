@@ -902,6 +902,19 @@ func checkRegressionsOutputNotContains(want string) checkRegressionsOutputFn {
 	}
 }
 
+func checkRegressionsOutputOrder(before, after string) checkRegressionsOutputFn {
+	return func(t *testing.T, got string) {
+		t.Helper()
+		bi := strings.Index(got, before)
+		ai := strings.Index(got, after)
+		if assert.GreaterOrEqualf(t, bi, 0, "output should contain %q", before) {
+			if assert.GreaterOrEqualf(t, ai, 0, "output should contain %q", after) {
+				assert.Lessf(t, bi, ai, "%q should appear before %q in output", before, after)
+			}
+		}
+	}
+}
+
 func checkRegressionsOutputEmpty() checkRegressionsOutputFn {
 	return func(t *testing.T, got string) {
 		t.Helper()
@@ -954,9 +967,8 @@ func TestPRCommentFormatter_writeRegressionsSection(t *testing.T) {
 			},
 			checks: []checkRegressionsOutputFn{
 				checkRegressionsOutputContains("## \U0001f534 Regressions"),
-				checkRegressionsOutputContains("BigDelta"),
-				checkRegressionsOutputContains("MidDelta"),
-				checkRegressionsOutputContains("SmallDelta"),
+				checkRegressionsOutputOrder("BigDelta", "MidDelta"),
+				checkRegressionsOutputOrder("MidDelta", "SmallDelta"),
 			},
 		},
 		{
@@ -1049,7 +1061,7 @@ func TestPRCommentFormatter_writeRegressionsSection(t *testing.T) {
 			name: "ignore_covered_tilde_in_ignored_section",
 			sorted: []score.CRAPEntry{
 				{File: "/project/main.go", Package: "myapp", FuncName: "Regressed", Line: 1, BaselineCRAP: 0, EffectiveCRAP: 10, Coverage: 50},
-				{File: "/project/main.go", Package: "myapp", FuncName: "CoveredDegraded", Line: 2, BaselineCRAP: 0, EffectiveCRAP: 30, Coverage: 100},
+				{File: "/project/main.go", Package: "myapp", FuncName: "CoveredDegraded", Line: 2, BaselineCRAP: 20, EffectiveCRAP: 30, Coverage: 99.95},
 			},
 			ignoreCovered: true,
 			checks: []checkRegressionsOutputFn{
@@ -1058,6 +1070,7 @@ func TestPRCommentFormatter_writeRegressionsSection(t *testing.T) {
 				checkRegressionsOutputContains("## Ignored (fully covered)"),
 				checkRegressionsOutputContains("CoveredDegraded"),
 				checkRegressionsOutputContains("~"),
+				checkRegressionsOutputContains("+10.0 ~"),
 			},
 		},
 		{
@@ -1079,6 +1092,44 @@ func TestPRCommentFormatter_writeRegressionsSection(t *testing.T) {
 				checkRegressionsOutputContains("WorseRegressed"),
 				checkRegressionsOutputContains("Regressed"),
 				checkRegressionsOutputNotContains("Improved"),
+				checkRegressionsOutputOrder("WorseRegressed", "Regressed"),
+			},
+		},
+		{
+			name: "sort_delta_with_nonzero_baselines",
+			sorted: []score.CRAPEntry{
+				{File: "/project/a.go", Package: "myapp", FuncName: "HighBaselineLowDelta", Line: 1, BaselineCRAP: 0, EffectiveCRAP: 25},
+				{File: "/project/b.go", Package: "myapp", FuncName: "LowBaselineHighDelta", Line: 2, BaselineCRAP: 10, EffectiveCRAP: 30},
+			},
+			checks: []checkRegressionsOutputFn{
+				checkRegressionsOutputContains("## \U0001f534 Regressions"),
+				checkRegressionsOutputOrder("HighBaselineLowDelta", "LowBaselineHighDelta"),
+				checkRegressionsOutputContains("+25.0"),
+				checkRegressionsOutputContains("+20.0"),
+			},
+		},
+		{
+			name: "sort_delta_with_nonzero_i_baseline",
+			sorted: []score.CRAPEntry{
+				{File: "/project/a.go", Package: "myapp", FuncName: "HighBaselineFirst", Line: 1, BaselineCRAP: 5, EffectiveCRAP: 30},
+				{File: "/project/b.go", Package: "myapp", FuncName: "LowBaselineSwapper", Line: 2, BaselineCRAP: 0, EffectiveCRAP: 28},
+			},
+			checks: []checkRegressionsOutputFn{
+				checkRegressionsOutputContains("## \U0001f534 Regressions"),
+				checkRegressionsOutputOrder("LowBaselineSwapper", "HighBaselineFirst"),
+				checkRegressionsOutputContains("+28.0"),
+				checkRegressionsOutputContains("+25.0"),
+			},
+		},
+		{
+			name: "sort_stable_with_equal_deltas",
+			sorted: []score.CRAPEntry{
+				{File: "/project/a.go", Package: "myapp", FuncName: "FirstEqual", Line: 1, BaselineCRAP: 10, EffectiveCRAP: 20},
+				{File: "/project/b.go", Package: "myapp", FuncName: "SecondEqual", Line: 2, BaselineCRAP: 0, EffectiveCRAP: 10},
+			},
+			checks: []checkRegressionsOutputFn{
+				checkRegressionsOutputContains("## \U0001f534 Regressions"),
+				checkRegressionsOutputOrder("FirstEqual", "SecondEqual"),
 			},
 		},
 	}
@@ -1219,6 +1270,18 @@ func Test_formatPRDelta(t *testing.T) {
 			want:          "-50.0 ~",
 		},
 		{
+			name:          "improvement_ignore_covered_exactly_at_99.95",
+			e:             score.CRAPEntry{FuncName: "ImpExactBoundary", BaselineCRAP: 100, EffectiveCRAP: 50, Coverage: 99.95},
+			ignoreCovered: true,
+			want:          "-50.0 ~",
+		},
+		{
+			name:          "improvement_ignore_covered_just_below_99.95",
+			e:             score.CRAPEntry{FuncName: "ImpBelowBoundary", BaselineCRAP: 100, EffectiveCRAP: 50, Coverage: 99.94},
+			ignoreCovered: true,
+			want:          "-50.0 \U0001f7e2",
+		},
+		{
 			name:          "regression_ignore_covered_exactly_at_99.95",
 			e:             score.CRAPEntry{FuncName: "ExactBoundary", BaselineCRAP: 0, EffectiveCRAP: 5, Coverage: 99.95},
 			ignoreCovered: true,
@@ -1248,6 +1311,361 @@ func Test_formatPRDelta(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			r := formatPRDelta(tt.e, tt.ignoreCovered)
 			assert.Equal(t, tt.want, r)
+		})
+	}
+}
+
+type checkPRCommentFormatterwriteSummaryTableFn func(*testing.T, string)
+
+var checkPRCommentFormatterwriteSummaryTable = func(fns ...checkPRCommentFormatterwriteSummaryTableFn) []checkPRCommentFormatterwriteSummaryTableFn {
+	return fns
+}
+
+func TestPRCommentFormatter_writeSummaryTable(t *testing.T) {
+	checkOutputContains := func(want string) checkPRCommentFormatterwriteSummaryTableFn {
+		return func(t *testing.T, got string) {
+			t.Helper()
+			assert.Containsf(t, got, want, "output should contain %q", want)
+		}
+	}
+
+	tests := []struct {
+		name       string
+		summary    *Summary
+		baseline   *Baseline
+		totalFuncs int
+		exceeded   int
+		checks     []checkPRCommentFormatterwriteSummaryTableFn
+		before     func(*PRCommentFormatter)
+	}{
+		{
+			name: "no_changes",
+			summary: &Summary{
+				Combined:         50,
+				Average:          25,
+				Exceeded:         5,
+				BaselineCombined: 50,
+				BaselineAverage:  25,
+			},
+			baseline:   &Baseline{Summary: Summary{TotalFuncs: 10}},
+			totalFuncs: 10,
+			exceeded:   5,
+			checks: checkPRCommentFormatterwriteSummaryTable(
+				checkOutputContains("## Summary"),
+				checkOutputContains("| Metric | Baseline | Current | Δ |"),
+				checkOutputContains("| Combined CRAP | 50.0 | 50.0 | - |"),
+				checkOutputContains("| Average CRAP | 25.0 | 25.0 | - |"),
+				checkOutputContains("| Functions exceeding threshold | 10 | 5 |  |"),
+				checkOutputContains("| Total functions | 10 | 10 | |"),
+			),
+		},
+		{
+			name: "positive_deltas",
+			summary: &Summary{
+				Combined:         150,
+				Average:          75,
+				Exceeded:         3,
+				BaselineCombined: 100,
+				BaselineAverage:  50,
+				DeltaCombined:    50,
+				DeltaAverage:     25,
+			},
+			baseline:   &Baseline{Summary: Summary{TotalFuncs: 8}},
+			totalFuncs: 10,
+			exceeded:   5,
+			checks: checkPRCommentFormatterwriteSummaryTable(
+				checkOutputContains("| Combined CRAP | 100.0 | 150.0 | +50.0 🔴 |"),
+				checkOutputContains("| Average CRAP | 50.0 | 75.0 | +25.0 🔴 |"),
+				checkOutputContains("| Functions exceeding threshold | 8 | 5 | +2 🔴 |"),
+				checkOutputContains("| Total functions | 8 | 10 | |"),
+			),
+		},
+		{
+			name: "negative_deltas",
+			summary: &Summary{
+				Combined:         50,
+				Average:          25,
+				Exceeded:         1,
+				BaselineCombined: 100,
+				BaselineAverage:  50,
+				DeltaCombined:    -50,
+				DeltaAverage:     -25,
+			},
+			baseline:   &Baseline{Summary: Summary{TotalFuncs: 10}},
+			totalFuncs: 5,
+			exceeded:   1,
+			checks: checkPRCommentFormatterwriteSummaryTable(
+				checkOutputContains("| Combined CRAP | 100.0 | 50.0 | -50.0 🟢 |"),
+				checkOutputContains("| Average CRAP | 50.0 | 25.0 | -25.0 🟢 |"),
+				checkOutputContains("| Total functions | 10 | 5 | |"),
+			),
+		},
+		{
+			name: "exceeded_worsened",
+			summary: &Summary{
+				Combined:         50,
+				Average:          25,
+				Exceeded:         3,
+				BaselineCombined: 50,
+				BaselineAverage:  25,
+			},
+			baseline:   &Baseline{Summary: Summary{TotalFuncs: 10}},
+			totalFuncs: 12,
+			exceeded:   8,
+			checks: checkPRCommentFormatterwriteSummaryTable(
+				checkOutputContains("| Combined CRAP | 50.0 | 50.0 | - |"),
+				checkOutputContains("| Average CRAP | 25.0 | 25.0 | - |"),
+				checkOutputContains("| Functions exceeding threshold | 10 | 8 | +5 🔴 |"),
+				checkOutputContains("| Total functions | 10 | 12 | |"),
+			),
+		},
+		{
+			name: "exceeded_improved",
+			summary: &Summary{
+				Combined:         50,
+				Average:          25,
+				Exceeded:         5,
+				BaselineCombined: 50,
+				BaselineAverage:  25,
+			},
+			baseline:   &Baseline{Summary: Summary{TotalFuncs: 10}},
+			totalFuncs: 10,
+			exceeded:   2,
+			checks: checkPRCommentFormatterwriteSummaryTable(
+				checkOutputContains("| Functions exceeding threshold | 10 | 2 | -3 🟢 |"),
+			),
+		},
+		{
+			name: "mixed_deltas",
+			summary: &Summary{
+				Combined:         200,
+				Average:          20,
+				Exceeded:         2,
+				BaselineCombined: 100,
+				BaselineAverage:  40,
+				DeltaCombined:    100,
+				DeltaAverage:     -20,
+			},
+			baseline:   &Baseline{Summary: Summary{TotalFuncs: 15}},
+			totalFuncs: 20,
+			exceeded:   5,
+			checks: checkPRCommentFormatterwriteSummaryTable(
+				checkOutputContains("| Combined CRAP | 100.0 | 200.0 | +100.0 🔴 |"),
+				checkOutputContains("| Average CRAP | 40.0 | 20.0 | -20.0 🟢 |"),
+				checkOutputContains("| Functions exceeding threshold | 15 | 5 | +3 🔴 |"),
+				checkOutputContains("| Total functions | 15 | 20 | |"),
+			),
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			s := &PRCommentFormatter{}
+			if tt.before != nil {
+				tt.before(s)
+			}
+
+			buf := &bytes.Buffer{}
+			s.writeSummaryTable(buf, tt.summary, tt.baseline, tt.totalFuncs, tt.exceeded)
+
+			for _, c := range tt.checks {
+				c(t, buf.String())
+			}
+		})
+	}
+}
+
+func TestPRCommentFormatter_writeCrappyTable_baseline_delta_column(t *testing.T) {
+	tests := []struct {
+		name     string
+		baseline *Baseline
+		wantIn   string
+		notIn    string
+	}{
+		{
+			name:     "with_baseline_shows_delta_column",
+			baseline: &Baseline{},
+			wantIn:   "| Δ |",
+			notIn:    "",
+		},
+		{
+			name:     "without_baseline_no_delta_column",
+			baseline: nil,
+			wantIn:   "",
+			notIn:    "| Δ |",
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			f := &PRCommentFormatter{}
+			buf := &bytes.Buffer{}
+			crappy := []score.CRAPEntry{
+				{File: "/project/a.go", Package: "myapp", FuncName: "Bad", Line: 1, Complexity: 10, Coverage: 0, EffectiveCRAP: 100, BaselineCRAP: 10},
+			}
+			f.writeCrappyTable(buf, crappy, 1, "", tt.baseline, false)
+			got := buf.String()
+			if tt.wantIn != "" {
+				assert.Contains(t, got, tt.wantIn)
+			}
+			if tt.notIn != "" {
+				assert.NotContains(t, got, tt.notIn)
+			}
+			assert.Contains(t, got, "Bad")
+		})
+	}
+}
+
+func TestPRCommentFormatter_writeBadge(t *testing.T) {
+	tests := []struct {
+		name    string
+		summary *Summary
+		want    string
+	}{
+		{
+			name:    "nil_summary_all_good",
+			summary: nil,
+			want:    "[OK] All good",
+		},
+		{
+			name:    "zero_exceeded_all_good",
+			summary: &Summary{Exceeded: 0, TotalFuncs: 10},
+			want:    "[OK] All good",
+		},
+		{
+			name:    "minor_changes",
+			summary: &Summary{Exceeded: 2, TotalFuncs: 10},
+			want:    "[!!] Minor changes",
+		},
+		{
+			name:    "minor_changes_exactly_half",
+			summary: &Summary{Exceeded: 5, TotalFuncs: 10},
+			want:    "[!!] Minor changes",
+		},
+		{
+			name:    "all_exceeded_small_total_error",
+			summary: &Summary{Exceeded: 2, TotalFuncs: 2},
+			want:    "[ERROR] Regressions detected",
+		},
+		{
+			name:    "regressions_detected",
+			summary: &Summary{Exceeded: 6, TotalFuncs: 10},
+			want:    "[ERROR] Regressions detected",
+		},
+		{
+			name:    "exceeded_with_zero_total",
+			summary: &Summary{Exceeded: 1, TotalFuncs: 0},
+			want:    "[ERROR] Regressions detected",
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			f := &PRCommentFormatter{}
+			buf := &bytes.Buffer{}
+			f.writeBadge(buf, tt.summary)
+			assert.Equal(t, tt.want, buf.String())
+		})
+	}
+}
+
+func TestPRCommentFormatter_writePRHeader(t *testing.T) {
+	tests := []struct {
+		name      string
+		sorted    []score.CRAPEntry
+		crappy    []score.CRAPEntry
+		threshold float64
+		summary   *Summary
+		baseline  *Baseline
+		checks    []checkPRCommentFormatterOutputFn
+	}{
+		{
+			name: "no_crappy",
+			checks: checkPRCommentFormatterOutput(
+				checkPRCommentOutputContains("## No crappy functions"),
+			),
+		},
+		{
+			name: "crappy_count",
+			crappy: []score.CRAPEntry{
+				{File: "/project/a.go", FuncName: "A", Line: 1},
+				{File: "/project/b.go", FuncName: "B", Line: 2},
+			},
+			checks: checkPRCommentFormatterOutput(
+				checkPRCommentOutputContains("## 2 crappy function(s)"),
+			),
+		},
+		{
+			name:      "summary_without_baseline_no_delta",
+			summary:   &Summary{Combined: 100.5, Average: 50.25},
+			baseline:  nil,
+			checks: checkPRCommentFormatterOutput(
+				checkPRCommentOutputContains("Combined CRAP: 100.50"),
+				checkPRCommentOutputContains("Average CRAP: 50.25"),
+				checkPRCommentOutputNotContains("vs baseline"),
+			),
+		},
+		{
+			name: "summary_with_baseline_positive_delta",
+			summary: &Summary{
+				Combined:      100.5,
+				Average:       50.25,
+				DeltaCombined: 5.5,
+				DeltaAverage:  2.25,
+			},
+			baseline: &Baseline{},
+			checks: checkPRCommentFormatterOutput(
+				checkPRCommentOutputContains("Combined CRAP: 100.50 (+5.50 vs baseline)"),
+				checkPRCommentOutputContains("Average CRAP: 50.25 (+2.25 vs baseline)"),
+			),
+		},
+		{
+			name: "summary_with_baseline_negative_delta",
+			summary: &Summary{
+				Combined:      100.5,
+				Average:       50.25,
+				DeltaCombined: -5.5,
+				DeltaAverage:  -2.25,
+			},
+			baseline: &Baseline{},
+			checks: checkPRCommentFormatterOutput(
+				checkPRCommentOutputContains("Combined CRAP: 100.50 (-5.50 vs baseline)"),
+				checkPRCommentOutputContains("Average CRAP: 50.25 (-2.25 vs baseline)"),
+			),
+		},
+		{
+			name: "summary_with_baseline_zero_delta_no_suffix",
+			summary: &Summary{
+				Combined:      100.5,
+				Average:       50.25,
+				DeltaCombined: 0,
+				DeltaAverage:  0,
+			},
+			baseline: &Baseline{},
+			checks: checkPRCommentFormatterOutput(
+				checkPRCommentOutputContains("Combined CRAP: 100.50"),
+				checkPRCommentOutputContains("Average CRAP: 50.25"),
+				checkPRCommentOutputNotContains("vs baseline"),
+			),
+		},
+		{
+			name:    "no_summary_no_crash",
+			summary: nil,
+			baseline: &Baseline{},
+			checks: checkPRCommentFormatterOutput(
+				checkPRCommentOutputContains("function(s) analyzed"),
+			),
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			f := &PRCommentFormatter{}
+			buf := &bytes.Buffer{}
+			f.writePRHeader(buf, tt.sorted, tt.crappy, tt.threshold, tt.summary, tt.baseline)
+			for _, c := range tt.checks {
+				c(t, buf.String())
+			}
 		})
 	}
 }

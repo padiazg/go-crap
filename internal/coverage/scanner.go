@@ -114,6 +114,7 @@ func (s *Scanner) discoverModules(ctx context.Context) ([]string, error) {
 			return false
 		default:
 		}
+
 		gomod := filepath.Join(dir, "go.mod")
 		if _, err := os.Stat(gomod); err == nil {
 			absPath, err := filepath.Abs(dir)
@@ -127,9 +128,11 @@ func (s *Scanner) discoverModules(ctx context.Context) ([]string, error) {
 		}
 		return true
 	})
+
 	if err != nil {
 		return nil, err
 	}
+
 	return modules, nil
 }
 

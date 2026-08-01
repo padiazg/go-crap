@@ -977,6 +977,25 @@ func TestFindRegressions_ignoreCovered_near_boundary(t *testing.T) {
 	assert.Equal(t, "Baz", ignored[1].FuncName)
 }
 
+func TestFindRegressions_baseline_zero_is_regression(t *testing.T) {
+	entries := []score.CRAPEntry{
+		{File: "a.go", FuncName: "Foo", EffectiveCRAP: 1.0, BaselineCRAP: 0},
+	}
+	result, ignored := FindRegressions(entries, 0.01, false)
+	assert.Len(t, result, 1)
+	assert.Equal(t, "Foo", result[0].FuncName)
+	assert.Empty(t, ignored)
+}
+
+func TestFindRegressions_delta_equal_tolerance_excluded(t *testing.T) {
+	entries := []score.CRAPEntry{
+		{File: "a.go", FuncName: "Foo", EffectiveCRAP: 0.01, BaselineCRAP: 0},
+	}
+	result, ignored := FindRegressions(entries, 0.01, false)
+	assert.Empty(t, result)
+	assert.Empty(t, ignored)
+}
+
 func TestAnnotateWithBaseline_absolute_vs_relative_path(t *testing.T) {
 	baseline := &Baseline{
 		entries: map[string]BaselineEntry{

@@ -40,6 +40,19 @@ func checkFooterFailedCount(failed, total int) checkTableFormatterOutputFn {
 	}
 }
 
+func checkOutputHeaderDelta(want bool) checkTableFormatterOutputFn {
+	return func(t *testing.T, got string) {
+		t.Helper()
+		for _, line := range strings.Split(got, "\n") {
+			if strings.Contains(line, "COVERAGE") && strings.Contains(line, "FUNCTION") {
+				assert.Equalf(t, want, strings.Contains(line, "Δ"), "header row should%s contain Δ column", map[bool]string{true: "", false: " not"}[want])
+				return
+			}
+		}
+		assert.Fail(t, "output should contain a header row with COVERAGE and FUNCTION")
+	}
+}
+
 func TestTableFormatter_Format(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -520,6 +533,21 @@ func Test_isUnchanged(t *testing.T) {
 			e:    score.CRAPEntry{BaselineCRAP: 30.0, EffectiveCRAP: 29.98},
 			want: false,
 		},
+		{
+			name: "baseline_zero_unchanged",
+			e:    score.CRAPEntry{BaselineCRAP: 0, EffectiveCRAP: 0},
+			want: true,
+		},
+		{
+			name: "delta_exactly_positive_tolerance",
+			e:    score.CRAPEntry{BaselineCRAP: 0, EffectiveCRAP: 0.01},
+			want: true,
+		},
+		{
+			name: "delta_exactly_negative_tolerance",
+			e:    score.CRAPEntry{BaselineCRAP: 0, EffectiveCRAP: -0.01},
+			want: true,
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -681,6 +709,10 @@ func TestTableFormatter_Format_baseline_filtering(t *testing.T) {
 				checkOutputContains("ImprovedFunc"),
 				checkOutputNotContains("UnchangedFunc"),
 				checkOutputContains("function(s) exceed threshold"),
+				checkOutputContains("Δ"),
+				checkOutputHeaderDelta(true),
+				checkOutputContains("+7.5"),
+				checkOutputContains("-5.4"),
 			),
 		},
 		{
@@ -767,4 +799,122 @@ func TestTableFormatter_Format_baseline_filtering(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_formatDelta(t *testing.T) {
+	tests := []struct {
+		name string
+		e    score.CRAPEntry
+		opts FormatOptions
+		want string
+	}{
+		{
+			name: "new_function",
+			e:    score.CRAPEntry{BaselineCRAP: -1, EffectiveCRAP: 10},
+			want: "new",
+		},
+		{
+			name: "baseline_zero_regression",
+			e:    score.CRAPEntry{BaselineCRAP: 0, EffectiveCRAP: 10},
+			want: "+10.0 ↑",
+		},
+		{
+			name: "regression",
+			e:    score.CRAPEntry{BaselineCRAP: 5, EffectiveCRAP: 15},
+			want: "+10.0 ↑",
+		},
+		{
+			name: "improvement",
+			e:    score.CRAPEntry{BaselineCRAP: 15, EffectiveCRAP: 5},
+			want: "-10.0 ↓",
+		},
+		{
+			name: "no_change",
+			e:    score.CRAPEntry{BaselineCRAP: 10, EffectiveCRAP: 10},
+			want: "-",
+		},
+		{
+			name: "delta_at_positive_tolerance",
+			e:    score.CRAPEntry{BaselineCRAP: 0, EffectiveCRAP: 0.01},
+			want: "-",
+		},
+		{
+			name: "delta_at_negative_tolerance",
+			e:    score.CRAPEntry{BaselineCRAP: 0, EffectiveCRAP: -0.01},
+			want: "-",
+		},
+		{
+			name: "delta_just_above_positive_tolerance",
+			e:    score.CRAPEntry{BaselineCRAP: 0, EffectiveCRAP: 0.011},
+			want: "+0.0 ↑",
+		},
+		{
+			name: "delta_just_below_negative_tolerance",
+			e:    score.CRAPEntry{BaselineCRAP: 0, EffectiveCRAP: -0.011},
+			want: "-0.0 ↓",
+		},
+		{
+			name: "delta_inside_negative_range",
+			e:    score.CRAPEntry{BaselineCRAP: 10, EffectiveCRAP: 9.995},
+			want: "-",
+		},
+		{
+			name: "delta_inside_positive_range",
+			e:    score.CRAPEntry{BaselineCRAP: 10, EffectiveCRAP: 10.005},
+			want: "-",
+		},
+		{
+			name: "regression_ignore_covered",
+			e:    score.CRAPEntry{BaselineCRAP: 0, EffectiveCRAP: 10, Coverage: 99.95},
+			opts: FormatOptions{IgnoreCovered: true},
+			want: "+10.0 ~",
+		},
+		{
+			name: "regression_not_ignored_below_coverage",
+			e:    score.CRAPEntry{BaselineCRAP: 0, EffectiveCRAP: 10, Coverage: 99.94},
+			opts: FormatOptions{IgnoreCovered: true},
+			want: "+10.0 ↑",
+		},
+		{
+			name: "improvement_ignore_covered",
+			e:    score.CRAPEntry{BaselineCRAP: 10, EffectiveCRAP: 0, Coverage: 99.95},
+			opts: FormatOptions{IgnoreCovered: true},
+			want: "-10.0 ~",
+		},
+		{
+			name: "improvement_not_ignored_below_coverage",
+			e:    score.CRAPEntry{BaselineCRAP: 10, EffectiveCRAP: 0, Coverage: 99.94},
+			opts: FormatOptions{IgnoreCovered: true},
+			want: "-10.0 ↓",
+		},
+		{
+			name: "regression_ignore_covered_false",
+			e:    score.CRAPEntry{BaselineCRAP: 0, EffectiveCRAP: 10, Coverage: 100},
+			opts: FormatOptions{IgnoreCovered: false},
+			want: "+10.0 ↑",
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			f := &TableFormatter{}
+			got := f.formatDelta(tt.e, tt.opts)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestTableFormatter_Format_coverage_warning_deduped(t *testing.T) {
+	f := &TableFormatter{}
+	buf := &bytes.Buffer{}
+	entries := &scan.Entries{List: []score.CRAPEntry{
+		{File: "/project/a.go", Package: "myapp", FuncName: "A", Line: 1, Complexity: 5, Coverage: 0, CRAP: 30, CoverageWarning: "runTests failed"},
+		{File: "/project/b.go", Package: "myapp", FuncName: "B", Line: 2, Complexity: 5, Coverage: 0, CRAP: 30, CoverageWarning: "runTests failed"},
+	}}
+	opts := FormatOptions{Threshold: 30, Writer: buf}
+	err := f.Format(entries, opts)
+	require.NoError(t, err)
+	output := buf.String()
+	assert.Contains(t, output, "coverage unavailable for runTests failed")
+	assert.Equal(t, 1, strings.Count(output, "coverage unavailable for runTests failed"))
 }

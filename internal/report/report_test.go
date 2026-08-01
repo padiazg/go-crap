@@ -179,6 +179,19 @@ func TestComputeSummary(t *testing.T) {
 				checkSummaryExceeded(0),
 			),
 		},
+		{
+			name: "success_exactly_at_threshold_not_exceeded",
+			entries: &scan.Entries{List: []score.CRAPEntry{
+				{File: "/project/a.go", Package: "myapp", FuncName: "Edge", Line: 1, Complexity: 1, Coverage: 100, CRAP: 30},
+			}},
+			threshold: 30.0,
+			checks: checkComputeSummary(
+				checkSummaryCombined(30),
+				checkSummaryAverage(30),
+				checkSummaryTotalFuncs(1),
+				checkSummaryExceeded(0),
+			),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

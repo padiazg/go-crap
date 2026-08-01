@@ -489,12 +489,12 @@ func Test_output(t *testing.T) {
 	}
 }
 
-type runScanCheckFn func(*testing.T, error)
+type runScanCheckFn func(*testing.T, io.Writer, error)
 
 var checkrunScan = func(fns ...runScanCheckFn) []runScanCheckFn { return fns }
 
 func checkrunScanError(want string) runScanCheckFn {
-	return func(t *testing.T, err error) {
+	return func(t *testing.T, _ io.Writer, err error) {
 		t.Helper()
 		if want == "" {
 			assert.NoErrorf(t, err, "checkrunScanError: expected no error, got %v", err)
@@ -502,6 +502,17 @@ func checkrunScanError(want string) runScanCheckFn {
 		}
 		if assert.Errorf(t, err, "checkrunScanError: expected error %q", want) {
 			assert.Containsf(t, err.Error(), want, "checkrunScanError mismatch")
+		}
+	}
+}
+
+func checkrunScanOutputContains(want string) runScanCheckFn {
+	return func(t *testing.T, writer io.Writer, err error) {
+		t.Helper()
+		assert.NoErrorf(t, err, "checkrunScanOutputContains: expected no error, got %v", err)
+		mw, ok := writer.(*mockWriter)
+		if assert.Truef(t, ok, "writer is not mockWriter") {
+			assert.Containsf(t, string(mw.buf), want, "output should contain %q", want)
 		}
 	}
 }
@@ -526,10 +537,14 @@ func resetFlags() {
 	flagMutation = ""
 	flagDetailed = false
 	flagTimeout = 10 * time.Minute
+	flagCoverProf = ""
 	flagBaseline = ""
 	flagShowUnchanged = false
 	flagFailRegression = false
 	flagFailRegressionThreshold = 0.01
+	flagProgress = false
+	flagNoProgress = false
+	flagIncludeTests = false
 }
 
 func Test_timeoutFlag_registered(t *testing.T) {
@@ -621,53 +636,64 @@ func Test_runScan(t *testing.T) {
 		name   string
 		cmd    *cobra.Command
 		args   []string
-		setup  func()
+		before func()
 		checks []runScanCheckFn
 	}{
 		{
-			name:  "successful scan against testdata",
-			args:  []string{testdataPath},
-			setup: resetFlags,
+			name:   "successful scan against testdata",
+			args:   []string{testdataPath},
+			before: resetFlags,
 			checks: checkrunScan(
 				checkrunScanError(""),
 			),
 		},
 		{
-			name:  "default path when args empty",
-			args:  nil,
-			setup: resetFlags,
+			name:   "default path when args empty",
+			args:   nil,
+			before: resetFlags,
 			checks: checkrunScan(
 				checkrunScanError(""),
 			),
 		},
 		{
-			name:  "fail-above when threshold exceeded",
-			args:  []string{testdataPath},
-			setup: func() { resetFlags(); flagFailAbove = true; flagThreshold = 1 },
+			name:   "fail-above when threshold exceeded",
+			args:   []string{testdataPath},
+			before: func() { resetFlags(); flagFailAbove = true; flagThreshold = 1 },
 			checks: checkrunScan(
 				checkrunScanError("CRAP threshold exceeded"),
 			),
 		},
 		{
-			name:  "fail-above with no exceedance",
-			args:  []string{testdataPath},
-			setup: func() { resetFlags(); flagFailAbove = true; flagThreshold = 999 },
+			name:   "fail-above with no exceedance",
+			args:   []string{testdataPath},
+			before: func() { resetFlags(); flagFailAbove = true; flagThreshold = 999 },
 			checks: checkrunScan(
 				checkrunScanError(""),
 			),
 		},
 		{
-			name:  "non-existent path returns error",
-			args:  []string{"/no/such/path"},
-			setup: resetFlags,
+			name:   "non-existent path returns error",
+			args:   []string{"/no/such/path"},
+			before: resetFlags,
 			checks: checkrunScan(
 				checkrunScanError("coverage scan"),
 			),
 		},
 		{
+			name: "invalid output file returns error",
+			args: []string{testdataPath},
+			before: func() {
+				resetFlags()
+				flagOutput = "/nonexistent/coverage.out"
+			},
+			checks: checkrunScan(
+				checkrunScanError("output:"),
+			),
+		},
+		{
 			name: "output to file",
 			args: []string{testdataPath},
-			setup: func() {
+			before: func() {
 				resetFlags()
 				f, err := os.CreateTemp("", "crap-output-*.json")
 				if err != nil {
@@ -680,25 +706,25 @@ func Test_runScan(t *testing.T) {
 			),
 		},
 		{
-			name:  "custom timeout succeeds",
-			args:  []string{testdataPath},
-			setup: func() { resetFlags(); flagTimeout = 2 * time.Minute },
+			name:   "custom timeout succeeds",
+			args:   []string{testdataPath},
+			before: func() { resetFlags(); flagTimeout = 2 * time.Minute },
 			checks: checkrunScan(
 				checkrunScanError(""),
 			),
 		},
 		{
-			name:  "fail-regression without baseline returns error",
-			args:  []string{testdataPath},
-			setup: func() { resetFlags(); flagFailRegression = true },
+			name:   "fail-regression without baseline returns error",
+			args:   []string{testdataPath},
+			before: func() { resetFlags(); flagFailRegression = true },
 			checks: checkrunScan(
 				checkrunScanError("--fail-regression requires --baseline"),
 			),
 		},
 		{
-			name:  "show-unchanged without baseline returns error",
-			args:  []string{testdataPath},
-			setup: func() { resetFlags(); flagShowUnchanged = true },
+			name:   "show-unchanged without baseline returns error",
+			args:   []string{testdataPath},
+			before: func() { resetFlags(); flagShowUnchanged = true },
 			checks: checkrunScan(
 				checkrunScanError("--show-unchanged requires --baseline"),
 			),
@@ -706,7 +732,7 @@ func Test_runScan(t *testing.T) {
 		{
 			name: "show-unchanged flag is registered",
 			args: []string{testdataPath},
-			setup: func() {
+			before: func() {
 				resetFlags()
 				f := scanCmd.Flags().Lookup("show-unchanged")
 				assert.NotNil(t, f, "expected --show-unchanged flag to be registered")
@@ -718,7 +744,7 @@ func Test_runScan(t *testing.T) {
 		{
 			name: "baseline with fail-regression no regression due to path mismatch",
 			args: []string{testdataPath},
-			setup: func() {
+			before: func() {
 				resetFlags()
 				flagFailRegression = true
 				flagBaseline = makeBaseline(t, baseDir)
@@ -728,9 +754,48 @@ func Test_runScan(t *testing.T) {
 			),
 		},
 		{
+			name: "fail-regression with matching baseline returns error",
+			args: []string{testdataPath},
+			before: func() {
+				resetFlags()
+				flagFailRegression = true
+				flagBaseline = makeBaselineForTest(t, `{
+  "$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
+  "version": "1.1.0",
+  "entries": [
+    {"file":"simple.go","function":"withIf","package":"testdata","crap":0.1,"cyclomatic":2,"effective_crap":0.1,"line":7,"coverage":0.0},
+    {"file":"complex.go","function":"veryComplex","package":"testdata","crap":0.1,"cyclomatic":10,"effective_crap":0.1,"line":3,"coverage":0.0}
+  ]
+}`)
+			},
+			checks: checkrunScan(
+				checkrunScanError("CRAP regression detected"),
+			),
+		},
+		{
+			name: "fail-regression ignore-covered excludes fully covered",
+			args: []string{testdataPath},
+			before: func() {
+				resetFlags()
+				flagFailRegression = true
+				flagFailRegressionIgnoreCovered = true
+				flagBaseline = makeBaselineForTest(t, `{
+  "$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
+  "version": "1.1.0",
+  "entries": [
+    {"file":"simple.go","function":"simple","package":"testdata","crap":0.1,"cyclomatic":1,"effective_crap":0.1,"line":3,"coverage":100.0}
+  ]
+}`)
+			},
+			checks: checkrunScan(
+				checkrunScanError(""),
+				checkrunScanOutputContains("Ignored (fully covered):"),
+			),
+		},
+		{
 			name: "invalid baseline file returns error",
 			args: []string{testdataPath},
-			setup: func() {
+			before: func() {
 				resetFlags()
 				flagBaseline = "/nonexistent/baseline.json"
 			},
@@ -741,7 +806,7 @@ func Test_runScan(t *testing.T) {
 		{
 			name: "baseline with detailed format",
 			args: []string{testdataPath},
-			setup: func() {
+			before: func() {
 				resetFlags()
 				flagDetailed = true
 				flagBaseline = makeBaseline(t, baseDir)
@@ -753,7 +818,7 @@ func Test_runScan(t *testing.T) {
 		{
 			name: "sarif format succeeds",
 			args: []string{testdataPath},
-			setup: func() {
+			before: func() {
 				resetFlags()
 				flagFormat = "sarif"
 			},
@@ -764,7 +829,7 @@ func Test_runScan(t *testing.T) {
 		{
 			name: "pr-comment format succeeds",
 			args: []string{testdataPath},
-			setup: func() {
+			before: func() {
 				resetFlags()
 				flagFormat = "pr-comment"
 			},
@@ -775,7 +840,7 @@ func Test_runScan(t *testing.T) {
 		{
 			name: "verbose mode enables debug logging",
 			args: []string{testdataPath},
-			setup: func() {
+			before: func() {
 				resetFlags()
 				flagVerbose = true
 			},
@@ -786,7 +851,7 @@ func Test_runScan(t *testing.T) {
 		{
 			name: "min filter excludes low entries",
 			args: []string{testdataPath},
-			setup: func() {
+			before: func() {
 				resetFlags()
 				flagMin = 10
 			},
@@ -797,7 +862,7 @@ func Test_runScan(t *testing.T) {
 		{
 			name: "top filter limits entries",
 			args: []string{testdataPath},
-			setup: func() {
+			before: func() {
 				resetFlags()
 				flagTop = 2
 			},
@@ -808,7 +873,7 @@ func Test_runScan(t *testing.T) {
 		{
 			name: "include-tests flag",
 			args: []string{testdataPath},
-			setup: func() {
+			before: func() {
 				resetFlags()
 				flagIncludeTests = true
 			},
@@ -819,7 +884,7 @@ func Test_runScan(t *testing.T) {
 		{
 			name: "coverage-profile flag",
 			args: []string{testdataPath},
-			setup: func() {
+			before: func() {
 				resetFlags()
 				flagCoverProf = "../internal/testdata/cover.out"
 			},
@@ -830,7 +895,7 @@ func Test_runScan(t *testing.T) {
 		{
 			name: "baseline with show-unchanged",
 			args: []string{testdataPath},
-			setup: func() {
+			before: func() {
 				resetFlags()
 				flagShowUnchanged = true
 				flagBaseline = makeBaseline(t, baseDir)
@@ -839,18 +904,113 @@ func Test_runScan(t *testing.T) {
 				checkrunScanError(""),
 			),
 		},
+		{
+			name: "progress flag enables reporter",
+			args: []string{testdataPath},
+			before: func() {
+				resetFlags()
+				flagProgress = true
+			},
+			checks: checkrunScan(
+				checkrunScanError(""),
+			),
+		},
+		{
+			name: "no-progress flag disables reporter",
+			args: []string{testdataPath},
+			before: func() {
+				resetFlags()
+				flagNoProgress = true
+			},
+			checks: checkrunScan(
+				checkrunScanError(""),
+			),
+		},
+		{
+			name: "mutation-report flag with valid report",
+			args: []string{testdataPath},
+			before: func() {
+				resetFlags()
+				f, err := os.CreateTemp("", "crap-mutation-*.json")
+				if err != nil {
+					t.Fatalf("failed to create temp file: %v", err)
+				}
+				if _, err := f.WriteString(`{
+  "go_module": "github.com/example/test",
+  "files": [{"file_name": "simple.go", "mutations": [
+    {"type": "ARITHMETIC", "status": "LIVED", "line": 7}
+  ]}],
+  "mutants_killed": 0,
+  "mutants_lived": 1,
+  "mutants_not_covered": 0,
+  "mutants_total": 1,
+  "test_efficacy": 0
+}`); err != nil {
+					f.Close()
+					t.Fatalf("failed to write temp file: %v", err)
+				}
+				f.Close()
+				flagMutation = f.Name()
+			},
+			checks: checkrunScan(
+				checkrunScanError(""),
+			),
+		},
+		{
+			name: "mutation-report flag with invalid path",
+			args: []string{testdataPath},
+			before: func() {
+				resetFlags()
+				flagMutation = "/nonexistent/report.json"
+			},
+			checks: checkrunScan(
+				checkrunScanError("MutationAnnotations"),
+			),
+		},
+		{
+			name: "exclude flag filters files",
+			args: []string{testdataPath},
+			before: func() {
+				resetFlags()
+				flagExclude = []string{"complex"}
+			},
+			checks: checkrunScan(
+				checkrunScanError(""),
+			),
+		},
+		{
+			name: "missing policy skip",
+			args: []string{testdataPath},
+			before: func() {
+				resetFlags()
+				flagMissing = "skip"
+			},
+			checks: checkrunScan(
+				checkrunScanError(""),
+			),
+		},
+		{
+			name: "missing policy invalid",
+			args: []string{testdataPath},
+			before: func() {
+				resetFlags()
+				flagMissing = "bogus"
+			},
+			checks: checkrunScan(
+				checkrunScanError("unknown missing policy"),
+			),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd, mw := makeCommand()
-			if tt.setup != nil {
-				tt.setup()
+			if tt.before != nil {
+				tt.before()
 			}
 			err := runScan(cmd, tt.args)
 			for _, c := range tt.checks {
-				c(t, err)
+				c(t, mw, err)
 			}
-			_ = mw
 		})
 	}
 }
@@ -870,6 +1030,7 @@ func Test_fmtRegressionError(t *testing.T) {
 		currentCombined  float64
 		baselineCombined float64
 		wantContains     []string
+		wantNotContains  []string
 		wantErr          bool
 	}{
 		{
@@ -885,7 +1046,8 @@ func Test_fmtRegressionError(t *testing.T) {
 				"cmd/scan.go:10 Foo: 5.00 -> 10.00 (+5.00)",
 				"Combined CRAP: 20.00 (Δ+5.00 vs baseline)",
 			},
-			wantErr: true,
+			wantNotContains: []string{"Ignored (fully covered):"},
+			wantErr:         true,
 		},
 		{
 			name:        "only ignored fully covered",
@@ -899,7 +1061,8 @@ func Test_fmtRegressionError(t *testing.T) {
 				"Ignored (fully covered):",
 				"cmd/scan.go:20 Bar: 5.00 -> 7.00 (+2.00)",
 			},
-			wantErr: false,
+			wantNotContains: []string{"CRAP regression detected:"},
+			wantErr:         false,
 		},
 		{
 			name: "mixed regressions and ignored",
@@ -938,6 +1101,9 @@ func Test_fmtRegressionError(t *testing.T) {
 			}
 			for _, want := range tt.wantContains {
 				assert.Contains(t, buf.String(), want, "output should contain %q", want)
+			}
+			for _, want := range tt.wantNotContains {
+				assert.NotContains(t, buf.String(), want, "output should not contain %q", want)
 			}
 		})
 	}

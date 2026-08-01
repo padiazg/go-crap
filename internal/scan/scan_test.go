@@ -258,6 +258,71 @@ func TestScan(t *testing.T) {
 				checkLen(6),
 			},
 		},
+		{
+			name: "missing_skip_policy",
+			options: &Options{
+				Path:         "../testdata",
+				IncludeTests: true,
+				Missing:      "skip",
+			},
+			checks: []func(*testing.T, *Entries, error){
+				checkScanError(""),
+				checkLen(6),
+				checkSortedDesc(),
+			},
+		},
+		{
+			name: "coverage_profile_option",
+			options: &Options{
+				Path:            "../testdata",
+				CoverageProfile: "../testdata/cover.out",
+			},
+			checks: []func(*testing.T, *Entries, error){
+				checkScanError(""),
+				checkLen(5),
+				checkValue(0, 90.00, "veryComplex"),
+				checkSortedDesc(),
+			},
+		},
+		{
+			name: "exclude_multiple_patterns",
+			options: &Options{
+				Path:         "../testdata",
+				IncludeTests: true,
+				Exclude:      []string{"veryComplex", "withSwitch"},
+			},
+			checks: []func(*testing.T, *Entries, error){
+				checkScanError(""),
+				checkLen(4),
+				checkSortedDesc(),
+			},
+		},
+		{
+			name: "timeout_explicitly_set",
+			options: &Options{
+				Path:         "../testdata",
+				IncludeTests: true,
+				Timeout:      30 * time.Second,
+			},
+			checks: []func(*testing.T, *Entries, error){
+				checkScanError(""),
+				checkLen(6),
+				checkValue(0, 90.00, "veryComplex"),
+				checkSortedDesc(),
+			},
+		},
+		{
+			name: "incorrect_exclude_pattern",
+			options: &Options{
+				Path:         "../testdata",
+				IncludeTests: true,
+				Timeout:      30 * time.Second,
+				Exclude:      []string{"["},
+			},
+			checks: []func(*testing.T, *Entries, error){
+				checkScanError("regexp: missing closing ]"),
+			},
+		},
 	}
 	for _, tt := range tests {
 		tt := tt

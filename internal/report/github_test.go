@@ -470,3 +470,49 @@ func TestGithubFormatter_one_above_threshold(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotEmpty(t, strings.TrimSpace(buf.String()))
 }
+
+func TestGithubFormatter_summary_without_baseline_skips_notice(t *testing.T) {
+	formatter := &GithubFormatter{}
+	var buf strings.Builder
+	entries := &scan.Entries{List: []score.CRAPEntry{
+		{CRAP: 10.0, Coverage: 50.0, FuncName: "Foo", File: "f.go", Line: 1},
+	}}
+	summary := &Summary{Combined: 10.0, Average: 10.0, TotalFuncs: 1, Exceeded: 0}
+	err := formatter.Format(entries, FormatOptions{Writer: &buf, Threshold: 30.0, Summary: summary})
+	assert.NoError(t, err)
+	assert.NotContains(t, buf.String(), "::notice::CRAP Summary:")
+}
+
+func TestGithubFormatter_baseline_without_summary_skips_notice(t *testing.T) {
+	formatter := &GithubFormatter{}
+	var buf strings.Builder
+	entries := &scan.Entries{List: []score.CRAPEntry{
+		{CRAP: 10.0, Coverage: 50.0, FuncName: "Foo", File: "f.go", Line: 1},
+	}}
+	baseline := &Baseline{}
+	err := formatter.Format(entries, FormatOptions{Writer: &buf, Threshold: 30.0, Baseline: baseline})
+	assert.NoError(t, err)
+	assert.NotContains(t, buf.String(), "::notice::CRAP Summary:")
+}
+
+func TestGithubFormatter_summary_with_baseline_writes_notice(t *testing.T) {
+	formatter := &GithubFormatter{}
+	var buf strings.Builder
+	entries := &scan.Entries{List: []score.CRAPEntry{
+		{CRAP: 10.0, Coverage: 50.0, FuncName: "Foo", File: "f.go", Line: 1},
+	}}
+	summary := &Summary{
+		Combined:        10.0,
+		Average:         10.0,
+		TotalFuncs:      1,
+		Exceeded:        0,
+		DeltaCombined:   2.0,
+		DeltaAverage:    1.0,
+		BaselineCombined: 8.0,
+		BaselineAverage:  9.0,
+	}
+	baseline := &Baseline{}
+	err := formatter.Format(entries, FormatOptions{Writer: &buf, Threshold: 30.0, Summary: summary, Baseline: baseline})
+	assert.NoError(t, err)
+	assert.Contains(t, buf.String(), "::notice::CRAP Summary: combined 10.0(+2.0 vs baseline), average 10.0(+1.0 vs baseline), 0/1 functions exceed threshold")
+}

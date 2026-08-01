@@ -143,6 +143,28 @@ func checkEntryEffectiveCRAP(want float64) func(*testing.T, JSONEntry) {
 		assert.InDeltaf(t, want, e.EffectiveCRAP, 0.01, "entry.EffectiveCRAP mismatch")
 	}
 }
+func checkEntryBaselineCRAPNil() func(*testing.T, JSONEntry) {
+	return func(t *testing.T, e JSONEntry) {
+		t.Helper()
+		assert.Nilf(t, e.BaselineCRAP, "entry.BaselineCRAP should be nil")
+	}
+}
+func checkEntryBaselineCRAP(want float64) func(*testing.T, JSONEntry) {
+	return func(t *testing.T, e JSONEntry) {
+		t.Helper()
+		if assert.NotNilf(t, e.BaselineCRAP, "entry.BaselineCRAP should not be nil") {
+			assert.InDeltaf(t, want, *e.BaselineCRAP, 0.01, "entry.BaselineCRAP mismatch")
+		}
+	}
+}
+func checkEntryDelta(want float64) func(*testing.T, JSONEntry) {
+	return func(t *testing.T, e JSONEntry) {
+		t.Helper()
+		if assert.NotNilf(t, e.Delta, "entry.Delta should not be nil") {
+			assert.InDeltaf(t, want, *e.Delta, 0.01, "entry.Delta mismatch")
+		}
+	}
+}
 func checkEntryCoverageUntrusted(want bool) func(*testing.T, JSONEntry) {
 	return func(t *testing.T, e JSONEntry) {
 		t.Helper()
@@ -454,6 +476,44 @@ func TestJSONFormatter_Format(t *testing.T) {
 				),
 			),
 		},
+		{
+			name: "success_baseline_entry_emits_delta",
+			entries: &scan.Entries{List: []score.CRAPEntry{
+				{File: "/home/user/project/main.go", Package: "myapp", FuncName: "Foo", Line: 5, Complexity: 3, Coverage: 90.0, CRAP: 7.2, EffectiveCRAP: 7.2, BaselineCRAP: 10.0},
+			}},
+			reportCheck: checkJSONFormatterFormatReport(
+				checkReportEntriesLen(1),
+				checkReportEntries(0,
+					checkEntryBaselineCRAP(10.0),
+					checkEntryDelta(-2.8),
+				),
+			),
+		},
+		{
+			name: "success_baseline_zero_still_emits_delta",
+			entries: &scan.Entries{List: []score.CRAPEntry{
+				{File: "/home/user/project/main.go", Package: "myapp", FuncName: "Foo", Line: 5, Complexity: 3, Coverage: 90.0, CRAP: 7.2, EffectiveCRAP: 7.2, BaselineCRAP: 0},
+			}},
+			reportCheck: checkJSONFormatterFormatReport(
+				checkReportEntriesLen(1),
+				checkReportEntries(0,
+					checkEntryBaselineCRAP(0),
+					checkEntryDelta(7.2),
+				),
+			),
+		},
+		{
+			name: "success_negative_baseline_omits_delta",
+			entries: &scan.Entries{List: []score.CRAPEntry{
+				{File: "/home/user/project/main.go", Package: "myapp", FuncName: "Foo", Line: 5, Complexity: 3, Coverage: 90.0, CRAP: 7.2, BaselineCRAP: -1},
+			}},
+			reportCheck: checkJSONFormatterFormatReport(
+				checkReportEntriesLen(1),
+				checkReportEntries(0,
+					checkEntryBaselineCRAPNil(),
+				),
+			),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -731,4 +791,37 @@ func TestJSONFormatter_Format_summary_with_entries(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, gotReport.Summary)
 	assert.Len(t, gotReport.Entries, 1)
+}
+
+func TestJSONFormatter_Format_summary_with_baseline(t *testing.T) {
+	entries := &scan.Entries{List: []score.CRAPEntry{
+		{File: "/project/main.go", Package: "myapp", FuncName: "Foo", Line: 1, Complexity: 1, Coverage: 100, CRAP: 1},
+	}}
+	var gotReport Report
+	buf := &bytes.Buffer{}
+	opts := FormatOptions{
+		Writer:  buf,
+		Summary: &Summary{Combined: 12.0, Average: 12.0, TotalFuncs: 1, Exceeded: 0, BaselineCombined: 10.0, BaselineAverage: 9.0, DeltaCombined: 2.0, DeltaAverage: 3.0},
+		Baseline: &Baseline{},
+	}
+	s := &JSONFormatter{}
+	captured := func(v any, prefix, indent string) ([]byte, error) {
+		data, err := json.MarshalIndent(v, prefix, indent)
+		if err == nil {
+			_ = json.Unmarshal(data, &gotReport)
+		}
+		return data, err
+	}
+	s.jsonMarshalIndent = captured
+	err := s.Format(entries, opts)
+	require.NoError(t, err)
+	require.NotNil(t, gotReport.Summary)
+	require.NotNil(t, gotReport.Summary.BaselineCombined)
+	require.NotNil(t, gotReport.Summary.BaselineAverage)
+	require.NotNil(t, gotReport.Summary.DeltaCombined)
+	require.NotNil(t, gotReport.Summary.DeltaAverage)
+	assert.InDelta(t, 10.0, *gotReport.Summary.BaselineCombined, 0.01)
+	assert.InDelta(t, 9.0, *gotReport.Summary.BaselineAverage, 0.01)
+	assert.InDelta(t, 2.0, *gotReport.Summary.DeltaCombined, 0.01)
+	assert.InDelta(t, 3.0, *gotReport.Summary.DeltaAverage, 0.01)
 }
