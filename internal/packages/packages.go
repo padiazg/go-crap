@@ -21,8 +21,45 @@ type Target struct {
 	ModuleDir  string
 }
 
+type packageError struct {
+	ImportPath string
+	Pos        string
+	Err        string
+}
+
+// listPackage is a minimal representation of go list -json output for a package.
+type listPackage struct {
+	ImportPath   string
+	Dir          string
+	ModulePath   string
+	ModuleDir    string
+	GoFiles      []string
+	TestGoFiles  []string
+	XTestGoFiles []string
+	Error        packageError
+}
+
 // Resolve resolves package patterns via `go list -json -e`.
 func Resolve(ctx context.Context, patterns []string, includeTests bool) ([]Target, error) {
+	stdout, err := getList(ctx, patterns)
+	if err != nil {
+		return nil, err
+	}
+
+	// Stream JSON objects (one per package) from the combined output.
+	targets, errors, err := getTargets(stdout, includeTests)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(targets) == 0 && len(errors) > 0 {
+		return nil, fmt.Errorf("resolve patterns: %s", strings.Join(errors, "; "))
+	}
+
+	return targets, nil
+}
+
+func getList(ctx context.Context, patterns []string) (*bytes.Buffer, error) {
 	args := []string{"list", "-e", "-json"}
 	args = append(args, patterns...)
 
@@ -43,16 +80,20 @@ func Resolve(ctx context.Context, patterns []string, includeTests bool) ([]Targe
 		}
 	}
 
-	// Stream JSON objects (one per package) from the combined output.
-	dec := json.NewDecoder(&stdout)
+	return &stdout, nil
+}
+
+func getTargets(stdout *bytes.Buffer, includeTests bool) ([]Target, []string, error) {
+	dec := json.NewDecoder(stdout)
 	var targets []Target
 	var errors []string
 
 	for dec.More() {
 		var pkg listPackage
 		if err := dec.Decode(&pkg); err != nil {
-			return nil, fmt.Errorf("resolve patterns: decode JSON: %w", err)
+			return nil, nil, fmt.Errorf("resolve patterns: decode JSON: %w", err)
 		}
+
 		if pkg.Error.Err != "" {
 			errors = append(errors, fmt.Sprintf("%s: %s", pkg.ImportPath, pkg.Error.Err))
 			continue
@@ -81,25 +122,5 @@ func Resolve(ctx context.Context, patterns []string, includeTests bool) ([]Targe
 		targets = append(targets, t)
 	}
 
-	if len(targets) == 0 && len(errors) > 0 {
-		return nil, fmt.Errorf("resolve patterns: %s", strings.Join(errors, "; "))
-	}
-
-	return targets, nil
-}
-
-// listPackage is a minimal representation of go list -json output for a package.
-type listPackage struct {
-	ImportPath  string
-	Dir         string
-	ModulePath  string
-	ModuleDir   string
-	GoFiles     []string
-	TestGoFiles []string
-	XTestGoFiles []string
-	Error       struct {
-		ImportPath string
-		Pos        string
-		Err        string
-	}
+	return targets, errors, nil
 }
