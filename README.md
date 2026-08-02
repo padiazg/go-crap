@@ -55,19 +55,24 @@ docker run --rm -v "$PWD:/code" ghcr.io/padiazg/go-crap scan --top 10 --format t
 ## Usage
 
 ```shell
-go-crap scan [path] [flags]
+go-crap scan [pattern ...] [flags]
 ```
 
-Scans the Go module at the given path (defaults to `.`) and outputs a ranked table of functions by CRAP score.
+Scans Go packages matching the given patterns (defaults to `./...` — the whole module) and outputs a ranked table of functions by CRAP score.
+
+Patterns use the same syntax as `go list` / `go build`: `./...` (recursive), `./internal/score` (single package), `github.com/x/y` (import path). Multiple patterns are accepted (e.g. `./internal/foo ./internal/bar`).
 
 ### Example
 
 ```shell
-# Scan current module
+# Scan entire current module (default)
 go-crap scan
 
-# Scan a specific directory
+# Scan specific package
 go-crap scan ./internal/score
+
+# Scan multiple packages
+go-crap scan ./internal/score ./internal/coverage
 
 # Show only the 10 worst offenders
 go-crap scan --top 10

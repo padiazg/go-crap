@@ -6,11 +6,20 @@ Inspired by [cargo-crap](https://github.com/Boehs/cargo-crap) for Rust.
 
 ## What It Does
 
-Point it at a directory - it scans all Go modules, computes complexity, reads coverage, and outputs a ranked table of functions by CRAP score:
+`go-crap` accepts Go package patterns (same syntax as `go list`). Point it at a package, multiple packages, or a directory:
 
 ```bash
+# Scan entire current module (default)
 go-crap scan
+
+# Scan specific packages
+go-crap scan ./internal/score ./internal/coverage
+
+# Scan by import path
+go-crap scan github.com/padiazg/go-crap/...
 ```
+
+It scans all Go modules matched by the patterns, computes complexity, reads coverage, and outputs a ranked table of functions by CRAP score.
 
 ## Key Concepts
 
@@ -85,8 +94,11 @@ When a function has no coverage data, go-crap can handle it three ways:
 # Install
 curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
 
-# Scan a project
+# Scan entire module (default)
 go-crap scan
+
+# Scan specific packages
+go-crap scan ./internal/score ./internal/coverage
 
 # Show only the 10 worst offenders
 go-crap scan --top 10

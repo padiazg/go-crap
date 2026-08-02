@@ -43,9 +43,9 @@ var (
 	flagFailRegressionIgnoreCovered bool
 
 	scanCmd = &cobra.Command{
-		Use:   "scan [path]",
+		Use:   "scan [pattern ...]",
 		Short: "Analyze Go modules and calculate CRAP scores",
-		Args:  cobra.MaximumNArgs(1),
+		Args:  cobra.MinimumNArgs(0),
 		RunE:  runScan,
 	}
 )
@@ -111,9 +111,9 @@ func resolveProgressReporter() pkgprogress.Reporter {
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
-	path := "."
-	if len(args) > 0 {
-		path = args[0]
+	patterns := args
+	if len(patterns) == 0 {
+		patterns = []string{"./..."}
 	}
 
 	if flagFailRegression && flagBaseline == "" {
@@ -145,7 +145,8 @@ func runScan(cmd *cobra.Command, args []string) error {
 	entries, err := scan.Scan(&scan.Options{
 		Exclude:          flagExclude,
 		IncludeTests:     flagIncludeTests,
-		Path:             path,
+		Path:             patterns[0],
+		Patterns:         patterns,
 		Missing:          flagMissing,
 		Top:              flagTop,
 		Min:              flagMin,
@@ -168,7 +169,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 
 	err = output(entries, outputConfig{
-		path:          path,
+		path:          ".",
 		writer:        cmd.OutOrStdout(),
 		output:        flagOutput,
 		format:        flagFormat,

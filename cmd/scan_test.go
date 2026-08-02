@@ -759,13 +759,13 @@ func Test_runScan(t *testing.T) {
 			before: func() {
 				resetFlags()
 				flagFailRegression = true
-				flagBaseline = makeBaselineForTest(t, `{
-  "$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
-  "version": "1.1.0",
-  "entries": [
-    {"file":"simple.go","function":"withIf","package":"testdata","crap":0.1,"cyclomatic":2,"effective_crap":0.1,"line":7,"coverage":0.0},
-    {"file":"complex.go","function":"veryComplex","package":"testdata","crap":0.1,"cyclomatic":10,"effective_crap":0.1,"line":3,"coverage":0.0}
-  ]
+		flagBaseline = makeBaselineForTest(t, `{
+   "$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
+   "version": "1.1.0",
+   "entries": [
+     {"file":"../internal/testdata/simple.go","function":"withIf","package":"testdata","crap":0.1,"cyclomatic":2,"effective_crap":0.1,"line":7,"coverage":0.0},
+     {"file":"../internal/testdata/complex.go","function":"veryComplex","package":"testdata","crap":0.1,"cyclomatic":10,"effective_crap":0.1,"line":3,"coverage":0.0}
+   ]
 }`)
 			},
 			checks: checkrunScan(
@@ -779,12 +779,12 @@ func Test_runScan(t *testing.T) {
 				resetFlags()
 				flagFailRegression = true
 				flagFailRegressionIgnoreCovered = true
-				flagBaseline = makeBaselineForTest(t, `{
-  "$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
-  "version": "1.1.0",
-  "entries": [
-    {"file":"simple.go","function":"simple","package":"testdata","crap":0.1,"cyclomatic":1,"effective_crap":0.1,"line":3,"coverage":100.0}
-  ]
+	flagBaseline = makeBaselineForTest(t, `{
+   "$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
+   "version": "1.1.0",
+   "entries": [
+     {"file":"../internal/testdata/simple.go","function":"simple","package":"testdata","crap":0.1,"cyclomatic":1,"effective_crap":0.1,"line":3,"coverage":100.0}
+   ]
 }`)
 			},
 			checks: checkrunScan(

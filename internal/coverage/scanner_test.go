@@ -800,7 +800,7 @@ func TestCovered(t *testing.T) {
 				modDir = s.Path
 			}
 			ctx := context.Background()
-			r := s.scanModule(ctx, modDir)
+			r := s.scanModule(ctx, modDir, nil)
 			for _, c := range tt.checks {
 				c(t, r)
 			}
@@ -927,7 +927,7 @@ func Something() {}
 				modDir = s.Path
 			}
 			ctx := context.Background()
-			r, err := s.runTests(ctx, modDir)
+			r, err := s.runTests(ctx, modDir, nil)
 			defer func() {
 				if removeErr := os.Remove(r); removeErr != nil {
 					assert.NoError(t, removeErr)
@@ -963,7 +963,7 @@ func Nothing() {}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := s.runTests(ctx, tempDir)
+	_, err := s.runTests(ctx, tempDir, nil)
 	assert.Error(t, err)
 }
 
@@ -997,7 +997,7 @@ func TestSlow(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
-	_, err := s.runTests(ctx, tempDir)
+	_, err := s.runTests(ctx, tempDir, nil)
 	if assert.Error(t, err) {
 		assert.Contains(t, err.Error(), "timed out")
 		assert.Contains(t, err.Error(), "--timeout")
@@ -1035,7 +1035,7 @@ func broken( {
 	s := NewScanner("value", nil, logger, 0)
 
 	ctx := context.Background()
-	_, err := s.runTests(ctx, tempDir)
+	_, err := s.runTests(ctx, tempDir, nil)
 	assert.Error(t, err)
 	assert.NotContains(t, logger.warns, "coverage: tests failed in module", "no failed tests to report")
 }
