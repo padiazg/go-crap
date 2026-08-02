@@ -5,14 +5,40 @@ The `scan` command is the main entry point. It analyzes Go modules, computes CRA
 ## Usage
 
 ```shell
-go-crap scan [path] [flags]
+go-crap scan [pattern ...] [flags]
 ```
 
 **Arguments:**
 
 | Argument | Description | Default |
 | - | - | - |
-| `path` | Directory or package pattern to scan | `.` (current directory) |
+| `pattern` | Go package pattern(s) to scan. Accepts any number of patterns. | `./...` (entire module) |
+
+Patterns use the same syntax as `go list` / `go build`:
+
+| Pattern | Meaning |
+| - | - |
+| `.` | Current package |
+| `./...` | Current package and all sub-packages |
+| `./internal/score` | Single package |
+| `./internal/...` | All packages under `internal` |
+| `./internal/foo ./internal/bar` | Multiple specific packages |
+
+Examples:
+
+```shell
+# Scan entire current module (default)
+go-crap scan
+
+# Scan a specific package
+go-crap scan ./internal/score
+
+# Scan multiple packages
+go-crap scan ./internal/score ./internal/coverage
+
+# Scan by import path
+go-crap scan github.com/padiazg/go-crap/internal/...
+```
 
 ## Flags
 
@@ -110,10 +136,22 @@ go-crap scan --no-progress --format json
 go-crap scan
 ```
 
-### Scan a project somewhere else
+### Scan a specific package
 
 ```shell
-go-crap scan ~/go/src/github.com/padiazg/go-crap
+go-crap scan ./internal/scan
+```
+
+### Scan multiple packages
+
+```shell
+go-crap scan ./internal/scan ./internal/coverage
+```
+
+### Scan a project outside the current module
+
+```shell
+go-crap scan ~/go/src/github.com/padiazg/go-crap/...
 ```
 
 ### Show only the top 20 worst offenders
@@ -272,10 +310,16 @@ Generate a JSON report to use as a baseline. Subsequent scans can compare agains
 docker run --rm -v "$PWD:/code" ghcr.io/padiazg/go-crap scan
 ```
 
-Mount the project directory at `/code` — the container runs `go-crap scan /code` by default. Pass any flags directly:
+Mount the project directory at `/code` — the container analyses whatever directory you mount. Pass any flags directly:
 
 ```shell
-docker run --rm -v "$PWD:/code" ghcr.io/padiazg/go-crap scan --format json --threshold 30
+docker run --rm -v "$PWD:/code" ghcr.io/padiazg/go-crap scan --top 10 --format table
 ```
 
-Images are available at `docker.io/padiazg/go-crap` and `ghcr.io/padiazg/go-crap`. Tags map to [releases](https://github.com/padiazg/go-crap/releases).
+To scan a specific package inside the mounted directory:
+
+```shell
+docker run --rm -v "$PWD:/code" ghcr.io/padiazg/go-crap scan ./internal/scan
+```
+
+Images are available at `docker.io/padiazg/go-crap` and `ghcr.io/padiazg/go-crap`. Tags map to [releases](https://github.com/padiazg/go-crap/releases). Multi-arch images (linux/amd64, linux/arm64).

@@ -17,6 +17,12 @@ import (
 	"github.com/padiazg/go-crap/pkg/progress"
 )
 
+// ModuleTarget holds per-module package targets for targeted coverage analysis.
+type ModuleTarget struct {
+	ModDir   string
+	PkgDirs  []string // module-relative package directories to run go test on
+}
+
 type Scanner struct {
 	Logger   logger.Logger
 	Progress progress.Reporter
@@ -27,6 +33,10 @@ type Scanner struct {
 	// entries whose paths do not belong to a module are skipped.
 	Profile string
 	Timeout time.Duration
+
+	// Targets, when set, overrides the Path-based module discovery with
+	// explicit per-module package targets.
+	Targets []ModuleTarget
 }
 
 func NewScanner(path string, exclude *regexp.Regexp, logger logger.Logger, timeout time.Duration) *Scanner {
@@ -56,9 +66,18 @@ func (s *Scanner) Scan(ctx context.Context) ([]ModuleCoverage, error) {
 		}
 	}
 
-	modules, err := s.discoverModules(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("discover modules: %w", err)
+	var modules []string
+
+	if len(s.Targets) > 0 {
+		for _, t := range s.Targets {
+			modules = append(modules, t.ModDir)
+		}
+	} else {
+		var err error
+		modules, err = s.discoverModules(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("discover modules: %w", err)
+		}
 	}
 
 	// A supplied profile needs the enclosing module only for path
@@ -76,7 +95,7 @@ func (s *Scanner) Scan(ctx context.Context) ([]ModuleCoverage, error) {
 	}
 
 	var results []ModuleCoverage
-	for _, modDir := range modules {
+	for i, modDir := range modules {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -86,7 +105,13 @@ func (s *Scanner) Scan(ctx context.Context) ([]ModuleCoverage, error) {
 		if s.Progress != nil {
 			s.Progress.SetDetail(filepath.Base(modDir))
 		}
-		mc := s.scanModule(ctx, modDir)
+
+		var pkgDirs []string
+		if i < len(s.Targets) {
+			pkgDirs = s.Targets[i].PkgDirs
+		}
+
+		mc := s.scanModule(ctx, modDir, pkgDirs)
 		if mc.Error != nil {
 			s.Logger.Debug("coverage scan: module error", "module", modDir, "error", mc.Error.Error())
 			mc.Error = fmt.Errorf("scan %s: %w", modDir, mc.Error)
@@ -173,7 +198,7 @@ func walkForModules(root string, visit func(dir string) bool) error {
 	})
 }
 
-func (s *Scanner) scanModule(ctx context.Context, modDir string) ModuleCoverage {
+func (s *Scanner) scanModule(ctx context.Context, modDir string, pkgDirs []string) ModuleCoverage {
 	mc := ModuleCoverage{Dir: modDir}
 	modulePath, err := readModulePath(modDir)
 	if err != nil {
@@ -186,7 +211,7 @@ func (s *Scanner) scanModule(ctx context.Context, modDir string) ModuleCoverage 
 	var parseErr error
 	runTestsSuccess := false
 	if mc.Profile == "" {
-		mc.Profile, err = s.runTests(ctx, modDir)
+		mc.Profile, err = s.runTests(ctx, modDir, pkgDirs)
 		if err != nil {
 			mc.Error = fmt.Errorf("runTests: %w", err)
 		} else {
@@ -225,7 +250,7 @@ func readModulePath(dir string) (string, error) {
 	return "", fmt.Errorf("no module declaration in go.mod")
 }
 
-func (s *Scanner) runTests(ctx context.Context, modDir string) (string, error) {
+func (s *Scanner) runTests(ctx context.Context, modDir string, pkgDirs []string) (string, error) {
 	tmpfile, err := os.CreateTemp("", "coverage-*.out")
 	if err != nil {
 		return "", err
@@ -234,8 +259,15 @@ func (s *Scanner) runTests(ctx context.Context, modDir string) (string, error) {
 		s.Logger.Debug("coverage scan: tmpfile close error", "error", err.Error())
 	}
 	profile := tmpfile.Name()
-	// cmd := exec.CommandContext(ctx, "go", "test", "-coverpkg=./...", "-coverprofile="+profile, "./...")
-	cmd := exec.CommandContext(ctx, "go", "test", "-coverprofile="+profile, "./...")
+
+	args := []string{"test", "-coverprofile=" + profile}
+	if len(pkgDirs) > 0 {
+		args = append(args, pkgDirs...)
+	} else {
+		args = append(args, "./...")
+	}
+
+	cmd := exec.CommandContext(ctx, "go", args...)
 	cmd.Dir = modDir
 	cmd.Env = append(os.Environ(), "GO111MODULE=on")
 	var stderr bytes.Buffer

@@ -10,10 +10,17 @@ curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
 
 ## 2. Run a Scan
 
-Point `go-crap scan` at a directory or package pattern:
+`go-crap scan` accepts Go package patterns (same syntax as `go list`). Patterns default to `./...` (the whole module):
 
 ```shell
+# Scan entire current module (default)
 go-crap scan
+
+# Scan a specific package
+go-crap scan ./internal/score
+
+# Scan multiple packages
+go-crap scan ./internal/score ./internal/coverage
 ```
 
 Example output:

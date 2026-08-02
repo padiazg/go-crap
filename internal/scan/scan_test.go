@@ -411,7 +411,7 @@ func Test_runCoverageAnalysis(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			r, err := runCoverageAnalysis(context.Background(), tt.options, tt.exclude, 0)
+			r, err := runCoverageAnalysis(context.Background(), tt.options, tt.options.Patterns, tt.exclude, 0)
 			for _, c := range tt.checks {
 				c(t, r, err)
 			}

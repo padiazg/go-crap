@@ -62,6 +62,52 @@ func Analyze(paths []string, exclude *regexp.Regexp, l logger.Logger) []Stat {
 	return a.stats
 }
 
+// AnalyzeFiles parses the given file paths and returns cyclomatic complexity statistics for each function.
+func AnalyzeFiles(files []string, exclude *regexp.Regexp, l logger.Logger) []Stat {
+	if l == nil {
+		l = dummylogger.New(nil)
+	}
+	var stats []Stat
+	for _, file := range files {
+		if exclude != nil && exclude.MatchString(file) {
+			continue
+		}
+		fset := token.NewFileSet()
+		f, err := parser.ParseFile(fset, file, nil, parser.ParseComments|parser.AllErrors)
+		if err != nil {
+			l.Debug("complexity analyze: parse error", "file", file, "error", err.Error())
+			continue
+		}
+
+		for _, decl := range f.Decls {
+			fnDecl, ok := decl.(*ast.FuncDecl)
+			if !ok {
+				continue
+			}
+
+			if parseDirectives(fnDecl.Doc) {
+				continue
+			}
+
+			name := fnDecl.Name.Name
+			if exclude != nil && exclude.MatchString(name) {
+				continue
+			}
+
+			complexity := Complexity(fnDecl)
+			stats = append(stats, Stat{
+				PkgName:    f.Name.Name,
+				FuncName:   name,
+				Receiver:   receiverName(fnDecl.Recv),
+				Complexity: complexity,
+				Pos:        fset.Position(fnDecl.Pos()),
+				EndLine:    fset.Position(fnDecl.End()).Line,
+			})
+		}
+	}
+	return stats
+}
+
 func (a *analyzeData) analyzeDir(dir string) {
 	a.analyzeGoFiles(dir)
 	a.walkSubdirs(dir)

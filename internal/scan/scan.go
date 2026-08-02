@@ -11,6 +11,7 @@ import (
 	"github.com/padiazg/go-crap/internal/complexity"
 	"github.com/padiazg/go-crap/internal/coverage"
 	"github.com/padiazg/go-crap/internal/merge"
+	"github.com/padiazg/go-crap/internal/packages"
 	"github.com/padiazg/go-crap/internal/score"
 	"github.com/padiazg/go-crap/pkg/logger"
 	pkgprogress "github.com/padiazg/go-crap/pkg/progress"
@@ -31,6 +32,7 @@ type Options struct {
 	Missing          string
 	MutationReport   string
 	Path             string
+	Patterns         []string
 	Exclude          []string
 	Min              float64
 	Timeout          time.Duration
@@ -67,8 +69,18 @@ func Scan(options *Options) (*Entries, error) {
 	defer pr.Done()
 	defer pr.Errored()
 
+	// Resolve patterns or fall back to path-based discovery.
+	patterns := options.Patterns
+	if len(patterns) == 0 && options.Path != "" {
+		// Back-compat: if Patterns not set but Path is, treat Path as a single pattern.
+		patterns = []string{options.Path}
+	}
+	if len(patterns) == 0 {
+		patterns = []string{"./..."}
+	}
+
 	pr.StartPhase(pkgprogress.PhaseCoverageTests, 0)
-	coverages, err := runCoverageAnalysis(ctx, options, exclude, timeout)
+	coverages, err := runCoverageAnalysis(ctx, options, patterns, exclude, timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +89,7 @@ func Scan(options *Options) (*Entries, error) {
 	logCoverageErrors(options.Logger, coverages)
 
 	pr.StartPhase(pkgprogress.PhaseComplexity, 0)
-	stats := complexity.Analyze([]string{options.Path}, exclude, options.Logger)
+	stats := runComplexityAnalysis(ctx, options, patterns, exclude)
 	pr.FinishPhase()
 
 	pr.StartPhase(pkgprogress.PhaseProcessing, 0)
@@ -93,15 +105,90 @@ func Scan(options *Options) (*Entries, error) {
 	return entries, err
 }
 
-func runCoverageAnalysis(ctx context.Context, options *Options, exclude *regexp.Regexp, timeout time.Duration) ([]coverage.ModuleCoverage, error) {
-	scanner := coverage.NewScanner(options.Path, exclude, options.Logger, timeout)
+func runCoverageAnalysis(ctx context.Context, options *Options, patterns []string, exclude *regexp.Regexp, timeout time.Duration) ([]coverage.ModuleCoverage, error) {
+	scanner := coverage.NewScanner(".", exclude, options.Logger, timeout)
 	scanner.Profile = options.CoverageProfile
 	scanner.Progress = options.ProgressReporter
-	coverages, err := scanner.Scan(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("coverage scan: %w", err)
+
+	// If a profile is provided, fall back to path-based discovery (no go list needed).
+	if scanner.Profile != "" {
+		coverages, err := scanner.Scan(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("coverage scan: %w", err)
+		}
+		return coverages, nil
 	}
-	return coverages, nil
+
+	// Try to resolve patterns via go list. On failure, fall back to Path-based discovery.
+	if len(patterns) == 0 && options.Path != "" {
+		patterns = []string{options.Path}
+	}
+	targets, resolveErr := packages.Resolve(ctx, patterns, options.IncludeTests)
+	if resolveErr == nil && len(targets) > 0 {
+		// Group targets by module dir.
+		modTargets := make(map[string]*coverage.ModuleTarget)
+		for _, t := range targets {
+			if t.ModuleDir == "" {
+				continue
+			}
+			relDir := t.Dir
+			if mtd, ok := modTargets[t.ModuleDir]; ok {
+				mtd.PkgDirs = append(mtd.PkgDirs, relDir)
+			} else {
+				modTargets[t.ModuleDir] = &coverage.ModuleTarget{
+					ModDir:  t.ModuleDir,
+					PkgDirs: []string{relDir},
+				}
+			}
+		}
+
+		var mt []coverage.ModuleTarget
+		for _, t := range modTargets {
+			mt = append(mt, *t)
+		}
+		scanner.Targets = mt
+
+		coverages, err := scanner.Scan(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("coverage scan: %w", err)
+		}
+		return coverages, nil
+	}
+
+	// Fallback to Path-based discovery (e.g. nested module dirs outside go list reach).
+	if options.Path != "" {
+		scanner.Path = options.Path
+		coverages, err := scanner.Scan(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("coverage scan: %w", err)
+		}
+		return coverages, nil
+	}
+
+	return nil, fmt.Errorf("coverage scan: resolve patterns: %w", resolveErr)
+}
+
+func runComplexityAnalysis(_ context.Context, options *Options, patterns []string, exclude *regexp.Regexp) []complexity.Stat {
+	targets, err := packages.Resolve(context.Background(), patterns, options.IncludeTests)
+	if err != nil {
+		// Fallback: if resolve fails (e.g. outside a module), fall back to Path-based walk.
+		if options.Path != "" {
+			return complexity.Analyze([]string{options.Path}, exclude, options.Logger)
+		}
+		return nil
+	}
+
+	var files []string
+	for _, t := range targets {
+		files = append(files, t.Files...)
+		files = append(files, t.TestFiles...)
+	}
+
+	if len(files) == 0 {
+		return nil
+	}
+
+	return complexity.AnalyzeFiles(files, exclude, options.Logger)
 }
 
 func logCoverageErrors(l logger.Logger, coverages []coverage.ModuleCoverage) {
