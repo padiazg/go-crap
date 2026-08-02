@@ -396,3 +396,31 @@ func Test_newAnalyze(t *testing.T) {
 		})
 	}
 }
+
+type AnalyzeFilesFn func(*testing.T, []Stat)
+
+var checkAnalyzeFiles = func(fns ...AnalyzeFilesFn) []AnalyzeFilesFn { return fns }
+
+func TestAnalyzeFiles(t *testing.T) {
+	tests := []struct {
+		name    string
+		files   []string
+		exclude *regexp.Regexp
+		l       logger.Logger
+		checks  []AnalyzeFilesFn
+	}{
+		{
+			name:   "TODO: success case",
+			checks: checkAnalyzeFiles(),
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			r := AnalyzeFiles(tt.files, tt.exclude, tt.l)
+			for _, c := range tt.checks {
+				c(t, r)
+			}
+		})
+	}
+}
