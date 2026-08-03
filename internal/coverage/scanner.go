@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,8 +20,8 @@ import (
 
 // ModuleTarget holds per-module package targets for targeted coverage analysis.
 type ModuleTarget struct {
-	ModDir   string
-	PkgDirs  []string // module-relative package directories to run go test on
+	ModDir  string
+	PkgDirs []string // module-relative package directories to run go test on
 }
 
 type Scanner struct {
@@ -255,9 +256,7 @@ func (s *Scanner) runTests(ctx context.Context, modDir string, pkgDirs []string)
 	if err != nil {
 		return "", err
 	}
-	if err := tmpfile.Close(); err != nil {
-		s.Logger.Debug("coverage scan: tmpfile close error", "error", err.Error())
-	}
+	_ = tmpfile.Close()
 	profile := tmpfile.Name()
 
 	args := []string{"test", "-coverprofile=" + profile}
@@ -270,12 +269,13 @@ func (s *Scanner) runTests(ctx context.Context, modDir string, pkgDirs []string)
 	cmd := exec.CommandContext(ctx, "go", args...)
 	cmd.Dir = modDir
 	cmd.Env = append(os.Environ(), "GO111MODULE=on")
-	var stderr bytes.Buffer
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = io.MultiWriter(os.Stdout, &stdout)
 	cmd.Stderr = &stderr
 
 	err = cmd.Run()
 	if err != nil {
-		if failed := extractFailedTests(stderr.String()); len(failed) > 0 {
+		if failed := extractFailedTests(stdout.String() + stderr.String()); len(failed) > 0 {
 			s.Logger.Warn("coverage: tests failed in module", "module", modDir, "failed_tests", failed)
 		}
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
