@@ -395,6 +395,113 @@ func TestScanner_Scan(t *testing.T) {
 				s.Progress = &mockProgressReporter{}
 			},
 		},
+		{
+			name: "targets_override_path_discovery",
+			checks: checkScannerScan(
+				checkError(""),
+				func(t *testing.T, r []ModuleCoverage, err error) {
+					t.Helper()
+					require.Len(t, r, 1)
+				},
+			),
+			before: func(s *Scanner) {
+				parent := t.TempDir()
+				for _, name := range []string{"modA", "modB"} {
+					modDir := filepath.Join(parent, name)
+					os.MkdirAll(modDir, 0755)
+					os.WriteFile(filepath.Join(modDir, "go.mod"), fmt.Appendf(nil, "module %s\n\ngo 1.21\n", name), 0644)
+					os.WriteFile(filepath.Join(modDir, "pkg.go"), fmt.Appendf(nil, "package %s\n\nfunc Something() int { return 42 }\n", name), 0644)
+					os.WriteFile(filepath.Join(modDir, "pkg_test.go"), fmt.Appendf(nil, "package %s\n\nimport \"testing\"\n\nfunc TestSuccess(t *testing.T) {\n\tif 1+1 != 2 {\n\t\tt.Error(\"math broken\")\n\t}\n}\n", name), 0644)
+				}
+				s.Path = parent
+				s.Targets = []ModuleTarget{{ModDir: filepath.Join(parent, "modA")}}
+			},
+		},
+		{
+			name: "targets_multiple_modules",
+			checks: checkScannerScan(
+				checkError(""),
+				func(t *testing.T, r []ModuleCoverage, err error) {
+					t.Helper()
+					require.Len(t, r, 2)
+				},
+			),
+			before: func(s *Scanner) {
+				parent := t.TempDir()
+				for _, name := range []string{"modA", "modB"} {
+					modDir := filepath.Join(parent, name)
+					os.MkdirAll(modDir, 0755)
+					os.WriteFile(filepath.Join(modDir, "go.mod"), fmt.Appendf(nil, "module %s\n\ngo 1.21\n", name), 0644)
+					os.WriteFile(filepath.Join(modDir, "pkg.go"), fmt.Appendf(nil, "package %s\n\nfunc Something() int { return 42 }\n", name), 0644)
+					os.WriteFile(filepath.Join(modDir, "pkg_test.go"), fmt.Appendf(nil, "package %s\n\nimport \"testing\"\n\nfunc TestSuccess(t *testing.T) {\n\tif 1+1 != 2 {\n\t\tt.Error(\"math broken\")\n\t}\n}\n", name), 0644)
+				}
+				s.Targets = []ModuleTarget{
+					{ModDir: filepath.Join(parent, "modA")},
+					{ModDir: filepath.Join(parent, "modB")},
+				}
+			},
+		},
+		{
+			name: "targets_with_pkgdirs_limits_scope",
+			checks: checkScannerScan(
+				checkError(""),
+				func(t *testing.T, r []ModuleCoverage, err error) {
+					t.Helper()
+					require.Len(t, r, 1)
+					assert.NotEmpty(t, r[0].Dir)
+					assert.NotEmpty(t, r[0].Functions)
+					// PkgDirs should have restricted go test to sub package,
+					// so only Sub() should appear — Root() from the root package
+					// must be absent.
+					var foundRoot, foundSub bool
+					for _, f := range r[0].Functions {
+						if f.Name == "Root" {
+							foundRoot = true
+						}
+						if f.Name == "Sub" {
+							foundSub = true
+						}
+					}
+					assert.True(t, foundSub, "expected Sub() in coverage results")
+					assert.False(t, foundRoot, "expected Root() NOT in coverage results (only sub package scanned)")
+				},
+			),
+			before: func(s *Scanner) {
+				modDir := t.TempDir()
+				os.WriteFile(filepath.Join(modDir, "go.mod"), []byte("module pkgtest\n\ngo 1.21\n"), 0644)
+				// root package
+				os.WriteFile(filepath.Join(modDir, "root.go"), []byte("package pkgtest\n\nfunc Root() int { return 1 }\n"), 0644)
+				os.WriteFile(filepath.Join(modDir, "root_test.go"), []byte("package pkgtest\n\nimport \"testing\"\n\nfunc TestRoot(t *testing.T) { Root() }\n"), 0644)
+				// sub package
+				subDir := filepath.Join(modDir, "internal", "sub")
+				os.MkdirAll(subDir, 0755)
+				os.WriteFile(filepath.Join(subDir, "sub.go"), []byte("package sub\n\nfunc Sub() int { return 2 }\n"), 0644)
+				os.WriteFile(filepath.Join(subDir, "sub_test.go"), []byte("package sub\n\nimport \"testing\"\n\nfunc TestSub(t *testing.T) { Sub() }\n"), 0644)
+				s.Targets = []ModuleTarget{
+					{ModDir: modDir, PkgDirs: []string{subDir}},
+				}
+			},
+		},
+		{
+			name: "targets_empty_pkgdirs_runs_all",
+			checks: checkScannerScan(
+				checkError(""),
+				func(t *testing.T, r []ModuleCoverage, err error) {
+					t.Helper()
+					require.Len(t, r, 1)
+					assert.NotEmpty(t, r[0].Functions)
+				},
+			),
+			before: func(s *Scanner) {
+				modDir := t.TempDir()
+				os.WriteFile(filepath.Join(modDir, "go.mod"), []byte("module emptypkg\n\ngo 1.21\n"), 0644)
+				os.WriteFile(filepath.Join(modDir, "pkg.go"), []byte("package emptypkg\n\nfunc Something() int { return 42 }\n"), 0644)
+				os.WriteFile(filepath.Join(modDir, "pkg_test.go"), []byte("package emptypkg\n\nimport \"testing\"\n\nfunc TestSomething(t *testing.T) { Something() }\n"), 0644)
+				s.Targets = []ModuleTarget{
+					{ModDir: modDir},
+				}
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
