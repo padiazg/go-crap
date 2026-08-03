@@ -526,15 +526,15 @@ func broken(
 			),
 		},
 		{
-			name:    "empty_files",
-			files:   []string{},
-			checks:  checkAnalyzeFiles(checkCount(0)),
+			name:   "empty_files",
+			files:  []string{},
+			checks: checkAnalyzeFiles(checkCount(0)),
 		},
 		{
-			name:    "nonexistent_file_skipped",
-			files:   []string{"nonexistent.go"},
-			l:       nil,
-			checks:  checkAnalyzeFiles(checkCount(0)),
+			name:   "nonexistent_file_skipped",
+			files:  []string{"nonexistent.go"},
+			l:      nil,
+			checks: checkAnalyzeFiles(checkCount(0)),
 		},
 		{
 			name:    "exclude_matching_file",
@@ -562,15 +562,15 @@ func broken(
 			),
 		},
 		{
-			name:    "receiver_method",
-			files:   []string{receiverFile},
+			name:  "receiver_method",
+			files: []string{receiverFile},
 			checks: checkAnalyzeFiles(
 				checkCount(1),
 				checkAnalyzeFilesEntry(0, checkStatFuncName("Method"), checkStatReceiver("*MyType"), checkStatComplexity(1)),
 			),
 		},
 		{
-			name:   "parse_error_file_skipped",
+			name: "parse_error_file_skipped",
 			before: func(t *testing.T) []string {
 				return []string{invalidFile}
 			},

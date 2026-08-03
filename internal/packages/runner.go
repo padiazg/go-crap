@@ -14,7 +14,7 @@ type GoListRunner interface {
 
 // goListRunner is the default real implementation.
 type goListRunner struct {
-	dir string // working directory
+	dir string   // working directory
 	env []string // environment
 }
 

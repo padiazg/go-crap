@@ -759,7 +759,7 @@ func Test_runScan(t *testing.T) {
 			before: func() {
 				resetFlags()
 				flagFailRegression = true
-		flagBaseline = makeBaselineForTest(t, `{
+				flagBaseline = makeBaselineForTest(t, `{
    "$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
    "version": "1.1.0",
    "entries": [
@@ -779,7 +779,7 @@ func Test_runScan(t *testing.T) {
 				resetFlags()
 				flagFailRegression = true
 				flagFailRegressionIgnoreCovered = true
-	flagBaseline = makeBaselineForTest(t, `{
+				flagBaseline = makeBaselineForTest(t, `{
    "$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
    "version": "1.1.0",
    "entries": [

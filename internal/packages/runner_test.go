@@ -46,11 +46,11 @@ func Test_goListRunner_List(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		patterns    []string
-		checks      []checkgoListRunnerListFn
-		before      func(*goListRunner)
-		newContext  func() context.Context
+		name       string
+		patterns   []string
+		checks     []checkgoListRunnerListFn
+		before     func(*goListRunner)
+		newContext func() context.Context
 	}{
 		{
 			name:     "success_lists_single_package",
