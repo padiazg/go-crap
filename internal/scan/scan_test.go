@@ -1055,7 +1055,7 @@ func Test_runComplexityAnalysis(t *testing.T) {
 		checks   []runComplexityAnalysisFn
 	}{
 		{
-			name:   "resolve_success_returns_stats",
+			name: "resolve_success_returns_stats",
 			options: &Options{
 				IncludeTests: false,
 			},
@@ -1068,7 +1068,7 @@ func Test_runComplexityAnalysis(t *testing.T) {
 			),
 		},
 		{
-			name:   "include_tests_true_appends_test_stats",
+			name: "include_tests_true_appends_test_stats",
 			options: &Options{
 				IncludeTests: true,
 			},
@@ -1080,7 +1080,7 @@ func Test_runComplexityAnalysis(t *testing.T) {
 			),
 		},
 		{
-			name:    "exclude_pattern_filters_functions",
+			name: "exclude_pattern_filters_functions",
 			options: &Options{
 				IncludeTests: false,
 			},
@@ -1093,7 +1093,7 @@ func Test_runComplexityAnalysis(t *testing.T) {
 			),
 		},
 		{
-			name:    "exclude_test_files_filters_file_paths",
+			name: "exclude_test_files_filters_file_paths",
 			options: &Options{
 				IncludeTests: true,
 			},
@@ -1106,7 +1106,7 @@ func Test_runComplexityAnalysis(t *testing.T) {
 			),
 		},
 		{
-			name:   "resolve_error_path_fallback_walks_directory",
+			name: "resolve_error_path_fallback_walks_directory",
 			options: &Options{
 				IncludeTests: true,
 				Path:         "../testdata",
@@ -1123,7 +1123,7 @@ func Test_runComplexityAnalysis(t *testing.T) {
 			),
 		},
 		{
-			name:    "path_fallback_excludes_test_files",
+			name: "path_fallback_excludes_test_files",
 			options: &Options{
 				IncludeTests: true,
 				Path:         "../testdata",
@@ -1138,12 +1138,12 @@ func Test_runComplexityAnalysis(t *testing.T) {
 			),
 		},
 		{
-			name:   "resolve_error_without_path_returns_empty",
+			name: "resolve_error_without_path_returns_empty",
 			options: &Options{
 				IncludeTests: false,
 			},
 			patterns: []string{"../nonexistent/..."},
-			checks: checkrunComplexityAnalysis(checkComplexityEmpty()),
+			checks:   checkrunComplexityAnalysis(checkComplexityEmpty()),
 		},
 	}
 	for _, tt := range tests {
