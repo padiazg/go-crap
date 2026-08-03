@@ -8,12 +8,15 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/padiazg/go-crap/internal/complexity"
 	"github.com/padiazg/go-crap/internal/coverage"
+	"github.com/padiazg/go-crap/internal/packages"
 	"github.com/padiazg/go-crap/internal/score"
 	"github.com/padiazg/go-crap/pkg/logger"
 	"github.com/padiazg/go-crap/pkg/utils"
@@ -335,6 +338,45 @@ func TestScan(t *testing.T) {
 	}
 }
 
+func TestScan_fallbackToDotSlashSlash(t *testing.T) {
+	dir, err := os.MkdirTemp("", "scan-dot-slash")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+
+	origCwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(origCwd) })
+
+	for _, f := range []string{"complex.go", "cover.out", "simple.go", "simple_test.go", "go.mod"} {
+		src, err := os.ReadFile(filepath.Join("../testdata", f))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, f), src, 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	// Neither Patterns nor Path is set → line 78 triggers: patterns = ["./..."]
+	r, err := Scan(&Options{
+		IncludeTests: true,
+	})
+	if err != nil {
+		t.Fatalf("Scan with empty options failed (line 78 fallback): %v", err)
+	}
+	if len(r.List) == 0 {
+		t.Fatal("expected non-empty result from ./... fallback")
+	}
+}
+
 func Test_resolveTimeout(t *testing.T) {
 	tests := []struct {
 		name string
@@ -355,17 +397,19 @@ func Test_resolveTimeout(t *testing.T) {
 // Test_runCoverageAnalysis exercises the coverage scanner pipeline.
 func Test_runCoverageAnalysis(t *testing.T) {
 	tests := []struct {
-		name    string
-		options *Options
-		exclude *regexp.Regexp
-		checks  []func(*testing.T, []coverage.ModuleCoverage, error)
+		name     string
+		options  *Options
+		patterns []string
+		exclude  *regexp.Regexp
+		checks   []func(*testing.T, []coverage.ModuleCoverage, error)
 	}{
 		{
 			name: "valid_path_returns_coverage_data",
 			options: &Options{
 				Path: "../testdata",
 			},
-			exclude: nil,
+			patterns: nil,
+			exclude:  nil,
 			checks: []func(*testing.T, []coverage.ModuleCoverage, error){
 				func(t *testing.T, r []coverage.ModuleCoverage, err error) {
 					t.Helper()
@@ -384,7 +428,8 @@ func Test_runCoverageAnalysis(t *testing.T) {
 			options: &Options{
 				Path: "/no/such/dir/that/does/not/exist",
 			},
-			exclude: nil,
+			patterns: nil,
+			exclude:  nil,
 			checks: []func(*testing.T, []coverage.ModuleCoverage, error){
 				func(t *testing.T, _ []coverage.ModuleCoverage, err error) {
 					t.Helper()
@@ -398,7 +443,67 @@ func Test_runCoverageAnalysis(t *testing.T) {
 			options: &Options{
 				Path: "../testdata",
 			},
-			exclude: regexp.MustCompile(".*_test.go"),
+			patterns: nil,
+			exclude:  regexp.MustCompile(".*_test.go"),
+			checks: []func(*testing.T, []coverage.ModuleCoverage, error){
+				func(t *testing.T, r []coverage.ModuleCoverage, err error) {
+					t.Helper()
+					assert.NoError(t, err)
+					assert.NotEmpty(t, r)
+					for _, mc := range r {
+						for _, fn := range mc.Functions {
+							assert.NotContains(t, fn.File, "_test.go", "exclude pattern should filter test files")
+						}
+					}
+				},
+			},
+		},
+		{
+			name: "profile_based_scan",
+			options: &Options{
+				Path:            "../testdata",
+				CoverageProfile: "../testdata/cover.out",
+			},
+			patterns: nil,
+			exclude:  nil,
+			checks: []func(*testing.T, []coverage.ModuleCoverage, error){
+				func(t *testing.T, r []coverage.ModuleCoverage, err error) {
+					t.Helper()
+					assert.NoError(t, err)
+					assert.NotEmpty(t, r)
+					for _, mc := range r {
+						if mc.Error != nil {
+							t.Errorf("module %s had error: %v", mc.Dir, mc.Error)
+						}
+						assert.Equal(t, "../testdata/cover.out", mc.Profile)
+					}
+				},
+			},
+		},
+		{
+			name: "profile_nonexistent_returns_error",
+			options: &Options{
+				Path:            "../testdata",
+				CoverageProfile: "/no/such/profile.out",
+			},
+			patterns: nil,
+			exclude:  nil,
+			checks: []func(*testing.T, []coverage.ModuleCoverage, error){
+				func(t *testing.T, _ []coverage.ModuleCoverage, err error) {
+					t.Helper()
+					assert.Error(t, err)
+					assert.Contains(t, err.Error(), "coverage scan")
+				},
+			},
+		},
+		{
+			name: "explicit_patterns_resolved_via_go_list",
+			options: &Options{
+				Path:         "../testdata",
+				IncludeTests: true,
+			},
+			patterns: []string{"../testdata"},
+			exclude:  nil,
 			checks: []func(*testing.T, []coverage.ModuleCoverage, error){
 				func(t *testing.T, r []coverage.ModuleCoverage, err error) {
 					t.Helper()
@@ -407,11 +512,98 @@ func Test_runCoverageAnalysis(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "path_only_no_patterns_uses_path_fallback",
+			options: &Options{
+				Path:         "../testdata",
+				IncludeTests: false,
+			},
+			patterns: nil,
+			exclude:  nil,
+			checks: []func(*testing.T, []coverage.ModuleCoverage, error){
+				func(t *testing.T, r []coverage.ModuleCoverage, err error) {
+					t.Helper()
+					assert.NoError(t, err)
+					assert.NotEmpty(t, r)
+					for _, mc := range r {
+						if mc.Error != nil {
+							t.Errorf("module %s had error: %v", mc.Dir, mc.Error)
+						}
+					}
+				},
+			},
+		},
+		{
+			name: "timeout_zero_uses_default",
+			options: &Options{
+				Path:         "../testdata",
+				IncludeTests: true,
+			},
+			patterns: nil,
+			exclude:  nil,
+			checks: []func(*testing.T, []coverage.ModuleCoverage, error){
+				func(t *testing.T, r []coverage.ModuleCoverage, err error) {
+					t.Helper()
+					assert.NoError(t, err)
+					assert.NotEmpty(t, r)
+				},
+			},
+		},
+		{
+			name: "include_tests_false_excludes_test_files",
+			options: &Options{
+				Path:         "../testdata",
+				IncludeTests: false,
+			},
+			patterns: nil,
+			exclude:  nil,
+			checks: []func(*testing.T, []coverage.ModuleCoverage, error){
+				func(t *testing.T, r []coverage.ModuleCoverage, err error) {
+					t.Helper()
+					assert.NoError(t, err)
+					assert.NotEmpty(t, r)
+					for _, mc := range r {
+						if mc.Error != nil {
+							t.Errorf("module %s had error: %v", mc.Dir, mc.Error)
+						}
+					}
+				},
+			},
+		},
+		{
+			name: "path_with_existing_profile_skips_go_list",
+			options: &Options{
+				Path:            "../testdata",
+				CoverageProfile: "../testdata/cover.out",
+				IncludeTests:    true,
+			},
+			patterns: nil,
+			exclude:  nil,
+			checks: []func(*testing.T, []coverage.ModuleCoverage, error){
+				func(t *testing.T, r []coverage.ModuleCoverage, err error) {
+					t.Helper()
+					assert.NoError(t, err)
+					assert.NotEmpty(t, r)
+					for _, mc := range r {
+						assert.NotEmpty(t, mc.Functions, "profile scan should have parsed functions")
+					}
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			r, err := runCoverageAnalysis(context.Background(), tt.options, tt.options.Patterns, tt.exclude, 0)
+			var ctx context.Context
+			var cancel context.CancelFunc
+			if tt.name == "context_cancelled_returns_context_error" {
+				ctx, cancel = context.WithCancel(context.Background())
+				cancel()
+			} else {
+				ctx, cancel = context.WithCancel(context.Background())
+				defer cancel()
+			}
+			r, err := runCoverageAnalysis(ctx, tt.options, tt.patterns, tt.exclude, 0)
 			for _, c := range tt.checks {
 				c(t, r, err)
 			}
@@ -449,6 +641,54 @@ func Test_parseMissingPolicy(t *testing.T) {
 		})
 	}
 }
+
+func Test_runCoverageAnalysis_resolveErrorNoPathFallback(t *testing.T) {
+	dir := t.TempDir()
+	origCwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(origCwd) })
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	_, err = runCoverageAnalysis(ctx, &Options{}, []string{"./..."}, nil, 0)
+	if assert.Error(t, err) {
+		assert.Contains(t, err.Error(), "coverage scan: resolve patterns")
+	}
+}
+
+func Test_runComplexityAnalysis_resolveErrorNoPathFallback(t *testing.T) {
+	dir := t.TempDir()
+	origCwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(origCwd) })
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Suppress debug output from the logger.
+	l := &discardLogger{}
+	result := runComplexityAnalysis(ctx, &Options{Logger: l}, []string{"./..."}, nil)
+	assert.Empty(t, result)
+}
+
+type discardLogger struct{}
+
+func (discardLogger) Debug(_ string, _ ...any) {}
+func (discardLogger) Info(_ string, _ ...any)  {}
+func (discardLogger) Warn(_ string, _ ...any)  {}
+func (discardLogger) Error(_ string, _ ...any) {}
+func (discardLogger) Fatal(_ string, _ ...any) {}
 
 func Test_effectiveCRAP(t *testing.T) {
 	tests := []struct {
@@ -649,6 +889,269 @@ func Test_logCoverageErrors(t *testing.T) {
 
 			for _, c := range tt.checks {
 				c(t, got)
+			}
+		})
+	}
+}
+
+type groupTargetsFn func(*testing.T, []coverage.ModuleTarget)
+
+var checkgroupTargets = func(fns ...groupTargetsFn) []groupTargetsFn { return fns }
+
+var checkGroupTargetsLen = func(n int) groupTargetsFn {
+	return func(t *testing.T, mt []coverage.ModuleTarget) {
+		t.Helper()
+		assert.Lenf(t, mt, n, "groupTargets: expected %d module targets", n)
+	}
+}
+
+var checkGroupTargetsModule = func(modDir string, pkgDirs ...string) groupTargetsFn {
+	return func(t *testing.T, mt []coverage.ModuleTarget) {
+		t.Helper()
+		var found *coverage.ModuleTarget
+		for i := range mt {
+			if mt[i].ModDir == modDir {
+				found = &mt[i]
+				break
+			}
+		}
+		if !assert.NotNilf(t, found, "groupTargets: module %q not found in %+v", modDir, mt) {
+			return
+		}
+		assert.ElementsMatchf(t, pkgDirs, found.PkgDirs, "module %q pkg dirs mismatch", modDir)
+	}
+}
+
+func Test_groupTargets(t *testing.T) {
+	tests := []struct {
+		name    string
+		targets []packages.Target
+		checks  []groupTargetsFn
+	}{
+		{
+			name:    "no targets",
+			targets: nil,
+			checks:  checkgroupTargets(checkGroupTargetsLen(0)),
+		},
+		{
+			name: "skips targets without module dir",
+			targets: []packages.Target{
+				{ImportPath: "example.com/foo", Dir: "/work/foo", ModuleDir: ""},
+			},
+			checks: checkgroupTargets(checkGroupTargetsLen(0)),
+		},
+		{
+			name: "single module single package",
+			targets: []packages.Target{
+				{ImportPath: "example.com/foo", Dir: "/mod/foo", ModulePath: "example.com", ModuleDir: "/mod"},
+			},
+			checks: checkgroupTargets(
+				checkGroupTargetsLen(1),
+				checkGroupTargetsModule("/mod", "/mod/foo"),
+			),
+		},
+		{
+			name: "single module multiple packages",
+			targets: []packages.Target{
+				{ImportPath: "example.com/a", Dir: "/mod/a", ModuleDir: "/mod"},
+				{ImportPath: "example.com/b", Dir: "/mod/b", ModuleDir: "/mod"},
+				{ImportPath: "example.com/c", Dir: "/mod/c", ModuleDir: "/mod"},
+			},
+			checks: checkgroupTargets(
+				checkGroupTargetsLen(1),
+				checkGroupTargetsModule("/mod", "/mod/a", "/mod/b", "/mod/c"),
+			),
+		},
+		{
+			name: "multiple modules",
+			targets: []packages.Target{
+				{ImportPath: "example.com/a", Dir: "/modA/a", ModuleDir: "/modA"},
+				{ImportPath: "example.com/b", Dir: "/modB/b", ModuleDir: "/modB"},
+			},
+			checks: checkgroupTargets(
+				checkGroupTargetsLen(2),
+				checkGroupTargetsModule("/modA", "/modA/a"),
+				checkGroupTargetsModule("/modB", "/modB/b"),
+			),
+		},
+		{
+			name: "mixed modules with skipped targets",
+			targets: []packages.Target{
+				{ImportPath: "example.com/standalone", Dir: "/solo", ModuleDir: ""},
+				{ImportPath: "example.com/a", Dir: "/mod/a", ModuleDir: "/mod"},
+				{ImportPath: "example.com/b", Dir: "/mod/b", ModuleDir: "/mod"},
+				{ImportPath: "example.com/other", Dir: "/other", ModuleDir: "/other"},
+			},
+			checks: checkgroupTargets(
+				checkGroupTargetsLen(2),
+				checkGroupTargetsModule("/mod", "/mod/a", "/mod/b"),
+				checkGroupTargetsModule("/other", "/other"),
+			),
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			r := groupTargets(tt.targets)
+			for _, c := range tt.checks {
+				c(t, r)
+			}
+		})
+	}
+}
+
+type runComplexityAnalysisFn func(*testing.T, []complexity.Stat)
+
+var checkrunComplexityAnalysis = func(fns ...runComplexityAnalysisFn) []runComplexityAnalysisFn { return fns }
+
+var checkComplexityLen = func(n int) runComplexityAnalysisFn {
+	return func(t *testing.T, stats []complexity.Stat) {
+		t.Helper()
+		assert.Lenf(t, stats, n, "runComplexityAnalysis: expected %d stats", n)
+	}
+}
+
+var checkComplexityContains = func(name string) runComplexityAnalysisFn {
+	return func(t *testing.T, stats []complexity.Stat) {
+		t.Helper()
+		for _, s := range stats {
+			if s.FuncName == name {
+				return
+			}
+		}
+		t.Errorf("runComplexityAnalysis: expected stat %q in %+v", name, stats)
+	}
+}
+
+var checkComplexityNotContains = func(name string) runComplexityAnalysisFn {
+	return func(t *testing.T, stats []complexity.Stat) {
+		t.Helper()
+		for _, s := range stats {
+			assert.NotEqualf(t, name, s.FuncName, "runComplexityAnalysis: unexpected stat %q", name)
+		}
+	}
+}
+
+var checkComplexityEmpty = func() runComplexityAnalysisFn {
+	return func(t *testing.T, stats []complexity.Stat) {
+		t.Helper()
+		assert.Emptyf(t, stats, "runComplexityAnalysis: expected no stats")
+	}
+}
+
+var checkComplexityLenGreaterThan = func(n int) runComplexityAnalysisFn {
+	return func(t *testing.T, stats []complexity.Stat) {
+		t.Helper()
+		assert.Greaterf(t, len(stats), n, "runComplexityAnalysis: expected >%d stats, got %d", n, len(stats))
+	}
+}
+
+func Test_runComplexityAnalysis(t *testing.T) {
+	tests := []struct {
+		name     string
+		options  *Options
+		patterns []string
+		exclude  *regexp.Regexp
+		checks   []runComplexityAnalysisFn
+	}{
+		{
+			name:   "resolve_success_returns_stats",
+			options: &Options{
+				IncludeTests: false,
+			},
+			patterns: []string{"."},
+			checks: checkrunComplexityAnalysis(
+				checkComplexityLen(20),
+				checkComplexityContains("Scan"),
+				checkComplexityContains("runComplexityAnalysis"),
+				checkComplexityContains("NewEntries"),
+			),
+		},
+		{
+			name:   "include_tests_true_appends_test_stats",
+			options: &Options{
+				IncludeTests: true,
+			},
+			patterns: []string{"."},
+			checks: checkrunComplexityAnalysis(
+				checkComplexityContains("TestScan"),
+				checkComplexityContains("Test_groupTargets"),
+				checkComplexityLenGreaterThan(10),
+			),
+		},
+		{
+			name:    "exclude_pattern_filters_functions",
+			options: &Options{
+				IncludeTests: false,
+			},
+			patterns: []string{"."},
+			exclude:  regexp.MustCompile("runComplexityAnalysis"),
+			checks: checkrunComplexityAnalysis(
+				checkComplexityLen(19),
+				checkComplexityNotContains("runComplexityAnalysis"),
+				checkComplexityContains("Scan"),
+			),
+		},
+		{
+			name:    "exclude_test_files_filters_file_paths",
+			options: &Options{
+				IncludeTests: true,
+			},
+			patterns: []string{"."},
+			exclude:  regexp.MustCompile(`_test\.go`),
+			checks: checkrunComplexityAnalysis(
+				checkComplexityLen(20),
+				checkComplexityNotContains("TestScan"),
+				checkComplexityNotContains("Test_groupTargets"),
+			),
+		},
+		{
+			name:   "resolve_error_path_fallback_walks_directory",
+			options: &Options{
+				IncludeTests: true,
+				Path:         "../testdata",
+			},
+			patterns: []string{"../testdata"},
+			checks: checkrunComplexityAnalysis(
+				checkComplexityLen(6),
+				checkComplexityContains("veryComplex"),
+				checkComplexityContains("withSwitch"),
+				checkComplexityContains("simple"),
+				checkComplexityContains("withIf"),
+				checkComplexityContains("complex"),
+				checkComplexityContains("TestSimple"),
+			),
+		},
+		{
+			name:    "path_fallback_excludes_test_files",
+			options: &Options{
+				IncludeTests: true,
+				Path:         "../testdata",
+			},
+			patterns: []string{"../testdata"},
+			exclude:  regexp.MustCompile(`_test\.go`),
+			checks: checkrunComplexityAnalysis(
+				checkComplexityLen(5),
+				checkComplexityNotContains("TestSimple"),
+				checkComplexityContains("veryComplex"),
+				checkComplexityContains("simple"),
+			),
+		},
+		{
+			name:   "resolve_error_without_path_returns_empty",
+			options: &Options{
+				IncludeTests: false,
+			},
+			patterns: []string{"../nonexistent/..."},
+			checks: checkrunComplexityAnalysis(checkComplexityEmpty()),
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			r := runComplexityAnalysis(context.Background(), tt.options, tt.patterns, tt.exclude)
+			for _, c := range tt.checks {
+				c(t, r)
 			}
 		})
 	}

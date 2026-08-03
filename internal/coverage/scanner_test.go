@@ -1147,6 +1147,58 @@ func broken( {
 	assert.NotContains(t, logger.warns, "coverage: tests failed in module", "no failed tests to report")
 }
 
+func TestScanner_runTests_createtemp_failure(t *testing.T) {
+	tempDir := t.TempDir()
+	goMod := `module tempmod
+
+go 1.21
+`
+	os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte(goMod), 0644)
+	src := `package tempmod
+
+func Something() {}
+`
+	os.WriteFile(filepath.Join(tempDir, "pkg.go"), []byte(src), 0644)
+
+	s := NewScanner("value", nil, nil, 0)
+
+	t.Setenv("TMPDIR", filepath.Join(t.TempDir(), "nonexistent"))
+
+	_, err := s.runTests(context.Background(), tempDir, nil)
+	assert.Error(t, err)
+}
+
+func TestScanner_runTests_warns_on_failed_tests(t *testing.T) {
+	tempDir := t.TempDir()
+	goMod := `module warnmod
+
+go 1.21
+`
+	os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte(goMod), 0644)
+	src := `package warnmod
+
+func Something() int { return 42 }
+`
+	os.WriteFile(filepath.Join(tempDir, "pkg.go"), []byte(src), 0644)
+	test := `package warnmod
+
+import "testing"
+
+func TestFail(t *testing.T) {
+	t.Fatal("intentional failure")
+}
+`
+	os.WriteFile(filepath.Join(tempDir, "pkg_test.go"), []byte(test), 0644)
+
+	logger := &recordingLogger{}
+	s := NewScanner("value", nil, logger, 0)
+
+	ctx := context.Background()
+	_, err := s.runTests(ctx, tempDir, nil)
+	assert.Error(t, err)
+	assert.Contains(t, logger.warns, "coverage: tests failed in module")
+}
+
 type checkScannerfilterByExcludeFn func(*testing.T, []FunctionCoverage)
 
 var checkScannerfilterByExclude = func(fns ...checkScannerfilterByExcludeFn) []checkScannerfilterByExcludeFn { return fns }

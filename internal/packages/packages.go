@@ -5,8 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -39,15 +37,42 @@ type listPackage struct {
 	Error        packageError
 }
 
+type ResolverConfig struct {
+	Runner GoListRunner
+}
+
+// Resolver resolves package patterns via `go list -json -e`.
+type Resolver struct {
+	runner GoListRunner
+}
+
+// NewResolver creates a Resolver with the given options.
+// Defaults to the real GoListRunner.
+func NewResolver(config *ResolverConfig) *Resolver {
+	if config == nil {
+		config = &ResolverConfig{}
+	}
+
+	if config.Runner == nil {
+		config.Runner = NewGoListRunner()
+	}
+
+	return &Resolver{
+		runner: config.Runner,
+	}
+}
+
 // Resolve resolves package patterns via `go list -json -e`.
-func Resolve(ctx context.Context, patterns []string, includeTests bool) ([]Target, error) {
-	stdout, err := getList(ctx, patterns)
+func (r *Resolver) Resolve(ctx context.Context, patterns []string, includeTests bool) ([]Target, error) {
+	stdout, err := r.runner.List(ctx, patterns)
 	if err != nil {
 		return nil, err
 	}
 
-	// Stream JSON objects (one per package) from the combined output.
-	targets, errors, err := getTargets(stdout, includeTests)
+	var b bytes.Buffer
+	b.Write(stdout)
+
+	targets, errors, err := getTargets(&b, includeTests)
 	if err != nil {
 		return nil, err
 	}
@@ -57,30 +82,6 @@ func Resolve(ctx context.Context, patterns []string, includeTests bool) ([]Targe
 	}
 
 	return targets, nil
-}
-
-func getList(ctx context.Context, patterns []string) (*bytes.Buffer, error) {
-	args := []string{"list", "-e", "-json"}
-	args = append(args, patterns...)
-
-	cmd := exec.CommandContext(ctx, "go", args...)
-	cmd.Dir = "."
-	cmd.Env = append(os.Environ(), "GO111MODULE=on")
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err := cmd.Run()
-	if err != nil {
-		// -e flag means errors are per-package in JSON; command may still exit non-zero
-		// for patterns that resolve to no packages at all.
-		if stdout.Len() == 0 {
-			msg := "go list: " + stderr.String()
-			return nil, fmt.Errorf("resolve patterns: %w\n%s", err, msg)
-		}
-	}
-
-	return &stdout, nil
 }
 
 func getTargets(stdout *bytes.Buffer, includeTests bool) ([]Target, []string, error) {

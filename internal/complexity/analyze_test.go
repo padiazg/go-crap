@@ -11,6 +11,7 @@ import (
 
 	"github.com/padiazg/go-crap/pkg/logger"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestComplexity_Simple(t *testing.T) {
@@ -401,23 +402,190 @@ type AnalyzeFilesFn func(*testing.T, []Stat)
 
 var checkAnalyzeFiles = func(fns ...AnalyzeFilesFn) []AnalyzeFilesFn { return fns }
 
+type AnalyzeFilesEntryFn func(*testing.T, Stat)
+
+func checkAnalyzeFilesEntry(i int, fns ...AnalyzeFilesEntryFn) AnalyzeFilesFn {
+	return func(t *testing.T, s []Stat) {
+		t.Helper()
+		require.GreaterOrEqualf(t, len(s), i+1, "Stat has enough entries at index %d", i)
+		entry := s[i]
+		for _, fn := range fns {
+			fn(t, entry)
+		}
+	}
+}
+
+func checkStatFuncName(want string) AnalyzeFilesEntryFn {
+	return func(t *testing.T, s Stat) {
+		t.Helper()
+		assert.Equal(t, want, s.FuncName, "FuncName mismatch")
+	}
+}
+
+func checkStatPkgName(want string) AnalyzeFilesEntryFn {
+	return func(t *testing.T, s Stat) {
+		t.Helper()
+		assert.Equal(t, want, s.PkgName, "PkgName mismatch")
+	}
+}
+
+func checkStatReceiver(want string) AnalyzeFilesEntryFn {
+	return func(t *testing.T, s Stat) {
+		t.Helper()
+		assert.Equal(t, want, s.Receiver, "Receiver mismatch")
+	}
+}
+
+func checkStatComplexity(want int) AnalyzeFilesEntryFn {
+	return func(t *testing.T, s Stat) {
+		t.Helper()
+		assert.Equal(t, want, s.Complexity, "Complexity mismatch")
+	}
+}
+
+func checkStatLine(want int) AnalyzeFilesEntryFn {
+	return func(t *testing.T, s Stat) {
+		t.Helper()
+		assert.Equal(t, want, s.Pos.Line, "Pos.Line mismatch")
+	}
+}
+
+func checkStatEndLine(want int) AnalyzeFilesEntryFn {
+	return func(t *testing.T, s Stat) {
+		t.Helper()
+		assert.Equal(t, want, s.EndLine, "EndLine mismatch")
+	}
+}
+
 func TestAnalyzeFiles(t *testing.T) {
+	checkCount := func(want int) AnalyzeFilesFn {
+		return func(t *testing.T, s []Stat) {
+			t.Helper()
+			assert.Equal(t, want, len(s))
+		}
+	}
+
+	directiveFile := filepath.Join(t.TempDir(), "directive.go")
+	require.NoError(t, os.WriteFile(directiveFile, []byte(`package testdata
+
+//go-crap:ignore
+func ignored() int {
+	if true { return 1 }
+	return 0
+}
+
+func kept() int { return 42 }
+`), 0644))
+
+	receiverFile := filepath.Join(t.TempDir(), "method.go")
+	require.NoError(t, os.WriteFile(receiverFile, []byte(`package testdata
+
+type MyType struct{}
+
+func (m *MyType) Method() int { return 42 }
+`), 0644))
+
+	invalidFile := filepath.Join(t.TempDir(), "invalid.go")
+	require.NoError(t, os.WriteFile(invalidFile, []byte(`package testdata
+func broken(
+`), 0644))
+
+	workDir, err := os.Getwd()
+	require.NoError(t, err)
+	simpleFile := filepath.Join(workDir, "..", "testdata", "simple.go")
+	complexFile := filepath.Join(workDir, "..", "testdata", "complex.go")
+
 	tests := []struct {
 		name    string
 		files   []string
 		exclude *regexp.Regexp
 		l       logger.Logger
+		before  func(*testing.T) []string
 		checks  []AnalyzeFilesFn
 	}{
 		{
-			name:   "TODO: success case",
-			checks: checkAnalyzeFiles(),
+			name:  "success_single_file",
+			files: []string{simpleFile},
+			checks: checkAnalyzeFiles(
+				checkCount(3),
+				checkAnalyzeFilesEntry(0, checkStatFuncName("simple"), checkStatPkgName("testdata"), checkStatComplexity(1), checkStatLine(3), checkStatEndLine(5)),
+				checkAnalyzeFilesEntry(1, checkStatFuncName("withIf"), checkStatComplexity(2), checkStatLine(7), checkStatEndLine(12)),
+				checkAnalyzeFilesEntry(2, checkStatFuncName("complex"), checkStatComplexity(4), checkStatLine(14), checkStatEndLine(25)),
+			),
+		},
+		{
+			name:  "success_multiple_files",
+			files: []string{simpleFile, complexFile},
+			checks: checkAnalyzeFiles(
+				checkCount(5),
+				checkAnalyzeFilesEntry(0, checkStatFuncName("simple"), checkStatComplexity(1)),
+				checkAnalyzeFilesEntry(1, checkStatFuncName("withIf"), checkStatComplexity(2)),
+				checkAnalyzeFilesEntry(2, checkStatFuncName("complex"), checkStatComplexity(4)),
+				checkAnalyzeFilesEntry(3, checkStatFuncName("veryComplex"), checkStatComplexity(9), checkStatLine(3), checkStatEndLine(29)),
+				checkAnalyzeFilesEntry(4, checkStatFuncName("withSwitch"), checkStatComplexity(4), checkStatLine(31), checkStatEndLine(42)),
+			),
+		},
+		{
+			name:    "empty_files",
+			files:   []string{},
+			checks:  checkAnalyzeFiles(checkCount(0)),
+		},
+		{
+			name:    "nonexistent_file_skipped",
+			files:   []string{"nonexistent.go"},
+			l:       nil,
+			checks:  checkAnalyzeFiles(checkCount(0)),
+		},
+		{
+			name:    "exclude_matching_file",
+			files:   []string{simpleFile, complexFile},
+			exclude: regexp.MustCompile(`complex\.go$`),
+			checks:  checkAnalyzeFiles(checkCount(3)),
+		},
+		{
+			name:    "exclude_matching_func",
+			files:   []string{simpleFile},
+			exclude: regexp.MustCompile(`withIf`),
+			checks: checkAnalyzeFiles(
+				checkCount(2),
+				checkAnalyzeFilesEntry(0, checkStatFuncName("simple"), checkStatComplexity(1)),
+				checkAnalyzeFilesEntry(1, checkStatFuncName("complex"), checkStatComplexity(4)),
+			),
+		},
+		{
+			name:    "directive_ignored",
+			files:   []string{directiveFile},
+			exclude: regexp.MustCompile(`ignored`),
+			checks: checkAnalyzeFiles(
+				checkCount(1),
+				checkAnalyzeFilesEntry(0, checkStatFuncName("kept"), checkStatComplexity(1)),
+			),
+		},
+		{
+			name:    "receiver_method",
+			files:   []string{receiverFile},
+			checks: checkAnalyzeFiles(
+				checkCount(1),
+				checkAnalyzeFilesEntry(0, checkStatFuncName("Method"), checkStatReceiver("*MyType"), checkStatComplexity(1)),
+			),
+		},
+		{
+			name:   "parse_error_file_skipped",
+			before: func(t *testing.T) []string {
+				return []string{invalidFile}
+			},
+			l:      nil,
+			checks: checkAnalyzeFiles(checkCount(0)),
 		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			r := AnalyzeFiles(tt.files, tt.exclude, tt.l)
+			files := tt.files
+			if tt.before != nil {
+				files = tt.before(t)
+			}
+			r := AnalyzeFiles(files, tt.exclude, tt.l)
 			for _, c := range tt.checks {
 				c(t, r)
 			}

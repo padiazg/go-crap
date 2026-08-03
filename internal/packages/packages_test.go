@@ -11,139 +11,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type getListFn func(*testing.T, *bytes.Buffer, error)
-
-var checkgetList = func(fns ...getListFn) []getListFn { return fns }
-
-func checkgetListError(want string) getListFn {
-	return func(t *testing.T, _ *bytes.Buffer, err error) {
-		t.Helper()
-		if want == "" {
-			assert.NoErrorf(t, err, "checkgetListError: expected no error, got %v", err)
-			return
-		}
-		if assert.Errorf(t, err, "checkgetListError: expected error %q", want) {
-			assert.Containsf(t, err.Error(), want, "checkgetListError mismatch")
-		}
-	}
-}
-
-func checkgetListBuffer(want string) getListFn {
-	return func(t *testing.T, buf *bytes.Buffer, err error) {
-		t.Helper()
-		assert.NotNil(t, buf, "buffer should not be nil")
-		assert.Contains(t, buf.String(), want, "getListBuffer mismatch")
-	}
-}
-
-func Test_getList(t *testing.T) {
-	tests := []struct {
-		name       string
-		patterns   []string
-		checks     []getListFn
-		newContext func() context.Context
-	}{
-		{
-			name: "empty_patterns",
-			checks: checkgetList(
-				checkgetListError(""),
-				checkgetListBuffer("ImportPath"),
-			),
-		},
-		{
-			name:     "dot_pattern",
-			patterns: []string{"."},
-			checks: checkgetList(
-				checkgetListError(""),
-				checkgetListBuffer("github.com/padiazg/go-crap/internal/packages"),
-			),
-		},
-		{
-			name:     "recursive_pattern",
-			patterns: []string{"./..."},
-			checks: checkgetList(
-				checkgetListError(""),
-				checkgetListBuffer("github.com/padiazg/go-crap/internal/packages"),
-			),
-		},
-		{
-			name:     "module_path_pattern",
-			patterns: []string{"github.com/padiazg/go-crap/internal/packages"},
-			checks: checkgetList(
-				checkgetListError(""),
-				checkgetListBuffer("github.com/padiazg/go-crap/internal/packages"),
-			),
-		},
-		{
-			name: "multiple_patterns",
-			patterns: []string{
-				"github.com/padiazg/go-crap/internal/packages",
-				"github.com/padiazg/go-crap/internal/score",
-			},
-			checks: checkgetList(
-				checkgetListError(""),
-				func(t *testing.T, buf *bytes.Buffer, err error) {
-					t.Helper()
-					require.NoError(t, err)
-					dec := json.NewDecoder(buf)
-					var paths []string
-					for dec.More() {
-						var pkg listPackage
-						err := dec.Decode(&pkg)
-						require.NoError(t, err, "unexpected decode error")
-						paths = append(paths, pkg.ImportPath)
-					}
-					require.Len(t, paths, 2, "expected exactly 2 packages")
-					assert.Contains(t, paths, "github.com/padiazg/go-crap/internal/packages")
-					assert.Contains(t, paths, "github.com/padiazg/go-crap/internal/score")
-				},
-			),
-		},
-		{
-			name:     "nonexistent_pattern",
-			patterns: []string{"./nonexistent/..."},
-			checks: checkgetList(
-				// -e embeds errors in JSON; getList defers to getTargets.
-				checkgetListError(""),
-				checkgetListBuffer("no such file or directory"),
-			),
-		},
-		{
-			name:     "malformed_pattern",
-			patterns: []string{"("},
-			checks: checkgetList(
-				checkgetListError(""),
-				checkgetListBuffer("malformed import path"),
-			),
-		},
-		{
-			name: "ctx_cancelled",
-			checks: checkgetList(
-				checkgetListError("context canceled"),
-			),
-			newContext: func() context.Context {
-				ctx, cancel := context.WithCancel(context.Background())
-				cancel()
-				return ctx
-			},
-		},
-	}
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
-			if tt.newContext != nil {
-				ctx = tt.newContext()
-			}
-			r, err := getList(ctx, tt.patterns)
-			for _, c := range tt.checks {
-				c(t, r, err)
-			}
-		})
-	}
-}
-
 type getTargetsFn func(*testing.T, []Target, []string, error)
+
+// fakeGoListRunner is a test double for GoListRunner.
+type fakeGoListRunner struct {
+	Output   []byte
+	Err      error
+	Patterns []string
+}
+
+func (f *fakeGoListRunner) List(ctx context.Context, patterns []string) ([]byte, error) {
+	f.Patterns = patterns
+	return f.Output, f.Err
+}
 
 var checkgetTargets = func(fns ...getTargetsFn) []getTargetsFn { return fns }
 
@@ -159,6 +39,24 @@ func checkgetTargetsError(want string) getTargetsFn {
 		}
 	}
 }
+
+func Test_NewGoListRunner(t *testing.T) {
+	r := NewGoListRunner()
+	assert.NotNil(t, r)
+	_, ok := r.(*goListRunner)
+	assert.True(t, ok, "NewGoListRunner should return *goListRunner")
+
+	r2 := NewGoListRunnerWithDir("/custom/dir")
+	gr, ok := r2.(*goListRunner)
+	assert.True(t, ok)
+	assert.Equal(t, "/custom/dir", gr.dir)
+}
+
+func Test_WithEnv(t *testing.T) {
+	r := WithEnv([]string{"GO111MODULE=off", "FOO=bar"}).(*goListRunner)
+	assert.Equal(t, []string{"GO111MODULE=off", "FOO=bar"}, r.env)
+}
+
 func Test_getTargets(t *testing.T) {
 	marshalJSON := func(v any) string {
 		b, _ := json.Marshal(v)
@@ -306,6 +204,303 @@ func Test_getTargets(t *testing.T) {
 			r, r2, err := getTargets(tt.stdout, tt.includeTests)
 			for _, c := range tt.checks {
 				c(t, r, r2, err)
+			}
+		})
+	}
+}
+
+type NewResolverFn func(*testing.T, *Resolver)
+
+var checkNewResolver = func(fns ...NewResolverFn) []NewResolverFn { return fns }
+
+func TestNewResolver(t *testing.T) {
+	sampleJSON := `{"ImportPath":"example.com/pkg","Dir":"/go/src/example.com/pkg","GoFiles":["a.go"]}` + "\n"
+
+	fakeRunner := &fakeGoListRunner{Output: []byte(sampleJSON)}
+	dirRunner := NewGoListRunnerWithDir("/custom/dir")
+
+	checkDefaults := func(t *testing.T, r *Resolver) {
+		t.Helper()
+		require.NotNil(t, r)
+		require.IsType(t, &goListRunner{}, r.runner)
+		gr := r.runner.(*goListRunner)
+		assert.Equal(t, ".", gr.dir)
+		assert.Contains(t, gr.env, "GO111MODULE=on")
+	}
+
+	checkSame := func(want GoListRunner) NewResolverFn {
+		return func(t *testing.T, r *Resolver) {
+			t.Helper()
+			require.NotNil(t, r)
+			assert.Same(t, want, r.runner)
+		}
+	}
+
+	// checkOutput := func() NewResolverFn {
+	// 	return func(t *testing.T, r *Resolver) {
+	// 		t.Helper()
+	// 		targets, err := r.Resolve(context.Background(), []string{"example.com/..."}, false)
+	// 		require.NoError(t, err)
+	// 		require.Len(t, targets, 1)
+	// 		assert.Equal(t, "example.com/pkg", targets[0].ImportPath)
+	// 	}
+	// }
+
+	// checkError := func() NewResolverFn {
+	// 	return func(t *testing.T, r *Resolver) {
+	// 		t.Helper()
+	// 		_, err := r.Resolve(context.Background(), []string{"."}, false)
+	// 		assert.EqualError(t, err, "boom")
+	// 	}
+	// }
+
+	tests := []struct {
+		name   string
+		config *ResolverConfig
+		checks []NewResolverFn
+	}{
+		{
+			name:   "nil_config_uses_default_runner",
+			config: nil,
+			checks: checkNewResolver(checkDefaults),
+		},
+		{
+			name:   "empty_config_uses_default_runner",
+			config: &ResolverConfig{},
+			checks: checkNewResolver(checkDefaults),
+		},
+		{
+			name:   "nil_runner_uses_default_runner",
+			config: &ResolverConfig{Runner: nil},
+			checks: checkNewResolver(checkDefaults),
+		},
+		{
+			name:   "custom_runner_kept",
+			config: &ResolverConfig{Runner: fakeRunner},
+			checks: checkNewResolver(checkSame(fakeRunner)),
+		},
+		{
+			name:   "custom_runner_with_dir_kept",
+			config: &ResolverConfig{Runner: dirRunner},
+			checks: checkNewResolver(
+				checkSame(dirRunner),
+				func(t *testing.T, r *Resolver) {
+					t.Helper()
+					gr := r.runner.(*goListRunner)
+					assert.Equal(t, "/custom/dir", gr.dir)
+				},
+			),
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			r := NewResolver(tt.config)
+			for _, c := range tt.checks {
+				c(t, r)
+			}
+		})
+	}
+}
+
+type checkResolverResolveFn func(*testing.T, []Target, error)
+
+var checkResolverResolve = func(fns ...checkResolverResolveFn) []checkResolverResolveFn { return fns }
+
+var capturedRunner *fakeGoListRunner
+
+func checkResolveError(want string) checkResolverResolveFn {
+	return func(t *testing.T, _ []Target, err error) {
+		t.Helper()
+		if want == "" {
+			assert.NoErrorf(t, err, "checkResolveError: expected no error, got %v", err)
+			return
+		}
+		if assert.Errorf(t, err, "checkResolveError: expected error %q", want) {
+			assert.Containsf(t, err.Error(), want, "checkResolveError mismatch")
+		}
+	}
+}
+func TestResolver_Resolve(t *testing.T) {
+	marshalJSON := func(v any) string {
+		b, _ := json.Marshal(v)
+		return string(b)
+	}
+
+	pkgJSON := func(imp, dir, modPath, modDir string, goFiles, testGoFiles, xtestGoFiles []string, errStr string) string {
+		var errJSON string
+		if errStr == "" {
+			errJSON = "null"
+		} else {
+			b, _ := json.Marshal(packageError{Err: errStr})
+			errJSON = string(b)
+		}
+		return fmt.Sprintf(`{"ImportPath":%q,"Dir":%q,"ModulePath":%q,"ModuleDir":%q,"GoFiles":%s,"TestGoFiles":%s,"XTestGoFiles":%s,"Error":%s}`+"\n",
+			imp, dir, modPath, modDir,
+			marshalJSON(goFiles), marshalJSON(testGoFiles), marshalJSON(xtestGoFiles), errJSON)
+	}
+
+	singlePkg := pkgJSON(
+		"github.com/padiazg/go-crap/internal/packages",
+		"/go/src/github.com/padiazg/go-crap/internal/packages",
+		"github.com/padiazg/go-crap",
+		"/go/src/github.com/padiazg/go-crap",
+		[]string{"packages.go"},
+		nil,
+		nil,
+		"",
+	)
+
+	singlePkgWithTests := pkgJSON(
+		"github.com/padiazg/go-crap/internal/packages",
+		"/go/src/github.com/padiazg/go-crap/internal/packages",
+		"github.com/padiazg/go-crap",
+		"/go/src/github.com/padiazg/go-crap",
+		[]string{"packages.go"},
+		[]string{"packages_test.go"},
+		[]string{"packages_extra_test.go"},
+		"",
+	)
+
+	badPkg := pkgJSON(
+		"github.com/padiazg/go-crap/internal/bad",
+		"/go/src/github.com/padiazg/go-crap/internal/bad",
+		"github.com/padiazg/go-crap",
+		"/go/src/github.com/padiazg/go-crap",
+		nil,
+		nil,
+		nil,
+		"cannot find module",
+	)
+
+	tests := []struct {
+		name         string
+		patterns     []string
+		includeTests bool
+		checks       []checkResolverResolveFn
+		before       func(*Resolver)
+	}{
+		{
+			name:     "resolves_single_package",
+			patterns: []string{"github.com/padiazg/go-crap/..."},
+			before:   func(s *Resolver) { s.runner = &fakeGoListRunner{Output: []byte(singlePkg)} },
+			checks: checkResolverResolve(
+				func(t *testing.T, targets []Target, err error) {
+					t.Helper()
+					require.NoError(t, err)
+					require.Len(t, targets, 1)
+					assert.Equal(t, "github.com/padiazg/go-crap/internal/packages", targets[0].ImportPath)
+					assert.Equal(t, "/go/src/github.com/padiazg/go-crap/internal/packages", targets[0].Dir)
+					require.Len(t, targets[0].Files, 1)
+					assert.Equal(t, "/go/src/github.com/padiazg/go-crap/internal/packages/packages.go", targets[0].Files[0])
+				},
+				checkResolveError(""),
+			),
+		},
+		{
+			name:     "propagates_runner_error",
+			patterns: []string{"./..."},
+			before:   func(s *Resolver) { s.runner = &fakeGoListRunner{Err: fmt.Errorf("boom")} },
+			checks: checkResolverResolve(
+				checkResolveError("boom"),
+			),
+		},
+		{
+			name:     "empty_output_returns_empty",
+			patterns: []string{"./..."},
+			before:   func(s *Resolver) { s.runner = &fakeGoListRunner{Output: nil} },
+			checks: checkResolverResolve(
+				func(t *testing.T, targets []Target, err error) {
+					t.Helper()
+					assert.NoError(t, err)
+					assert.Empty(t, targets)
+				},
+				checkResolveError(""),
+			),
+		},
+		{
+			name:     "malformed_json_returns_decode_error",
+			patterns: []string{"./..."},
+			before:   func(s *Resolver) { s.runner = &fakeGoListRunner{Output: []byte(`{"ImportPath":`)} },
+			checks: checkResolverResolve(
+				checkResolveError("decode JSON"),
+			),
+		},
+		{
+			name:     "all_packages_error_returns_joined_error",
+			patterns: []string{"./..."},
+			before:   func(s *Resolver) { s.runner = &fakeGoListRunner{Output: []byte(badPkg)} },
+			checks: checkResolverResolve(
+				checkResolveError("resolve patterns"),
+			),
+		},
+		{
+			name:     "mixed_valid_and_error_returns_targets",
+			patterns: []string{"./..."},
+			before: func(s *Resolver) {
+				var buf bytes.Buffer
+				buf.WriteString(singlePkg)
+				buf.WriteString(badPkg)
+				s.runner = &fakeGoListRunner{Output: buf.Bytes()}
+			},
+			checks: checkResolverResolve(
+				func(t *testing.T, targets []Target, err error) {
+					t.Helper()
+					require.NoError(t, err)
+					require.Len(t, targets, 1)
+					assert.Equal(t, "github.com/padiazg/go-crap/internal/packages", targets[0].ImportPath)
+				},
+				checkResolveError(""),
+			),
+		},
+		{
+			name:         "include_tests_collects_test_files",
+			patterns:     []string{"./..."},
+			includeTests: true,
+			before:       func(s *Resolver) { s.runner = &fakeGoListRunner{Output: []byte(singlePkgWithTests)} },
+			checks: checkResolverResolve(
+				func(t *testing.T, targets []Target, err error) {
+					t.Helper()
+					require.NoError(t, err)
+					require.Len(t, targets, 1)
+					require.Len(t, targets[0].TestFiles, 2)
+					assert.Contains(t, targets[0].TestFiles[0], "packages_test.go")
+					assert.Contains(t, targets[0].TestFiles[1], "packages_extra_test.go")
+				},
+				checkResolveError(""),
+			),
+		},
+		{
+			name:     "patterns_passed_to_runner",
+			patterns: []string{"github.com/padiazg/go-crap/internal/...", "./..."},
+			before: func(s *Resolver) {
+				fake := &fakeGoListRunner{Output: []byte(singlePkg)}
+				s.runner = fake
+				capturedRunner = fake
+			},
+			checks: checkResolverResolve(
+				func(t *testing.T, targets []Target, err error) {
+					t.Helper()
+					assert.NoError(t, err)
+					require.Len(t, capturedRunner.Patterns, 2)
+					assert.Equal(t, "github.com/padiazg/go-crap/internal/...", capturedRunner.Patterns[0])
+					assert.Equal(t, "./...", capturedRunner.Patterns[1])
+				},
+				checkResolveError(""),
+			),
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			capturedRunner = nil
+			s := NewResolver(nil)
+			if tt.before != nil {
+				tt.before(s)
+			}
+			r, err := s.Resolve(context.Background(), tt.patterns, tt.includeTests)
+			for _, c := range tt.checks {
+				c(t, r, err)
 			}
 		})
 	}

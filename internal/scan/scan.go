@@ -105,71 +105,122 @@ func Scan(options *Options) (*Entries, error) {
 	return entries, err
 }
 
+// func runCoverageAnalysis(ctx context.Context, options *Options, patterns []string, exclude *regexp.Regexp, timeout time.Duration) ([]coverage.ModuleCoverage, error) {
+// 	scanner := coverage.NewScanner(".", exclude, options.Logger, timeout)
+// 	scanner.Profile = options.CoverageProfile
+// 	scanner.Progress = options.ProgressReporter
+
+// 	// If a profile is provided, fall back to path-based discovery (no go list needed).
+// 	if scanner.Profile != "" {
+// 		coverages, err := scanner.Scan(ctx)
+// 		if err != nil {
+// 			return nil, fmt.Errorf("coverage scan: %w", err)
+// 		}
+// 		return coverages, nil
+// 	}
+
+// 	// Try to resolve patterns via go list. On failure, fall back to Path-based discovery.
+// 	if len(patterns) == 0 && options.Path != "" {
+// 		patterns = []string{options.Path}
+// 	}
+
+// 	targets, resolveErr := packages.Resolve(ctx, patterns, options.IncludeTests)
+// 	if resolveErr == nil && len(targets) > 0 {
+// 		// Group targets by module dir.
+// 		mt := groupTargets(targets)
+// 		scanner.Targets = mt
+
+// 		coverages, err := scanner.Scan(ctx)
+// 		if err != nil {
+// 			return nil, fmt.Errorf("coverage scan: %w", err)
+// 		}
+// 		return coverages, nil
+// 	}
+
+// 	// Fallback to Path-based discovery (e.g. nested module dirs outside go list reach).
+// 	if options.Path != "" {
+// 		scanner.Path = options.Path
+// 		coverages, err := scanner.Scan(ctx)
+// 		if err != nil {
+// 			return nil, fmt.Errorf("coverage scan: %w", err)
+// 		}
+// 		return coverages, nil
+// 	}
+
+// 	return nil, fmt.Errorf("coverage scan: resolve patterns: %w", resolveErr)
+// }
+
 func runCoverageAnalysis(ctx context.Context, options *Options, patterns []string, exclude *regexp.Regexp, timeout time.Duration) ([]coverage.ModuleCoverage, error) {
 	scanner := coverage.NewScanner(".", exclude, options.Logger, timeout)
 	scanner.Profile = options.CoverageProfile
 	scanner.Progress = options.ProgressReporter
 
-	// If a profile is provided, fall back to path-based discovery (no go list needed).
-	if scanner.Profile != "" {
-		coverages, err := scanner.Scan(ctx)
+	wrapError := func(fn func(ctx context.Context) ([]coverage.ModuleCoverage, error)) ([]coverage.ModuleCoverage, error) {
+		coverages, err := fn(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("coverage scan: %w", err)
 		}
+
 		return coverages, nil
+	}
+
+	// If a profile is provided, fall back to path-based discovery (no go list needed).
+	if scanner.Profile != "" {
+		return wrapError(scanner.Scan)
 	}
 
 	// Try to resolve patterns via go list. On failure, fall back to Path-based discovery.
 	if len(patterns) == 0 && options.Path != "" {
 		patterns = []string{options.Path}
 	}
-	targets, resolveErr := packages.Resolve(ctx, patterns, options.IncludeTests)
+
+	resolver := packages.NewResolver(nil)
+	targets, resolveErr := resolver.Resolve(ctx, patterns, options.IncludeTests)
 	if resolveErr == nil && len(targets) > 0 {
 		// Group targets by module dir.
-		modTargets := make(map[string]*coverage.ModuleTarget)
-		for _, t := range targets {
-			if t.ModuleDir == "" {
-				continue
-			}
-			relDir := t.Dir
-			if mtd, ok := modTargets[t.ModuleDir]; ok {
-				mtd.PkgDirs = append(mtd.PkgDirs, relDir)
-			} else {
-				modTargets[t.ModuleDir] = &coverage.ModuleTarget{
-					ModDir:  t.ModuleDir,
-					PkgDirs: []string{relDir},
-				}
-			}
-		}
-
-		var mt []coverage.ModuleTarget
-		for _, t := range modTargets {
-			mt = append(mt, *t)
-		}
+		mt := groupTargets(targets)
 		scanner.Targets = mt
 
-		coverages, err := scanner.Scan(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("coverage scan: %w", err)
-		}
-		return coverages, nil
+		return wrapError(scanner.Scan)
 	}
 
 	// Fallback to Path-based discovery (e.g. nested module dirs outside go list reach).
 	if options.Path != "" {
 		scanner.Path = options.Path
-		coverages, err := scanner.Scan(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("coverage scan: %w", err)
-		}
-		return coverages, nil
+		return wrapError(scanner.Scan)
 	}
 
 	return nil, fmt.Errorf("coverage scan: resolve patterns: %w", resolveErr)
 }
 
+func groupTargets(targets []packages.Target) []coverage.ModuleTarget {
+	modTargets := make(map[string]*coverage.ModuleTarget)
+	for _, t := range targets {
+		if t.ModuleDir == "" {
+			continue
+		}
+		relDir := t.Dir
+		if mtd, ok := modTargets[t.ModuleDir]; ok {
+			mtd.PkgDirs = append(mtd.PkgDirs, relDir)
+		} else {
+			modTargets[t.ModuleDir] = &coverage.ModuleTarget{
+				ModDir:  t.ModuleDir,
+				PkgDirs: []string{relDir},
+			}
+		}
+	}
+
+	var mt []coverage.ModuleTarget
+	for _, t := range modTargets {
+		mt = append(mt, *t)
+	}
+
+	return mt
+}
+
 func runComplexityAnalysis(_ context.Context, options *Options, patterns []string, exclude *regexp.Regexp) []complexity.Stat {
-	targets, err := packages.Resolve(context.Background(), patterns, options.IncludeTests)
+	resolver := packages.NewResolver(nil)
+	targets, err := resolver.Resolve(context.Background(), patterns, options.IncludeTests)
 	if err != nil {
 		// Fallback: if resolve fails (e.g. outside a module), fall back to Path-based walk.
 		if options.Path != "" {
@@ -182,10 +233,6 @@ func runComplexityAnalysis(_ context.Context, options *Options, patterns []strin
 	for _, t := range targets {
 		files = append(files, t.Files...)
 		files = append(files, t.TestFiles...)
-	}
-
-	if len(files) == 0 {
-		return nil
 	}
 
 	return complexity.AnalyzeFiles(files, exclude, options.Logger)
