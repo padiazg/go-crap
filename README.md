@@ -62,6 +62,23 @@ Scans Go packages matching the given patterns (defaults to `./...` — the whole
 
 Patterns use the same syntax as `go list` / `go build`: `./...` (recursive), `./internal/score` (single package), `github.com/x/y` (import path). Multiple patterns are accepted (e.g. `./internal/foo ./internal/bar`).
 
+#### Two-layer selection
+
+go-crap uses two independent mechanisms to narrow what gets analyzed:
+
+1. **Patterns** select which Go *packages* are scanned. Operates at the package/directory level — coverage tests are only run on matching packages.
+2. **`--exclude`** filters *files and functions* within matched packages via regex. Cannot exclude whole packages from being tested, only from the final report.
+
+They are designed to work together:
+
+```shell
+# Scan all packages, but skip generated protobuf files inside them
+go-crap scan --exclude '\.pb\.go$'
+
+# Narrow to specific packages, then exclude files within them
+go-crap scan ./internal/scan ./internal/coverage --exclude 'mock_'
+```
+
 ### Example
 
 ```shell
@@ -95,7 +112,7 @@ go-crap scan --exclude 'pb/.*\.go'
 | `--top` | | Show only the N worst offenders (0 = all) | `0` |
 | `--min` | | Hide entries below this score | `0` |
 | `--missing` | | Policy for functions without coverage: `pessimistic`, `optimistic`, or `skip` | `pessimistic` |
-| `--exclude` | | Exclude files matching this regex (repeatable). Use `.*` for any path depth. `_test.go` files are excluded by default | none |
+| `--exclude` | | Exclude files and functions matching this regex (repeatable). Use `.*` for any path depth. `_test.go` files are excluded by default | none |
 | `--include-tests` | | Include `_test.go` files in analysis (overrides default exclude) | `false` |
 | `--verbose` | | Enable verbose (debug-level) logging | `false` |
 | `--progress` | | Show progress indicators (default: auto-detect terminal) | `false` |
