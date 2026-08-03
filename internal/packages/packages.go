@@ -11,12 +11,12 @@ import (
 
 // Target represents a single Go package resolved from a pattern.
 type Target struct {
-	ImportPath string
 	Dir        string
+	ImportPath string
+	ModuleDir  string
+	ModulePath string
 	Files      []string
 	TestFiles  []string
-	ModulePath string
-	ModuleDir  string
 }
 
 type packageError struct {
@@ -27,14 +27,14 @@ type packageError struct {
 
 // listPackage is a minimal representation of go list -json output for a package.
 type listPackage struct {
-	ImportPath   string
+	Error        packageError
 	Dir          string
-	ModulePath   string
+	ImportPath   string
 	ModuleDir    string
+	ModulePath   string
 	GoFiles      []string
 	TestGoFiles  []string
 	XTestGoFiles []string
-	Error        packageError
 }
 
 type ResolverConfig struct {

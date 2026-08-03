@@ -33,11 +33,10 @@ type Scanner struct {
 	// "go test". The same profile is applied to every discovered module;
 	// entries whose paths do not belong to a module are skipped.
 	Profile string
-	Timeout time.Duration
-
 	// Targets, when set, overrides the Path-based module discovery with
 	// explicit per-module package targets.
 	Targets []ModuleTarget
+	Timeout time.Duration
 }
 
 func NewScanner(path string, exclude *regexp.Regexp, logger logger.Logger, timeout time.Duration) *Scanner {
