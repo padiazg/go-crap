@@ -40,6 +40,28 @@ go-crap scan ./internal/score ./internal/coverage
 go-crap scan github.com/padiazg/go-crap/internal/...
 ```
 
+## Two-layer selection
+
+go-crap uses two independent mechanisms to narrow what gets analyzed. They operate at different granularities:
+
+1. **Patterns** — select which Go *packages* are scanned. Operates at the package/directory level via `go list` syntax. Choosing whole packages is efficient because coverage tests are only run on matching packages.
+2. **`--exclude`** — filters *files and functions* within matched packages. Operates at the file-path and function-name level via regex. Cannot exclude whole packages from being tested, only from the final report.
+
+They are designed to be used together:
+
+```shell
+# Scan all packages, but skip generated protobuf files inside them
+go-crap scan --exclude '\.pb\.go$'
+
+# Scan only internal/foo, and within that package also exclude testdata files
+go-crap scan ./internal/foo --exclude 'testdata/.*\.go'
+
+# Narrow to specific packages first, then exclude a file pattern within them
+go-crap scan ./internal/scan ./internal/coverage --exclude 'mock_'
+```
+
+Using patterns alone is the right choice when you know which packages to scan. Using `--exclude` is necessary when you need to skip individual files that live inside matched packages — something `go list` cannot do, since Go has no negative package patterns.
+
 ## Flags
 
 | Flag | Short | Description | Default |
@@ -51,7 +73,7 @@ go-crap scan github.com/padiazg/go-crap/internal/...
 | `--min` | | Hide entries below this score. `CoverageUntrusted` entries are never hidden, regardless of their score | `0` |
 | `--missing` | | Policy for functions without coverage: `pessimistic`, `optimistic`, or `skip` | `pessimistic` |
 | `--coverage-profile` | | Use an existing coverage profile (as produced by `go test -coverprofile`) instead of running `go test` | `""` (disabled) |
-| `--exclude` | | Exclude files matching this regex pattern (repeatable). `_test.go` files are excluded by default. e.g. `pb/.*\.go` to exclude protobuf files | none |
+| `--exclude` | | Exclude files and functions matching this regex pattern (repeatable). `_test.go` files are excluded by default. e.g. `pb/.*\.go` to exclude protobuf files | none |
 | `--include-tests` | | Include `_test.go` files in analysis (overrides default exclude) | `false` |
 | `--verbose` | | Enable verbose (debug-level) logging | `false` |
 | `--progress` | | Show progress indicators (default: auto-detect terminal) | `false` |

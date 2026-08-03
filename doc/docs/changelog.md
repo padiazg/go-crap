@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `--no-progress` flag — force-disable progress indicators
 - Progress bars on stderr showing scan phases: "Discovering modules", "Running coverage tests", "Analyzing complexity", "Processing results"
 - Docker images published to `docker.io/padiazg/go-crap` and `ghcr.io/padiazg/go-crap` (multi-arch linux/amd64 + linux/arm64) — run with `docker run --rm -v "$PWD:/code" ghcr.io/padiazg/go-crap scan`
+- `scan` now accepts multiple Go package patterns (same syntax as `go list` / `go build`): `./...` (recursive), `./pkg` (single), `github.com/x/y` (import path). Patterns resolved via `go list -json -e`, with fallback to path-based discovery for nested modules
+
+### Changed
+
+- No-arg `scan` default changed from current directory (`.`) to whole module (`./...`); accepts multiple positional patterns instead of a single `path` argument
 
 ## v0.5.0 - 2026-07-28
 
