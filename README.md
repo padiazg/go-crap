@@ -122,6 +122,7 @@ go-crap scan --exclude 'pb/.*\.go'
 | `--detailed` | | Include mutation failure details (original code, replacement, line) in report output | `false` |
 | `--timeout` | | Timeout for the full scan (e.g. `30s`, `5m`, `1h30m`) | `10m0s` |
 | `--coverage-profile` | | Supply an existing coverage profile instead of running `go test` | `""` |
+| `--coverpkg` | | Pass `-coverpkg` to `go test` to measure cross-package coverage (e.g. `./...`) | `""` |
 | `--baseline` | | Path to a previous JSON report for baseline comparison | `""` |
 | `--fail-regression` | | Exit code 1 when functions regressed vs baseline | `false` |
 | `--fail-regression-threshold` | | Minimum delta to consider regression | `0.01` |
@@ -136,7 +137,7 @@ go-crap can show progress bars on stderr during long scans:
 - **`--progress`** — force-enable progress indicators
 - **`--no-progress`** — force-disable progress indicators (useful in CI or when redirecting stderr)
 
-Phases tracked: "Discovering modules", "Running coverage tests", "Analyzing complexity", "Processing results".
+Phases tracked: "Discovering modules", "Running coverage tests", "Analyzing coverage profile", "Analyzing complexity", "Processing results". The "Running coverage tests" phase is replaced by "Analyzing coverage profile" when `--coverage-profile` is set.
 
 ```shell
 # Force progress in a non-interactive CI step

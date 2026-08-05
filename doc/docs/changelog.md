@@ -14,10 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Progress bars on stderr showing scan phases: "Discovering modules", "Running coverage tests", "Analyzing complexity", "Processing results"
 - Docker images published to `docker.io/padiazg/go-crap` and `ghcr.io/padiazg/go-crap` (multi-arch linux/amd64 + linux/arm64) — run with `docker run --rm -v "$PWD:/code" ghcr.io/padiazg/go-crap scan`
 - `scan` now accepts multiple Go package patterns (same syntax as `go list` / `go build`): `./...` (recursive), `./pkg` (single), `github.com/x/y` (import path). Patterns resolved via `go list -json -e`, with fallback to path-based discovery for nested modules
+- `--coverpkg` flag — pass `-coverpkg` to `go test` to measure cross-package coverage (e.g. `./...`)
+- Coverage profile parser is now streaming — large profiles are parsed incrementally instead of loaded fully into memory
 
 ### Changed
 
 - No-arg `scan` default changed from current directory (`.`) to whole module (`./...`); accepts multiple positional patterns instead of a single `path` argument
+- When `--coverage-profile` is set, the analyzed module is derived from the profile's location (nearest `go.mod` ancestor) instead of the current working directory
+- Progress phase "Running coverage tests" is replaced by "Analyzing coverage profile" when `--coverage-profile` is set (no `go test` re-run)
 
 ## v0.5.0 - 2026-07-28
 

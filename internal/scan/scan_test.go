@@ -21,6 +21,7 @@ import (
 	"github.com/padiazg/go-crap/pkg/logger"
 	"github.com/padiazg/go-crap/pkg/utils"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 )
 
@@ -611,6 +612,93 @@ func Test_runCoverageAnalysis(t *testing.T) {
 	}
 }
 
+func writeTestModule(t *testing.T, dir, modulePath string) {
+	t.Helper()
+	requireWriteFile(t, filepath.Join(dir, "go.mod"), []byte("module "+modulePath+"\n\ngo 1.21\n"))
+}
+
+func requireWriteFile(t *testing.T, path string, data []byte) {
+	t.Helper()
+	require.NoError(t, os.WriteFile(path, data, 0644))
+}
+
+func Test_resolveProfileModule(t *testing.T) {
+	moduleA := t.TempDir()
+	writeTestModule(t, moduleA, "modA")
+	moduleB := t.TempDir()
+	writeTestModule(t, moduleB, "modB")
+	profileB := filepath.Join(moduleB, "cover.out")
+	requireWriteFile(t, profileB, []byte("mode: set\n"))
+
+	tests := []struct {
+		name    string
+		options *Options
+		want    string
+	}{
+		{
+			name:    "explicit_path_wins",
+			options: &Options{Path: moduleA, CoverageProfile: profileB},
+			want:    moduleA,
+		},
+		{
+			name:    "default_path_uses_profile_module",
+			options: &Options{Path: "./...", CoverageProfile: profileB},
+			want:    moduleB,
+		},
+		{
+			name:    "dot_path_uses_profile_module",
+			options: &Options{Path: ".", CoverageProfile: profileB},
+			want:    moduleB,
+		},
+		{
+			name:    "explicit_path_outside_module_uses_path",
+			options: &Options{Path: moduleB, CoverageProfile: profileB},
+			want:    moduleB,
+		},
+		{
+			name:    "unresolvable_profile_returns_empty",
+			options: &Options{Path: "./...", CoverageProfile: "/no/such/dir/cover.out"},
+			want:    "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := resolveProfileModule(tt.options)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestScan_profileFromOtherModule(t *testing.T) {
+	mod := t.TempDir()
+	writeTestModule(t, mod, "example.com/other")
+	goSrc := "package other\n\nfunc Hello() {\n\tx := 1\n}\n"
+	requireWriteFile(t, filepath.Join(mod, "pkg.go"), []byte(goSrc))
+	profile := filepath.Join(mod, "cover.out")
+	requireWriteFile(t, profile, []byte("mode: set\n"+
+		"example.com/other/pkg.go:3.1,5.1 1 1\n"))
+
+	entries, err := Scan(&Options{
+		Patterns:        []string{"./..."},
+		CoverageProfile: profile,
+	})
+	assert.NoError(t, err)
+	require.NotNil(t, entries)
+	require.NotEmpty(t, entries.List)
+
+	var hello *score.CRAPEntry
+	for i := range entries.List {
+		if entries.List[i].FuncName == "Hello" {
+			hello = &entries.List[i]
+			break
+		}
+	}
+	require.NotNil(t, hello, "expected function Hello from the profile's module")
+	assert.Equal(t, 100.0, hello.Coverage)
+	assert.Equal(t, 1.0, hello.CRAP)
+	assert.Contains(t, hello.File, "pkg.go")
+}
+
 func Test_parseMissingPolicy(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -1061,7 +1149,7 @@ func Test_runComplexityAnalysis(t *testing.T) {
 			},
 			patterns: []string{"."},
 			checks: checkrunComplexityAnalysis(
-				checkComplexityLen(20),
+				checkComplexityLen(21),
 				checkComplexityContains("Scan"),
 				checkComplexityContains("runComplexityAnalysis"),
 				checkComplexityContains("NewEntries"),
@@ -1087,7 +1175,7 @@ func Test_runComplexityAnalysis(t *testing.T) {
 			patterns: []string{"."},
 			exclude:  regexp.MustCompile("runComplexityAnalysis"),
 			checks: checkrunComplexityAnalysis(
-				checkComplexityLen(19),
+				checkComplexityLen(20),
 				checkComplexityNotContains("runComplexityAnalysis"),
 				checkComplexityContains("Scan"),
 			),
@@ -1100,7 +1188,7 @@ func Test_runComplexityAnalysis(t *testing.T) {
 			patterns: []string{"."},
 			exclude:  regexp.MustCompile(`_test\.go`),
 			checks: checkrunComplexityAnalysis(
-				checkComplexityLen(20),
+				checkComplexityLen(21),
 				checkComplexityNotContains("TestScan"),
 				checkComplexityNotContains("Test_groupTargets"),
 			),
