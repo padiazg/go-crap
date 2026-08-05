@@ -28,6 +28,9 @@ type Scanner struct {
 	Logger   logger.Logger
 	Progress progress.Reporter
 	Exclude  *regexp.Regexp
+	// CoverPkg, when set, is passed to "go test -coverpkg" so coverage is
+	// measured across packages (cross-package coverage).
+	CoverPkg string
 	Path     string
 	// Profile, when set, is used as the coverage profile instead of running
 	// "go test". The same profile is applied to every discovered module;
@@ -36,10 +39,7 @@ type Scanner struct {
 	// Targets, when set, overrides the Path-based module discovery with
 	// explicit per-module package targets.
 	Targets []ModuleTarget
-	// CoverPkg, when set, is passed to "go test -coverpkg" so coverage is
-	// measured across packages (cross-package coverage).
-	CoverPkg string
-	Timeout  time.Duration
+	Timeout time.Duration
 }
 
 func NewScanner(path string, exclude *regexp.Regexp, logger logger.Logger, timeout time.Duration) *Scanner {
