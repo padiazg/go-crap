@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -29,6 +30,7 @@ type Options struct {
 	Logger           logger.Logger
 	ProgressReporter pkgprogress.Reporter
 	CoverageProfile  string
+	CoverPkg         string
 	Missing          string
 	MutationReport   string
 	Path             string
@@ -79,7 +81,11 @@ func Scan(options *Options) (*Entries, error) {
 		patterns = []string{"./..."}
 	}
 
-	pr.StartPhase(pkgprogress.PhaseCoverageTests, 0)
+	coveragePhase := pkgprogress.PhaseCoverageTests
+	if options.CoverageProfile != "" {
+		coveragePhase = pkgprogress.PhaseCoverageProfile
+	}
+	pr.StartPhase(coveragePhase, 0)
 	coverages, err := runCoverageAnalysis(ctx, options, patterns, exclude, timeout)
 	if err != nil {
 		return nil, err
@@ -153,6 +159,7 @@ func Scan(options *Options) (*Entries, error) {
 func runCoverageAnalysis(ctx context.Context, options *Options, patterns []string, exclude *regexp.Regexp, timeout time.Duration) ([]coverage.ModuleCoverage, error) {
 	scanner := coverage.NewScanner(".", exclude, options.Logger, timeout)
 	scanner.Profile = options.CoverageProfile
+	scanner.CoverPkg = options.CoverPkg
 	scanner.Progress = options.ProgressReporter
 
 	wrapError := func(fn func(ctx context.Context) ([]coverage.ModuleCoverage, error)) ([]coverage.ModuleCoverage, error) {
@@ -166,6 +173,10 @@ func runCoverageAnalysis(ctx context.Context, options *Options, patterns []strin
 
 	// If a profile is provided, fall back to path-based discovery (no go list needed).
 	if scanner.Profile != "" {
+		if modDir := resolveProfileModule(options); modDir != "" {
+			scanner.Path = modDir
+			scanner.Logger.Debug("using coverage profile", "profile", options.CoverageProfile, "module", modDir)
+		}
 		return wrapError(scanner.Scan)
 	}
 
@@ -191,6 +202,25 @@ func runCoverageAnalysis(ctx context.Context, options *Options, patterns []strin
 	}
 
 	return nil, fmt.Errorf("coverage scan: resolve patterns: %w", resolveErr)
+}
+
+// resolveProfileModule determines the module to analyze when a coverage
+// profile is supplied. An explicit path target wins; otherwise the module is
+// derived from the profile's location on disk (the nearest go.mod ancestor of
+// the profile file). Returns "" to fall back to the current working directory.
+func resolveProfileModule(options *Options) string {
+	if options.Path != "" && options.Path != "./..." && options.Path != "." {
+		if modDir := coverage.FindEnclosingModule(options.Path); modDir != "" {
+			return modDir
+		}
+		if fi, err := os.Stat(options.Path); err == nil && fi.IsDir() {
+			return options.Path
+		}
+	}
+	if modDir := coverage.FindEnclosingModule(options.CoverageProfile); modDir != "" {
+		return modDir
+	}
+	return ""
 }
 
 func groupTargets(targets []packages.Target) []coverage.ModuleTarget {
@@ -219,6 +249,14 @@ func groupTargets(targets []packages.Target) []coverage.ModuleTarget {
 }
 
 func runComplexityAnalysis(_ context.Context, options *Options, patterns []string, exclude *regexp.Regexp) []complexity.Stat {
+	// When a coverage profile is supplied, analyze the same module the profile
+	// belongs to so coverage and complexity stay aligned.
+	if options.CoverageProfile != "" {
+		if modDir := resolveProfileModule(options); modDir != "" {
+			return complexity.Analyze([]string{modDir}, exclude, options.Logger)
+		}
+	}
+
 	resolver := packages.NewResolver(nil)
 	targets, err := resolver.Resolve(context.Background(), patterns, options.IncludeTests)
 	if err != nil {

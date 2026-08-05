@@ -1329,3 +1329,44 @@ ok  	package	0.100s
 		})
 	}
 }
+
+func Test_coverTestArgs(t *testing.T) {
+	tests := []struct {
+		name     string
+		profile  string
+		pkgDirs  []string
+		coverPkg string
+		want     []string
+	}{
+		{
+			name:    "default_covers_all_packages",
+			profile: "/tmp/cov.out",
+			want:    []string{"test", "-coverprofile=/tmp/cov.out", "./..."},
+		},
+		{
+			name:    "with_pkg_dirs",
+			profile: "/tmp/cov.out",
+			pkgDirs: []string{"./internal/foo", "./internal/bar"},
+			want:    []string{"test", "-coverprofile=/tmp/cov.out", "./internal/foo", "./internal/bar"},
+		},
+		{
+			name:     "with_coverpkg_cross_package",
+			profile:  "/tmp/cov.out",
+			coverPkg: "./...",
+			want:     []string{"test", "-coverprofile=/tmp/cov.out", "-coverpkg=./...", "./..."},
+		},
+		{
+			name:     "with_coverpkg_and_pkg_dirs",
+			profile:  "/tmp/cov.out",
+			pkgDirs:  []string{"./internal/foo"},
+			coverPkg: "./...",
+			want:     []string{"test", "-coverprofile=/tmp/cov.out", "-coverpkg=./...", "./internal/foo"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := coverTestArgs(tt.profile, tt.pkgDirs, tt.coverPkg)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}

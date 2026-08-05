@@ -252,17 +252,19 @@ func testFunc() {
 }
 
 func Test_parseProfileLine_boundary_edge_cases(t *testing.T) {
-	entry, err := parseProfileLine("file.go:1.1,5.1 0 0")
+	path, blk, err := parseProfileLine("file.go:1.1,5.1 0 0")
 	assert.NoError(t, err)
-	assert.Equal(t, 1, entry.start)
-	assert.Equal(t, 5, entry.end)
-	assert.False(t, entry.covered)
+	assert.Equal(t, "file.go", path)
+	assert.Equal(t, 1, blk.start)
+	assert.Equal(t, 5, blk.end)
+	assert.False(t, blk.covered)
 
-	entry, err = parseProfileLine("file.go:100.1,100.1 1 1")
+	path, blk, err = parseProfileLine("file.go:100.1,100.1 1 1")
 	assert.NoError(t, err)
-	assert.Equal(t, 100, entry.start)
-	assert.Equal(t, 100, entry.end)
-	assert.True(t, entry.covered)
+	assert.Equal(t, "file.go", path)
+	assert.Equal(t, 100, blk.start)
+	assert.Equal(t, 100, blk.end)
+	assert.True(t, blk.covered)
 }
 
 func Test_findFunctionForBlock_boundary_nested_functions(t *testing.T) {
@@ -356,25 +358,37 @@ func Test_parseCoverProfile_boundary_no_go_files(t *testing.T) {
 }
 
 func Test_parseProfileLine_boundary_no_colon(t *testing.T) {
-	_, err := parseProfileLine("invalidline")
+	_, _, err := parseProfileLine("invalidline")
 	assert.Error(t, err)
 }
 
 func Test_parseProfileLine_boundary_colon_at_zero(t *testing.T) {
-	_, err := parseProfileLine(":10.5,20.10 0 1")
+	_, _, err := parseProfileLine(":10.5,20.10 0 1")
 	assert.Error(t, err, "colon at position 0 means empty path should be rejected")
 }
 
-func Test_readProfileEntries_boundary_empty_reader(t *testing.T) {
-	entries, err := readProfileEntries(strings.NewReader(""))
+func Test_readProfileBlocks_boundary_empty_reader(t *testing.T) {
+	byFile, err := readProfileBlocks(strings.NewReader(""))
 	assert.NoError(t, err)
-	assert.Empty(t, entries)
+	assert.Empty(t, byFile)
 }
 
-func Test_readProfileEntries_boundary_only_header(t *testing.T) {
-	entries, err := readProfileEntries(strings.NewReader("mode: set\n\nmode: count\n"))
+func Test_readProfileBlocks_boundary_only_header(t *testing.T) {
+	byFile, err := readProfileBlocks(strings.NewReader("mode: set\n\nmode: count\n"))
 	assert.NoError(t, err)
-	assert.Empty(t, entries)
+	assert.Empty(t, byFile)
+}
+
+func Test_readProfileBlocks_groups_by_file(t *testing.T) {
+	byFile, err := readProfileBlocks(strings.NewReader("mode: set\n" +
+		"mod/path/a.go:1.1,5.1 1 1\n" +
+		"mod/path/a.go:6.1,8.1 1 0\n" +
+		"mod/path/b.go:1.1,2.1 1 1\n"))
+	assert.NoError(t, err)
+	assert.Len(t, byFile, 2)
+	assert.Len(t, byFile["mod/path/a.go"], 2)
+	assert.Len(t, byFile["mod/path/b.go"], 1)
+	assert.True(t, byFile["mod/path/b.go"][0].covered)
 }
 
 func Test_buildFuncMap_empty(t *testing.T) {

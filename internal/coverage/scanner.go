@@ -36,7 +36,10 @@ type Scanner struct {
 	// Targets, when set, overrides the Path-based module discovery with
 	// explicit per-module package targets.
 	Targets []ModuleTarget
-	Timeout time.Duration
+	// CoverPkg, when set, is passed to "go test -coverpkg" so coverage is
+	// measured across packages (cross-package coverage).
+	CoverPkg string
+	Timeout  time.Duration
 }
 
 func NewScanner(path string, exclude *regexp.Regexp, logger logger.Logger, timeout time.Duration) *Scanner {
@@ -85,7 +88,7 @@ func (s *Scanner) Scan(ctx context.Context) ([]ModuleCoverage, error) {
 	// their own by walking up to the nearest module root. This does not
 	// apply to the "go test" path, which must run from an actual module.
 	if s.Profile != "" && len(modules) == 0 {
-		if modDir := findEnclosingModule(s.Path); modDir != "" {
+		if modDir := FindEnclosingModule(s.Path); modDir != "" {
 			modules = []string{modDir}
 		}
 	}
@@ -161,9 +164,9 @@ func (s *Scanner) discoverModules(ctx context.Context) ([]string, error) {
 	return modules, nil
 }
 
-// findEnclosingModule walks up from path to the nearest ancestor directory
+// FindEnclosingModule walks up from path to the nearest ancestor directory
 // that contains a go.mod, returning its absolute path, or "" if none exists.
-func findEnclosingModule(path string) string {
+func FindEnclosingModule(path string) string {
 	dir, err := filepath.Abs(path)
 	if err != nil {
 		return ""
@@ -258,12 +261,7 @@ func (s *Scanner) runTests(ctx context.Context, modDir string, pkgDirs []string)
 	_ = tmpfile.Close()
 	profile := tmpfile.Name()
 
-	args := []string{"test", "-coverprofile=" + profile}
-	if len(pkgDirs) > 0 {
-		args = append(args, pkgDirs...)
-	} else {
-		args = append(args, "./...")
-	}
+	args := coverTestArgs(profile, pkgDirs, s.CoverPkg)
 
 	cmd := exec.CommandContext(ctx, "go", args...)
 	cmd.Dir = modDir
@@ -284,6 +282,19 @@ func (s *Scanner) runTests(ctx context.Context, modDir string, pkgDirs []string)
 	}
 
 	return profile, nil
+}
+
+func coverTestArgs(profile string, pkgDirs []string, coverPkg string) []string {
+	args := []string{"test", "-coverprofile=" + profile}
+	if coverPkg != "" {
+		args = append(args, "-coverpkg="+coverPkg)
+	}
+	if len(pkgDirs) > 0 {
+		args = append(args, pkgDirs...)
+	} else {
+		args = append(args, "./...")
+	}
+	return args
 }
 
 func extractFailedTests(stderr string) []string {
