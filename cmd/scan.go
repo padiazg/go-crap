@@ -36,6 +36,7 @@ var (
 	flagDetailed                    bool
 	flagTimeout                     time.Duration
 	flagCoverProf                   string
+	flagCoverPkg                    string
 	flagBaseline                    string
 	flagShowUnchanged               bool
 	flagFailRegression              bool
@@ -79,6 +80,8 @@ func init() {
 		"Timeout for the full scan (e.g. 30s, 5m, 1h30m)")
 	scanCmd.Flags().StringVar(&flagCoverProf, "coverage-profile", "",
 		`Use an existing coverage profile (as produced by "go test -coverprofile") instead of running go test`)
+	scanCmd.Flags().StringVar(&flagCoverPkg, "coverpkg", "",
+		`Measure cross-package coverage by passing -coverpkg to "go test" (e.g. "./...")`)
 	scanCmd.Flags().StringVar(&flagBaseline, "baseline", "",
 		"Path to a previous JSON report to use as baseline for comparison")
 	scanCmd.Flags().BoolVar(&flagFailRegression, "fail-regression", false,
@@ -154,6 +157,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 		MutationReport:   flagMutation,
 		Timeout:          flagTimeout,
 		CoverageProfile:  flagCoverProf,
+		CoverPkg:         flagCoverPkg,
 		ProgressReporter: pr,
 	})
 	if err != nil {

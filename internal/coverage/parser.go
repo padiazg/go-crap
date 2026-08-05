@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -71,8 +72,8 @@ func parseCoverOutput(r io.Reader) ([]FunctionCoverage, error) {
 // 	return parseCoverOutput(bytes.NewReader(data))
 // }
 
-type profileEntry struct {
-	path    string
+// profileBlock is a single coverage block within a file.
+type profileBlock struct {
 	start   int
 	end     int
 	covered bool
@@ -85,19 +86,21 @@ func parseCoverProfile(profilePath, modDir, modPath string) ([]FunctionCoverage,
 	}
 	defer file.Close()
 
-	entries, err := readProfileEntries(file)
+	byFile, err := readProfileBlocks(file)
 	if err != nil {
 		return nil, fmt.Errorf("read profile: %w", err)
 	}
 
-	// Group entries by file
-	byFile := make(map[string][]profileEntry)
-	for _, e := range entries {
-		byFile[e.path] = append(byFile[e.path], e)
+	// Process files in sorted order so output is deterministic.
+	paths := make([]string, 0, len(byFile))
+	for path := range byFile {
+		paths = append(paths, path)
 	}
+	sort.Strings(paths)
 
 	var results []FunctionCoverage
-	for path, fileEntries := range byFile {
+	for _, path := range paths {
+		fileEntries := byFile[path]
 		resolved := resolvePath(modDir, modPath, path)
 		funcResults := parseFileProfile(modDir, resolved, fileEntries, modPath)
 		results = append(results, funcResults...)
@@ -129,7 +132,7 @@ type funcCoverage struct {
 	covered  int
 }
 
-func parseFileProfile(modDir, filePath string, entries []profileEntry, modPath string) []FunctionCoverage {
+func parseFileProfile(modDir, filePath string, blocks []profileBlock, modPath string) []FunctionCoverage {
 	src, err := os.Open(filePath)
 	if err != nil {
 		// Coverage file unreadable — skip silently.
@@ -148,7 +151,7 @@ func parseFileProfile(modDir, filePath string, entries []profileEntry, modPath s
 
 	funcs := extractFileFuncs(fset, node)
 	funcMap, orderedFuncs := buildFuncMap(funcs)
-	attributeBlocks(fset, node, entries, funcMap)
+	attributeBlocks(fset, node, blocks, funcMap)
 	results := buildCoverageResults(funcMap, orderedFuncs, filePath, modPath)
 	return results
 }
@@ -204,13 +207,13 @@ func buildFuncMap(funcs []fileFunc) (map[string]*funcCoverage, []string) {
 	return funcMap, orderedFuncs
 }
 
-func attributeBlocks(fset *token.FileSet, node *ast.File, entries []profileEntry, funcMap map[string]*funcCoverage) {
+func attributeBlocks(fset *token.FileSet, node *ast.File, blocks []profileBlock, funcMap map[string]*funcCoverage) {
 	type blockKey struct {
 		start int
 		end   int
 	}
 	seen := make(map[blockKey]bool)
-	for _, e := range entries {
+	for _, e := range blocks {
 		key := blockKey{e.start, e.end}
 		if covered, exists := seen[key]; exists {
 			seen[key] = covered || e.covered
@@ -313,43 +316,44 @@ func resolveReceiverPrefix(node *ast.File, funcName string) string {
 	return name
 }
 
-func readProfileEntries(r io.Reader) ([]profileEntry, error) {
-	var entries []profileEntry
+func readProfileBlocks(r io.Reader) (map[string][]profileBlock, error) {
+	byFile := make(map[string][]profileBlock)
 	scanner := bufio.NewScanner(r)
+	scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" || strings.HasPrefix(line, "mode:") {
 			continue
 		}
-		e, err := parseProfileLine(line)
+		path, blk, err := parseProfileLine(line)
 		if err != nil {
 			continue
 		}
-		entries = append(entries, e)
+		byFile[path] = append(byFile[path], blk)
 	}
-	return entries, scanner.Err()
+	return byFile, scanner.Err()
 }
 
-func parseProfileLine(line string) (profileEntry, error) {
-	var entry profileEntry
+func parseProfileLine(line string) (string, profileBlock, error) {
+	var blk profileBlock
 
 	colonIdx := strings.Index(line, ":")
 	if colonIdx <= 0 {
-		return entry, fmt.Errorf("invalid line: %s", line)
+		return "", blk, fmt.Errorf("invalid line: %s", line)
 	}
 
-	entry.path = line[:colonIdx]
+	path := line[:colonIdx]
 	rest := line[colonIdx+1:]
 
 	startLine, endLine, covered, err := parsePositionFields(rest)
 	if err != nil {
-		return entry, err
+		return "", blk, err
 	}
-	entry.start = startLine
-	entry.end = endLine
-	entry.covered = covered
+	blk.start = startLine
+	blk.end = endLine
+	blk.covered = covered
 
-	return entry, nil
+	return path, blk, nil
 }
 
 func parsePositionFields(rest string) (startLine, endLine int, covered bool, err error) {

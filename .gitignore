@@ -56,6 +56,7 @@ dist/
 !.github/**/*.md
 mutation.json
 crap-current*
+crap-report.txt
 
 # MkDocs site
 doc/site/

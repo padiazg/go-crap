@@ -5,6 +5,7 @@ type Phase string
 const (
 	PhaseDiscoverModules Phase = "Discovering modules"
 	PhaseCoverageTests   Phase = "Running coverage tests"
+	PhaseCoverageProfile Phase = "Analyzing coverage profile"
 	PhaseComplexity      Phase = "Analyzing complexity"
 	PhaseProcessing      Phase = "Processing results"
 )
