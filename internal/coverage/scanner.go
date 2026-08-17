@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -267,7 +266,7 @@ func (s *Scanner) runTests(ctx context.Context, modDir string, pkgDirs []string)
 	cmd.Dir = modDir
 	cmd.Env = append(os.Environ(), "GO111MODULE=on")
 	var stdout, stderr bytes.Buffer
-	cmd.Stdout = io.MultiWriter(os.Stdout, &stdout)
+	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	err = cmd.Run()

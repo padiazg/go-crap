@@ -177,7 +177,7 @@ func Test_output(t *testing.T) {
 				writer:        &mockWriter{},
 				path:          "/base",
 				showUnchanged: true,
-				baseline:      loadBaselineForTest(t, `{"$schema":"https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json","version":"1.1.0","entries":[{"file":"internal/foo.go","function":"Foo","package":"foo","crap":4.5,"cyclomatic":1,"effective_crap":4.5,"line":1,"coverage":50}]}`),
+				baseline:      loadBaselineForTest(t, `{"$schema":"https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json","version":"1.1.0","entries":[{"file":"internal/foo.go","function":"Foo","package":"foo","crap":4.5,"cyclomatic":1,"effective_crap":4.5,"line":1,"coverage":50}]}`),
 			},
 			entries: entries,
 			checks: checkoutput(
@@ -192,7 +192,7 @@ func Test_output(t *testing.T) {
 				threshold: 30,
 				writer:    &mockWriter{},
 				path:      "/base",
-				baseline:  loadBaselineForTest(t, `{"$schema":"https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json","version":"1.1.0","entries":[{"file":"internal/foo.go","function":"Foo","package":"foo","crap":4.5,"cyclomatic":1,"effective_crap":4.5,"line":1,"coverage":50}]}`),
+				baseline:  loadBaselineForTest(t, `{"$schema":"https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json","version":"1.1.0","entries":[{"file":"internal/foo.go","function":"Foo","package":"foo","crap":4.5,"cyclomatic":1,"effective_crap":4.5,"line":1,"coverage":50}]}`),
 			},
 			entries: entries,
 			checks: checkoutput(
@@ -209,7 +209,7 @@ func Test_output(t *testing.T) {
 				path:          "/base",
 				detailed:      true,
 				showUnchanged: true,
-				baseline:      loadBaselineForTest(t, `{"$schema":"https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json","version":"1.1.0","entries":[{"file":"internal/foo.go","function":"Foo","package":"foo","crap":4.5,"cyclomatic":1,"effective_crap":4.5,"line":1,"coverage":50}]}`),
+				baseline:      loadBaselineForTest(t, `{"$schema":"https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json","version":"1.1.0","entries":[{"file":"internal/foo.go","function":"Foo","package":"foo","crap":4.5,"cyclomatic":1,"effective_crap":4.5,"line":1,"coverage":50}]}`),
 			},
 			entries: entries,
 			checks: checkoutput(
@@ -330,7 +330,7 @@ func Test_output(t *testing.T) {
 				threshold: 4,
 				writer:    &mockWriter{},
 				path:      "/base",
-				baseline:  loadBaselineForTest(t, `{"$schema":"https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json","version":"1.1.0","entries":[{"file":"internal/foo.go","function":"Foo","package":"foo","crap":4.0,"cyclomatic":1,"effective_crap":4.0,"line":1,"coverage":50}]}`),
+				baseline:  loadBaselineForTest(t, `{"$schema":"https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json","version":"1.1.0","entries":[{"file":"internal/foo.go","function":"Foo","package":"foo","crap":4.0,"cyclomatic":1,"effective_crap":4.0,"line":1,"coverage":50}]}`),
 			},
 			entries: entries,
 			checks: checkoutput(
@@ -345,7 +345,7 @@ func Test_output(t *testing.T) {
 				threshold: 100,
 				writer:    &mockWriter{},
 				path:      "/base",
-				baseline:  loadBaselineForTest(t, `{"$schema":"https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json","version":"1.1.0","entries":[{"file":"internal/bar.go","function":"Bar","package":"bar","crap":1.0,"cyclomatic":3,"effective_crap":1.0,"line":1,"coverage":100}]}`),
+				baseline:  loadBaselineForTest(t, `{"$schema":"https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json","version":"1.1.0","entries":[{"file":"internal/bar.go","function":"Bar","package":"bar","crap":1.0,"cyclomatic":3,"effective_crap":1.0,"line":1,"coverage":100}]}`),
 			},
 			entries: entries,
 			checks: checkoutput(
@@ -359,7 +359,7 @@ func Test_output(t *testing.T) {
 				threshold: 100,
 				writer:    &mockWriter{},
 				path:      "/base",
-				baseline:  loadBaselineForTest(t, `{"$schema":"https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json","version":"1.1.0","entries":[]}`),
+				baseline:  loadBaselineForTest(t, `{"$schema":"https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json","version":"1.1.0","entries":[]}`),
 			},
 			entries: entries,
 			checks: checkoutput(
@@ -561,7 +561,7 @@ func makeBaseline(t *testing.T, path string) string {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
 	_, err = f.WriteString(`{
-  "$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
+  "$schema": "https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json",
   "version": "1.1.0",
   "entries": [
     {
@@ -760,7 +760,7 @@ func Test_runScan(t *testing.T) {
 				resetFlags()
 				flagFailRegression = true
 				flagBaseline = makeBaselineForTest(t, `{
-   "$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
+   "$schema": "https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json",
    "version": "1.1.0",
    "entries": [
      {"file":"../internal/testdata/simple.go","function":"withIf","package":"testdata","crap":0.1,"cyclomatic":2,"effective_crap":0.1,"line":7,"coverage":0.0},
@@ -780,7 +780,7 @@ func Test_runScan(t *testing.T) {
 				flagFailRegression = true
 				flagFailRegressionIgnoreCovered = true
 				flagBaseline = makeBaselineForTest(t, `{
-   "$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
+   "$schema": "https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json",
    "version": "1.1.0",
    "entries": [
      {"file":"../internal/testdata/simple.go","function":"simple","package":"testdata","crap":0.1,"cyclomatic":1,"effective_crap":0.1,"line":3,"coverage":100.0}

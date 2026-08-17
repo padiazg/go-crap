@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Go 1.22 or later
+- Go 1.26 or later (matching the `go` directive in `go.mod`)
 
 ## Install via curl (Recommended)
 
@@ -15,7 +15,7 @@ curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh
 Or install a specific version:
 
 ```shell
-curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh -s -- -v v0.4.1
+curl -fsSL https://padiazg.github.io/go-crap/install.sh | sh -s -- -v v0.5.1
 ```
 
 The binary is placed in `$GOPATH/bin` (or `$GOBIN` if set). Make sure that directory is in your `PATH`.

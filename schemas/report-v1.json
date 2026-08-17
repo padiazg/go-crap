@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/padiazg/go-crap/schemas/report-v1.json",
+  "title": "go-crap report",
+  "description": "Schema for go-crap JSON reports (schema version 1.1.0).",
+  "type": "object",
+  "required": ["$schema", "version", "entries"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "URL of this schema."
+    },
+    "version": {
+      "type": "string",
+      "enum": ["1.1.0"],
+      "description": "Report schema version."
+    },
+    "summary": {
+      "type": "object",
+      "description": "Aggregate statistics across the whole report.",
+      "required": ["average", "combined", "exceeded", "total_funcs"],
+      "properties": {
+        "average": { "type": "number", "description": "Average CRAP score across all functions." },
+        "combined": { "type": "number", "description": "Sum of all CRAP scores." },
+        "exceeded": { "type": "integer", "description": "Number of functions whose CRAP exceeds the threshold." },
+        "total_funcs": { "type": "integer", "description": "Total number of functions analyzed." },
+        "baseline_average": { "type": "number", "description": "Average CRAP from the baseline report." },
+        "baseline_combined": { "type": "number", "description": "Combined CRAP from the baseline report." },
+        "delta_average": { "type": "number", "description": "Change in average CRAP vs baseline." },
+        "delta_combined": { "type": "number", "description": "Change in combined CRAP vs baseline." }
+      }
+    },
+    "entries": {
+      "type": "array",
+      "description": "One entry per analyzed function, sorted by CRAP score.",
+      "items": {
+        "type": "object",
+        "required": ["file", "function", "package", "line", "cyclomatic", "crap", "effective_crap", "mutation_score", "coverage_untrusted"],
+        "properties": {
+          "file": { "type": "string", "description": "Source file path." },
+          "function": { "type": "string", "description": "Function name (receiver-qualified for methods)." },
+          "package": { "type": "string", "description": "Go package the function belongs to." },
+          "receiver": { "type": "string", "description": "Receiver type for struct methods, if any." },
+          "line": { "type": "integer", "description": "Line number where the function is declared." },
+          "cyclomatic": { "type": "integer", "description": "Cyclomatic complexity (CC)." },
+          "crap": { "type": "number", "description": "CRAP score." },
+          "effective_crap": { "type": "number", "description": "CRAP recalculated at 0% coverage when coverage is untrusted." },
+          "mutation_score": { "type": "number", "description": "killed/(killed+lived) ratio; 0 when no mutation report." },
+          "coverage_untrusted": { "type": "boolean", "description": "True when lived mutants indicate unreliable coverage." },
+          "coverage": { "type": "number", "description": "Test coverage percentage. Omitted when coverage is unavailable." },
+          "coverage_warning": { "type": "string", "description": "Error/warning when coverage data is unavailable." },
+          "baseline_crap": { "type": "number", "description": "CRAP value from the baseline report. Omitted when no baseline." },
+          "delta": { "type": "number", "description": "CRAP change vs baseline (positive = regression)." },
+          "mutation_details": {
+            "type": "array",
+            "description": "Survived mutant details; present only with --mutation-report --detailed.",
+            "items": {
+              "type": "object",
+              "required": ["file", "status", "type", "line"],
+              "properties": {
+                "file": { "type": "string" },
+                "mutator_name": { "type": "string" },
+                "original_text": { "type": "string" },
+                "replacement_text": { "type": "string" },
+                "status": { "type": "string" },
+                "type": { "type": "string" },
+                "line": { "type": "integer" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
