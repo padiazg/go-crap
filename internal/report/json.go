@@ -71,7 +71,7 @@ func (f *JSONFormatter) Format(entries *scan.Entries, opts FormatOptions) error 
 	}
 
 	report := Report{
-		Schema:  "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
+		Schema:  "https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json",
 		Version: "1.1.0",
 		Entries: make([]JSONEntry, 0, len(entries.List)),
 	}

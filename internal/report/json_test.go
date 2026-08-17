@@ -250,7 +250,7 @@ func TestJSONFormatter_Format(t *testing.T) {
 			name:    "success_empty_entries",
 			entries: &scan.Entries{},
 			reportCheck: checkJSONFormatterFormatReport(
-				checkReportSchema("https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json"),
+				checkReportSchema("https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json"),
 				checkReportVersion("1.1.0"),
 				checkReportEntriesLen(0),
 			),
@@ -270,7 +270,7 @@ func TestJSONFormatter_Format(t *testing.T) {
 				},
 			}},
 			reportCheck: checkJSONFormatterFormatReport(
-				checkReportSchema("https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json"),
+				checkReportSchema("https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json"),
 				checkReportVersion("1.1.0"),
 				checkReportEntriesLen(1),
 				checkReportEntries(0,

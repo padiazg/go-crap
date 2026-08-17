@@ -17,7 +17,7 @@ func TestLoadBaseline_valid_json(t *testing.T) {
 	jsonPath := filepath.Join(dir, "baseline.json")
 
 	jsonData := `{
-		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
+		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json",
 		"version": "1.0.0",
 		"entries": [
 			{
@@ -84,7 +84,7 @@ func TestLoadBaseline_empty_entries(t *testing.T) {
 	jsonPath := filepath.Join(dir, "empty.json")
 
 	jsonData := `{
-		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
+		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json",
 		"version": "1.0.0",
 		"entries": []
 	}`
@@ -106,7 +106,7 @@ func TestLoadBaseline_null_coverage(t *testing.T) {
 	jsonPath := filepath.Join(dir, "null_cov.json")
 
 	jsonData := `{
-		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
+		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json",
 		"version": "1.0.0",
 		"entries": [
 			{
@@ -139,7 +139,7 @@ func TestBaselineLookup_not_found(t *testing.T) {
 	jsonPath := filepath.Join(dir, "baseline.json")
 
 	jsonData := `{
-		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
+		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json",
 		"version": "1.0.0",
 		"entries": [
 			{
@@ -173,7 +173,7 @@ func TestBaseline_compute_summary(t *testing.T) {
 	jsonPath := filepath.Join(dir, "baseline.json")
 
 	jsonData := `{
-		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
+		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json",
 		"version": "1.0.0",
 		"entries": [
 			{
@@ -305,7 +305,7 @@ func TestComputeSummaryWithBaseline_with_baseline(t *testing.T) {
 	jsonPath := filepath.Join(dir, "baseline.json")
 
 	jsonData := `{
-		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
+		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json",
 		"version": "1.0.0",
 		"entries": [
 			{
@@ -361,7 +361,7 @@ func TestComputeSummaryWithBaseline_regression(t *testing.T) {
 	jsonPath := filepath.Join(dir, "baseline.json")
 
 	jsonData := `{
-		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
+		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json",
 		"version": "1.0.0",
 		"entries": [
 			{
@@ -401,7 +401,7 @@ func TestComputeSummaryWithBaseline_improvement(t *testing.T) {
 	jsonPath := filepath.Join(dir, "baseline.json")
 
 	jsonData := `{
-		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
+		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json",
 		"version": "1.0.0",
 		"entries": [
 			{
@@ -441,7 +441,7 @@ func TestBaselineEntries(t *testing.T) {
 	jsonPath := filepath.Join(dir, "baseline.json")
 
 	jsonData := `{
-		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
+		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json",
 		"version": "1.0.0",
 		"entries": [
 			{
@@ -527,7 +527,7 @@ func TestLoadBaseline_json_envelope_shape(t *testing.T) {
 	jsonPath := filepath.Join(dir, "baseline.json")
 
 	jsonData := `{
-		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
+		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json",
 		"version": "1.0.0",
 		"entries": [
 			{
@@ -576,7 +576,7 @@ func TestComputeSummaryWithBaseline_empty_entries_with_baseline(t *testing.T) {
 	jsonPath := filepath.Join(dir, "baseline.json")
 
 	jsonData := `{
-		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
+		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json",
 		"version": "1.0.0",
 		"entries": [
 			{
@@ -615,7 +615,7 @@ func TestBaseline_entry_key_format(t *testing.T) {
 	jsonPath := filepath.Join(dir, "baseline.json")
 
 	jsonData := `{
-		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
+		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json",
 		"version": "1.0.0",
 		"entries": [
 			{
@@ -649,7 +649,7 @@ func TestBaseline_multiple_functions_same_file(t *testing.T) {
 	jsonPath := filepath.Join(dir, "baseline.json")
 
 	jsonData := `{
-		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
+		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json",
 		"version": "1.0.0",
 		"entries": [
 			{
@@ -705,7 +705,7 @@ func TestBaseline_json_with_receiver(t *testing.T) {
 	jsonPath := filepath.Join(dir, "baseline.json")
 
 	jsonData := `{
-		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
+		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json",
 		"version": "1.0.0",
 		"entries": [
 			{
@@ -738,7 +738,7 @@ func TestBaseline_json_with_mutation_details(t *testing.T) {
 	jsonPath := filepath.Join(dir, "baseline.json")
 
 	jsonData := `{
-		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
+		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json",
 		"version": "1.0.0",
 		"entries": [
 			{
@@ -764,7 +764,7 @@ func TestBaseline_json_with_mutation_details(t *testing.T) {
 
 func TestBaseline_roundtrip(t *testing.T) {
 	originalJSON := `{
-		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
+		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json",
 		"version": "1.0.0",
 		"entries": [
 			{
@@ -803,7 +803,7 @@ func TestBaseline_roundtrip(t *testing.T) {
 
 func BenchmarkLoadBaseline(b *testing.B) {
 	jsonData := `{
-		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
+		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json",
 		"version": "1.0.0",
 		"entries": [
 			{
@@ -844,7 +844,7 @@ func TestLoadBaseline_json_roundtrip(t *testing.T) {
 	jsonPath := filepath.Join(dir, "baseline.json")
 
 	jsonData := `{
-		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
+		"$schema": "https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json",
 		"version": "1.0.0",
 		"entries": [
 			{

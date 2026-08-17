@@ -79,7 +79,7 @@ The JSON output follows this schema:
 
 ```json
 {
-  "$schema": "https://raw.githubusercontent.com/padiazg/go-crap/main/schemas/report-v1.json",
+  "$schema": "https://raw.githubusercontent.com/padiazg/go-crap/master/schemas/report-v1.json",
   "version": "1.1.0",
   "entries": [
     {

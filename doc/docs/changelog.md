@@ -5,7 +5,7 @@ All notable changes to go-crap will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## v0.5.1 - UNRELEASED
+## v0.5.1 - 2026-08-17
 
 ### Added
 
@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - No-arg `scan` default changed from current directory (`.`) to whole module (`./...`); accepts multiple positional patterns instead of a single `path` argument
 - When `--coverage-profile` is set, the analyzed module is derived from the profile's location (nearest `go.mod` ancestor) instead of the current working directory
 - Progress phase "Running coverage tests" is replaced by "Analyzing coverage profile" when `--coverage-profile` is set (no `go test` re-run)
+
+### Fixed
+
+- `--format json` output is no longer corrupted by `go test` stdout leaking into the report stream — `go test` output is now captured internally instead of teed to the process stdout, keeping `json`/`sarif`/CI output clean
+- JSON report `$schema` URL now points to an existing file (`master/schemas/report-v1.json`, committed to the repo) instead of a non-existent `main` branch path that 404'd
 
 ## v0.5.0 - 2026-07-28
 
@@ -119,9 +124,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New "Unreliable Coverage" section in `pr-comment` output listing affected functions with mutation scores
 - New `--detailed` flag — includes mutation failure details (original/replacement code, line, type) in report output
 - New `MutationDetail` struct on `CRAPEntry` — stores survived mutant details when mutation report is provided
-- JSON output includes `mutation_details` array per entry when `--detailed` is set, with `type`, `mutator_name`, `file`, `line`, `status`, `original_text`, and `replacement_text` fields
-- SARIF appends survived mutation details (type, line, code diff) to warning messages when `--detailed`
-- PR Comment adds `Survived Mutants` column with code snippets when `--detailed`
+- JSON output now includes `mutation_details` array per entry when `--detailed` is set, with `type`, `mutator_name`, `file`, `line`, `status`, `original_text`, and `replacement_text` fields
+- SARIF output appends survived mutation details (type, line, code diff) to warning messages when `--detailed`
+- PR comment output adds `Survived Mutants` column with code snippets when `--detailed`
 - New `OriginalCode` and `ReplacementCode` fields on mutation `Mutant` struct, parsed from Gremlins JSON report
 
 ### Changed
