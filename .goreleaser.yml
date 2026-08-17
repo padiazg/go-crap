@@ -96,70 +96,40 @@ release:
     ---
 
 # Docker images (multi-arch via buildx)
-dockers:
-  - image_templates:
-      - "docker.io/padiazg/go-crap:{{ .Tag }}-amd64"
-      - "ghcr.io/padiazg/go-crap:{{ .Tag }}-amd64"
+dockers_v2:
+  - images:
+      - "docker.io/padiazg/go-crap"
+      - "ghcr.io/padiazg/go-crap"
+    tags:
+      - "{{ .Tag }}"
+      - latest
+    platforms:
+      - linux/amd64
+      - linux/arm64
     dockerfile: Dockerfile
-    use: buildx
-    build_flag_templates:
-      - --platform=linux/amd64
-      - --label=org.opencontainers.image.title=go-crap
-      - --label=org.opencontainers.image.description=CRAP score calculator for Go projects
-      - --label=org.opencontainers.image.url=https://padiazg.github.io/go-crap
-      - --label=org.opencontainers.image.source=https://github.com/padiazg/go-crap
-      - --label=org.opencontainers.image.version={{ .Tag }}
-      - --label=org.opencontainers.image.created={{ .Date }}
-    goarch: amd64
-  - image_templates:
-      - "docker.io/padiazg/go-crap:{{ .Tag }}-arm64"
-      - "ghcr.io/padiazg/go-crap:{{ .Tag }}-arm64"
-    dockerfile: Dockerfile
-    use: buildx
-    build_flag_templates:
-      - --platform=linux/arm64
-      - --label=org.opencontainers.image.title=go-crap
-      - --label=org.opencontainers.image.description=CRAP score calculator for Go projects
-      - --label=org.opencontainers.image.url=https://padiazg.github.io/go-crap
-      - --label=org.opencontainers.image.source=https://github.com/padiazg/go-crap
-      - --label=org.opencontainers.image.version={{ .Tag }}
-      - --label=org.opencontainers.image.created={{ .Date }}
-    goarch: arm64
+    labels:
+      "org.opencontainers.image.title": go-crap
+      "org.opencontainers.image.description": CRAP score calculator for Go projects
+      "org.opencontainers.image.url": https://padiazg.github.io/go-crap
+      "org.opencontainers.image.source": https://github.com/padiazg/go-crap
+      "org.opencontainers.image.version": "{{ .Tag }}"
+      "org.opencontainers.image.created": "{{ .Date }}"
 
-docker_manifests:
-  - name_template: "docker.io/padiazg/go-crap:{{ .Tag }}"
-    image_templates:
-      - "docker.io/padiazg/go-crap:{{ .Tag }}-amd64"
-      - "docker.io/padiazg/go-crap:{{ .Tag }}-arm64"
-  - name_template: "ghcr.io/padiazg/go-crap:{{ .Tag }}"
-    image_templates:
-      - "ghcr.io/padiazg/go-crap:{{ .Tag }}-amd64"
-      - "ghcr.io/padiazg/go-crap:{{ .Tag }}-arm64"
-  - name_template: "docker.io/padiazg/go-crap:latest"
-    image_templates:
-      - "docker.io/padiazg/go-crap:{{ .Tag }}-amd64"
-      - "docker.io/padiazg/go-crap:{{ .Tag }}-arm64"
-    skip_push: auto
-  - name_template: "ghcr.io/padiazg/go-crap:latest"
-    image_templates:
-      - "ghcr.io/padiazg/go-crap:{{ .Tag }}-amd64"
-      - "ghcr.io/padiazg/go-crap:{{ .Tag }}-arm64"
-    skip_push: auto
-
-# Homebrew configuration (GoReleaser v2 format)
+# Homebrew Cask configuration
 # To publish to Homebrew, create a tap repository at github.com/padiazg/homebrew-go-crap
-brews:
+homebrew_casks:
   - name: go-crap
     repository:
       owner: padiazg
       name: homebrew-go-crap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-      
     homepage: https://github.com/padiazg/go-crap
     description: go-crap a CLI tool that calculates the CRAP score for Go projects
     license: MIT
     skip_upload: auto
+    binaries:
+      - go-crap
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com
-    commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
+    commit_msg_template: "Brew cask update for {{ .ProjectName }} version {{ .Tag }}"
