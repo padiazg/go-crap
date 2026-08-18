@@ -98,7 +98,7 @@ release:
 # Docker images (multi-arch via buildx)
 dockers_v2:
   - images:
-      # - "docker.io/padiazg/go-crap"
+      - "docker.io/padiazg/go-crap"
       - "ghcr.io/padiazg/go-crap"
     tags:
       - "{{ .Tag }}"
