@@ -4,9 +4,9 @@ Integrate go-crap into your continuous integration pipeline to enforce CRAP scor
 
 ## Providers
 
-- [GitHub Actions](github-actions.md) -- threshold enforcement, PR annotations, matrix builds, SARIF code scanning, fork-safe PR comments with mutation testing
+- [GitHub Actions](github-actions.md) -- [go-crap action](https://github.com/marketplace/actions/go-crap) (no install step), threshold enforcement, PR annotations, matrix builds, SARIF code scanning, fork-safe PR comments with mutation testing
 - [Baseline Comparison](baseline-comparison.md) -- load previous reports, track deltas, enforce regression thresholds in CI
-- [Gitea](gitea.md) -- Gitea Actions with annotation support
+- [Gitea](gitea.md) -- go-crap action or install script, annotation support
 - [GitLab CI](gitlab.md) -- quality stage with JSON artifact
 - [Azure DevOps](azure-devops.md) -- pipeline with artifact upload
 - [CircleCI](circleci.md) -- quality workflow

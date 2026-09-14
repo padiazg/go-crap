@@ -24,6 +24,13 @@ Patterns use the same syntax as `go list` / `go build`:
 | `./internal/...` | All packages under `internal` |
 | `./internal/foo ./internal/bar` | Multiple specific packages |
 
+Relative patterns **must** start with `./`. A bare name without `./` (e.g. `internal/score`) is interpreted as an **import path**, per Go's package-pattern rules — the same rules `go build` and `go test` use. It will fail unless it is a valid import path:
+
+```shell
+go-crap scan internal/score    # fails: interpreted as import path "internal/score"
+go-crap scan ./internal/score  # correct: relative directory
+```
+
 Examples:
 
 ```shell
@@ -32,6 +39,9 @@ go-crap scan
 
 # Scan a specific package
 go-crap scan ./internal/score
+
+# Wrong: bare name is an import path, not a directory
+go-crap scan internal/score   # fails — use ./internal/score
 
 # Scan multiple packages
 go-crap scan ./internal/score ./internal/coverage

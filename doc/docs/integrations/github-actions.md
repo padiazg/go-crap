@@ -1,5 +1,24 @@
 # GitHub Actions
 
+## Use the go-crap action (recommended)
+
+The [go-crap action](https://github.com/padiazg/go-crap-action) ([GitHub Marketplace](https://github.com/marketplace/actions/go-crap)) runs the published Docker image for you — no Go toolchain, no install step:
+
+```yaml
+jobs:
+  crap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v8
+      - uses: padiazg/go-crap-action@v0.5.1
+        with:
+          args: scan --fail-above --threshold 30
+```
+
+- Pin the action version for predictable CI — it tracks the go-crap release it wraps (`@vX.Y.Z` runs image `ghcr.io/padiazg/go-crap:vX.Y.Z`).
+- The workspace is mounted at `/code`, so `--output` and `--baseline` paths resolve inside your repository.
+- Any `go-crap scan` flag works via the `args` input (e.g. `scan --format github --threshold 30`, `scan --top 10`).
+
 ## Badge
 
 Show the latest master status in your `README.md`:
